@@ -1,18 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import { Save, Vote, Monitor, Smartphone, Coins } from "lucide-react";
+import { Save, Vote, Monitor, Smartphone, Coins, KeyRound, Mail } from "lucide-react";
 import { Button, Field, Input, Panel, useResource } from "@/components/Kit";
 import { KeyValues } from "@/components/Dash";
 import { useAdmin, useToast } from "@/components/Providers";
-import { cmsApi, safe, API_BASE } from "@/lib/api";
+import { cmsApi, authApi, adminToken, safe, API_BASE } from "@/lib/api";
 
 export default function SettingsPage() {
   const { push } = useToast();
-  const { admin } = useAdmin();
+  const { admin, refresh } = useAdmin();
   const { data, loading, reload } = useResource(() => safe(cmsApi.getVotingSettings(), {} as any), []);
   const [draft, setDraft] = useState<Record<string, any>>({});
   const [busy, setBusy] = useState(false);
+
+  // Credentials — change password
+  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
+  const [pwBusy, setPwBusy] = useState(false);
+  const changePassword = async () => {
+    if (pw.next.length < 8) return push("error", "New password must be at least 8 characters.");
+    if (pw.next !== pw.confirm) return push("error", "New password and confirmation do not match.");
+    setPwBusy(true);
+    try {
+      await authApi.changePassword(pw.current, pw.next);
+      push("success", "Password changed.");
+      setPw({ current: "", next: "", confirm: "" });
+    } catch (e: any) { push("error", e?.message || "Could not change password."); }
+    finally { setPwBusy(false); }
+  };
+
+  // Credentials — change email
+  const [em, setEm] = useState({ current: "", next: "" });
+  const [emBusy, setEmBusy] = useState(false);
+  const changeEmail = async () => {
+    if (!em.next.trim()) return push("error", "Enter a new email.");
+    setEmBusy(true);
+    try {
+      const res = await authApi.changeEmail(em.current, em.next.trim());
+      if (res?.access_token) adminToken.set(res.access_token); // email is the token subject
+      await refresh();
+      push("success", "Login email updated.");
+      setEm({ current: "", next: "" });
+    } catch (e: any) { push("error", e?.message || "Could not change email."); }
+    finally { setEmBusy(false); }
+  };
 
   const v = (k: string, fb = 0) => draft[k] ?? (data as any)?.[k] ?? fb;
 
@@ -86,6 +117,73 @@ export default function SettingsPage() {
           Every change you make here is written to the audit log with your email, the action and the
           affected resource.
         </p>
+      </Panel>
+
+      <Panel
+        title="Admin credentials"
+        subtitle="Change your login password and email. Your current password is required for both."
+        className="lg:col-span-2"
+      >
+        <div className="grid gap-8 md:grid-cols-2">
+          {/* Change password */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); changePassword(); }}
+            className="flex flex-col gap-4"
+          >
+            <p className="flex items-center gap-2 text-[13px] font-semibold"><KeyRound className="size-4 text-[var(--brand)]" aria-hidden /> Change password</p>
+            <Field label="Current password">
+              {({ id, describedBy }) => (
+                <Input id={id} aria-describedby={describedBy} type="password" autoComplete="current-password"
+                  value={pw.current} onChange={(e) => setPw((s) => ({ ...s, current: e.target.value }))} />
+              )}
+            </Field>
+            <Field label="New password" hint="At least 8 characters.">
+              {({ id, describedBy }) => (
+                <Input id={id} aria-describedby={describedBy} type="password" autoComplete="new-password"
+                  value={pw.next} onChange={(e) => setPw((s) => ({ ...s, next: e.target.value }))} />
+              )}
+            </Field>
+            <Field label="Confirm new password">
+              {({ id, describedBy }) => (
+                <Input id={id} aria-describedby={describedBy} type="password" autoComplete="new-password"
+                  value={pw.confirm} onChange={(e) => setPw((s) => ({ ...s, confirm: e.target.value }))} />
+              )}
+            </Field>
+            <Button type="submit" size="sm" loading={pwBusy}
+              disabled={!pw.current || !pw.next || !pw.confirm}>
+              <KeyRound className="size-3.5" aria-hidden /> Update password
+            </Button>
+          </form>
+
+          {/* Change email */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); changeEmail(); }}
+            className="flex flex-col gap-4 md:border-l md:border-[var(--border)] md:pl-8"
+          >
+            <p className="flex items-center gap-2 text-[13px] font-semibold"><Mail className="size-4 text-[var(--brand)]" aria-hidden /> Change login email</p>
+            <Field label="Current email">
+              {({ id }) => (
+                <Input id={id} type="email" value={admin?.email || ""} readOnly disabled />
+              )}
+            </Field>
+            <Field label="New email">
+              {({ id, describedBy }) => (
+                <Input id={id} aria-describedby={describedBy} type="email" autoComplete="email" placeholder="you@yourdomain.com"
+                  value={em.next} onChange={(e) => setEm((s) => ({ ...s, next: e.target.value }))} />
+              )}
+            </Field>
+            <Field label="Current password" hint="Required to confirm this change.">
+              {({ id, describedBy }) => (
+                <Input id={id} aria-describedby={describedBy} type="password" autoComplete="current-password"
+                  value={em.current} onChange={(e) => setEm((s) => ({ ...s, current: e.target.value }))} />
+              )}
+            </Field>
+            <Button type="submit" size="sm" loading={emBusy}
+              disabled={!em.current || !em.next}>
+              <Mail className="size-3.5" aria-hidden /> Update email
+            </Button>
+          </form>
+        </div>
       </Panel>
     </div>
   );

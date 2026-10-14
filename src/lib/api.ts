@@ -107,6 +107,14 @@ export const authApi = {
   me: () => api<any>("/api/admin/me"),
   logout: () => api<any>("/api/admin/logout", { method: "POST" }),
   bootstrap: () => api<any>("/api/admin/bootstrap", { method: "POST", auth: false }),
+  changePassword: (current_password: string, new_password: string) =>
+    api<{ message: string }>("/api/admin/change-password", {
+      method: "POST", body: { current_password, new_password },
+    }),
+  changeEmail: (current_password: string, new_email: string) =>
+    api<{ message: string; access_token: string; token_type?: string; email: string }>("/api/admin/change-email", {
+      method: "POST", body: { current_password, new_email },
+    }),
 };
 
 /* ═══════════════ CMS (website control room) ═══════════════ */
