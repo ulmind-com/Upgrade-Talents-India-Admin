@@ -194,7 +194,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="page-shell min-h-dvh lg:p-4">
-      <div className="app-frame flex min-h-dvh bg-[var(--bg)] lg:min-h-[calc(100dvh-2rem)]">
+      <div className="app-frame flex h-dvh overflow-hidden bg-[var(--bg)] lg:h-[calc(100dvh-2rem)]">
       {/* Desktop sidebar */}
       <aside className="hidden w-[252px] shrink-0 border-r border-[var(--border)] bg-[var(--surface)] lg:block">
         {sidebar}
@@ -224,7 +224,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       {/* Main */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="sticky top-0 z-[80] border-b border-[var(--border)] bg-[var(--bg)]/85 backdrop-blur-xl">
           <div className="flex items-center gap-3 px-4 py-3 md:px-7">
             <button
@@ -313,7 +313,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main id="main" className="flex-1 px-4 py-6 md:px-7 md:py-8">
+        <main id="main" className="flex-1 overflow-y-auto px-4 py-6 md:px-7 md:py-8">
           {current && (
             <div className="mb-6">
               <h1 className="text-[clamp(1.6rem,3.2vw,2.2rem)] font-bold leading-tight">{current.label}</h1>
