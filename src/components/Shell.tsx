@@ -193,8 +193,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="page-shell min-h-dvh lg:p-4">
-      <div className="app-frame flex h-dvh overflow-hidden bg-[var(--bg)] lg:h-[calc(100dvh-2rem)]">
+    <div className="page-shell h-dvh overflow-hidden lg:p-4">
+      <div className="app-frame flex h-full overflow-hidden bg-[var(--bg)]">
       {/* Desktop sidebar */}
       <aside className="hidden w-[252px] shrink-0 border-r border-[var(--border)] bg-[var(--surface)] lg:block">
         {sidebar}
