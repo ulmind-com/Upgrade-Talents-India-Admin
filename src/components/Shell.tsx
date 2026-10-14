@@ -123,8 +123,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     : [];
 
   const sidebar = (
-    <div className="flex h-full flex-col gap-6 overflow-y-auto px-4 py-5 hide-scrollbar">
-      <Link href="/" className="flex items-center gap-2.5 px-2">
+    <div className="flex h-full flex-col gap-6 px-4 py-5">
+      <Link href="/" className="flex shrink-0 items-center gap-2.5 px-2">
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--brand)]">
           <ShieldCheck className="size-5 text-white" aria-hidden />
         </span>
@@ -134,7 +134,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </span>
       </Link>
 
-      <nav className="flex flex-1 flex-col gap-5">
+      <nav className="-mx-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 hide-scrollbar">
         {NAV.map((group) => (
           <div key={group.group}>
             <p className="px-3 pb-2 text-[10.5px] font-bold uppercase tracking-[0.12em] text-[var(--fg-subtle)]">{group.group}</p>
@@ -174,7 +174,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      <div className="brand-surface relative overflow-hidden rounded-2xl p-4">
+      <div className="brand-surface relative shrink-0 overflow-hidden rounded-2xl p-4">
         <span className="grid size-8 place-items-center rounded-full bg-white/15">
           <Sparkles className="size-4 text-white" aria-hidden />
         </span>
