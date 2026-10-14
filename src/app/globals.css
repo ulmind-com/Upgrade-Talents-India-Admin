@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+/* ════════════════════════════════════════════════════════
+   UPGRADE TALENTS — ADMIN CONTROL ROOM
+   Light, calm, data-dense. Dark mode supported.
+   ════════════════════════════════════════════════════════ */
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root,
+:root[data-theme="light"] {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-2: #f8f9fb;
+  --surface-3: #eef0f4;
+  --border: #e6e8ee;
+  --border-strong: #d4d8e2;
+
+  --fg: #121623;
+  --fg-muted: #5b6477;
+  --fg-subtle: #8b93a7;
+
+  --brand: #0d6b43;
+  --brand-hover: #0a5836;
+  --brand-soft: #e6f4ec;
+  --on-brand: #ffffff;
+
+  --brand-bright: #1f9d61;
+  --accent: #1f9d61;
+  --success: #128a52;
+  --success-soft: #e4f6ec;
+  --warning: #9a6200;
+  --warning-soft: #fdf2dd;
+  --danger: #c7281f;
+  --danger-soft: #fdeceb;
+  --info: #0b6fa4;
+  --info-soft: #e6f2fa;
+
+  --ring: #0d6b43;
+  --scrim: rgba(18, 22, 35, 0.45);
+  --page: #eceff1;
+  --hatch: rgba(13, 107, 67, 0.12);
+  --shadow-card: 0 1px 2px rgba(18, 22, 35, 0.04), 0 8px 24px -16px rgba(18, 22, 35, 0.2);
+  --shadow-pop: 0 18px 50px -20px rgba(18, 22, 35, 0.35);
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b0e17;
+  --surface: #141926;
+  --surface-2: #1a2030;
+  --surface-3: #212838;
+  --border: #252c3d;
+  --border-strong: #353e55;
+
+  --fg: #f2f4f9;
+  --fg-muted: #9aa3bb;
+  --fg-subtle: #6f7893;
+
+  --brand: #2fbd78;
+  --brand-hover: #43cf8a;
+  --brand-soft: #0f2a1e;
+  --on-brand: #04170e;
+
+  --brand-bright: #43cf8a;
+  --accent: #2fbd78;
+  --success: #3ddc8a;
+  --success-soft: #0f2a1e;
+  --warning: #f5b544;
+  --warning-soft: #2e2211;
+  --danger: #ff6b61;
+  --danger-soft: #2e1512;
+  --info: #5ab7e8;
+  --info-soft: #11242e;
+
+  --ring: #2fbd78;
+  --scrim: rgba(3, 5, 12, 0.7);
+  --page: #070a12;
+  --hatch: rgba(47, 189, 120, 0.16);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-brand: var(--brand);
+  --color-brand-bright: var(--brand-bright);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+}
+
+* { border-color: var(--border); }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { letter-spacing: -0.015em; font-weight: 700; text-wrap: balance; }
+p { text-wrap: pretty; overflow-wrap: anywhere; }
+
+:where(a, button, [role="button"], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; border: 2px solid var(--bg); }
+
+/* Declared in the components layer so Tailwind utilities (bg-*, border-*)
+   can still override these defaults on individual cards. */
+@layer components {
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-card);
+  }
+}
+
+@keyframes shimmer { to { background-position: 200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: 8px;
+}
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { scrollbar-width: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ── APP FRAME (inset rounded shell on a soft page) ───── */
+
+.page-shell { background: var(--page); }
+
+@media (min-width: 1024px) {
+  .app-frame {
+    border-radius: 26px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(18, 22, 35, 0.05), 0 28px 60px -34px rgba(18, 22, 35, 0.4);
+  }
+}
+
+/* Diagonal hatch used for inactive chart bars and progress remainder */
+.hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--hatch) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+/* Deep-green feature surface (stat card, timer, promo) */
+.brand-surface {
+  background:
+    radial-gradient(120% 140% at 85% 10%, rgba(255, 255, 255, 0.12), transparent 55%),
+    linear-gradient(150deg, var(--brand) 0%, var(--brand-hover) 100%);
+  color: var(--on-brand);
+}
