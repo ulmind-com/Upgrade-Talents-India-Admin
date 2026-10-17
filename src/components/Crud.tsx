@@ -181,6 +181,8 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
 
   const allColumns = actionCol ? [...columns, actionCol] : columns;
 
+  const closeModal = useCallback(() => setOpen(false), []);
+
   return (
     <>
       <Panel
@@ -215,13 +217,13 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={closeModal}
         title={editing ? `Edit ${singular.toLowerCase()}` : `New ${singular.toLowerCase()}`}
         subtitle={editing ? "Changes go live as soon as you save." : undefined}
         wide={fields.length > 5}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="secondary" onClick={closeModal}>Cancel</Button>
             <Button onClick={() => (document.getElementById("crud-form") as HTMLFormElement)?.requestSubmit()} loading={busy}>
               {editing ? "Save changes" : `Create ${singular.toLowerCase()}`}
             </Button>

@@ -297,15 +297,49 @@ export function Modal({
   children: ReactNode; footer?: ReactNode; wide?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCloseRef.current();
+    };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
-    ref.current?.querySelector<HTMLElement>("input,select,textarea,button")?.focus();
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [open, onClose]);
+
+    // Only set initial focus ONCE when the modal transitions from closed to open
+    if (!wasOpenRef.current) {
+      wasOpenRef.current = true;
+      requestAnimationFrame(() => {
+        // Focus first interactive form element inside the modal body, NOT the header close button
+        const bodyEl = ref.current?.querySelector(".overflow-y-auto");
+        const firstField = bodyEl?.querySelector<HTMLElement>(
+          "input:not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled])"
+        );
+        if (firstField) {
+          firstField.focus();
+        } else {
+          // If no form input in body, fallback to footer button or dialog container
+          const footerBtn = ref.current?.querySelector<HTMLElement>("footer button:not([disabled])");
+          if (footerBtn) {
+            footerBtn.focus();
+          }
+        }
+      });
+    }
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
 
   return (
     <AnimatePresence>
