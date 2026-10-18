@@ -123,8 +123,11 @@ export default function VipPage() {
             columns={[
               { key: "booking_reference", header: "Reference", render: (r: any) => <span className="font-mono text-[12px]">{r.booking_reference || rowId(r)}</span> },
               { key: "user_email", header: "User", render: (r: any) => r.user_email || "—" },
+              { key: "pass_name", header: "Pass", render: (r: any) => r.pass_name || r.category || "—" },
               { key: "quantity", header: "Qty", render: (r: any) => r.quantity ?? 1 },
-              { key: "status", header: "Status", render: (r: any) => <StatusBadge value={r.status || r.booking_status} /> },
+              { key: "total_amount", header: "Amount", render: (r: any) => r.total_amount != null ? `₹${Number(r.total_amount).toLocaleString("en-IN")}` : "—" },
+              { key: "status", header: "Booking", render: (r: any) => <StatusBadge value={r.status || r.booking_status} /> },
+              { key: "payment_status", header: "Payment", render: (r: any) => <StatusBadge value={r.payment_status} /> },
               { key: "created_at", header: "Booked", render: (r: any) => formatDate(r.created_at || r.booked_at, true) },
             ]}
           />
