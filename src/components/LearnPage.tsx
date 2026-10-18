@@ -1,9 +1,12 @@
 "use client";
 
-import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { Eye, EyeOff, Users } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
-import { Button, StatusBadge } from "@/components/Kit";
+import { Button, Loading, Modal, Panel, StatusBadge, useResource } from "@/components/Kit";
+import { KeyValues } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
+import { safe } from "@/lib/api";
 import { formatDate, formatINR, rowId } from "@/lib/utils";
 
 /** Courses and workshops share one backend shape, so they share one screen. */
@@ -14,6 +17,7 @@ export default function LearnPage({
   kind: "course" | "workshop";
 }) {
   const { push } = useToast();
+  const [regsFor, setRegsFor] = useState<any | null>(null);
   const label = kind === "course" ? "Course" : "Workshop";
 
   const togglePublish = async (row: any, reload: () => void) => {
@@ -25,6 +29,7 @@ export default function LearnPage({
   };
 
   return (
+    <>
     <CrudPage
       config={{
         title: `${label}s`,
@@ -49,9 +54,14 @@ export default function LearnPage({
           { key: "is_published", header: "Live", render: (r: any) => <StatusBadge value={r.is_published ? "published" : "draft"} /> },
         ],
         rowActions: (row: any, { reload }: any) => (
-          <Button size="sm" variant={row.is_published ? "secondary" : "success"} onClick={() => togglePublish(row, reload)}>
-            {row.is_published ? <><EyeOff className="size-3.5" aria-hidden /> Unpublish</> : <><Eye className="size-3.5" aria-hidden /> Publish</>}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setRegsFor(row)}>
+              <Users className="size-3.5" aria-hidden /> Registrations
+            </Button>
+            <Button size="sm" variant={row.is_published ? "secondary" : "success"} onClick={() => togglePublish(row, reload)}>
+              {row.is_published ? <><EyeOff className="size-3.5" aria-hidden /> Unpublish</> : <><Eye className="size-3.5" aria-hidden /> Publish</>}
+            </Button>
+          </div>
         ),
         fields: [
           { name: "title", label: "Title", required: true },
@@ -88,5 +98,85 @@ export default function LearnPage({
         }),
       }}
     />
+    <RegistrationsModal api={api} label={label} row={regsFor} onClose={() => setRegsFor(null)} />
+    </>
+  );
+}
+
+/** Who signed up for one course or workshop, and what it earned. */
+function RegistrationsModal({
+  api, label, row, onClose,
+}: {
+  api: any;
+  label: string;
+  row: any | null;
+  onClose: () => void;
+}) {
+  const id = row ? rowId(row) : "";
+
+  const { data, loading } = useResource<{ stats: any; rows: any[] } | null>(
+    async () => (!id ? null : {
+      stats: await safe(api.registrationStats(id), null),
+      rows: await safe(api.registrations(id), []),
+    }),
+    [id]
+  );
+
+  const rows: any[] = Array.isArray(data?.rows) ? data.rows : [];
+  const confirmed = rows.filter((r) => r.status === "CONFIRMED");
+  const revenue = confirmed.reduce((sum, r) => sum + (Number(r.payable_amount) || 0), 0);
+
+  return (
+    <Modal
+      open={!!row}
+      onClose={onClose}
+      title={row?.title || label}
+      subtitle={`Registrations and sales for this ${label.toLowerCase()}`}
+      wide
+    >
+      {loading ? (
+        <Loading rows={4} />
+      ) : (
+        <div className="flex flex-col gap-6">
+          <KeyValues
+            items={[
+              { k: "Total registrations", v: data?.stats?.total_registrations ?? rows.length },
+              { k: "Confirmed", v: data?.stats?.confirmed ?? confirmed.length },
+              { k: "Awaiting payment", v: data?.stats?.pending_payment ?? "—" },
+              { k: "Cancelled", v: data?.stats?.cancelled ?? "—" },
+              { k: "Seats left", v: data?.stats?.available_seats ?? "—" },
+              { k: "Revenue collected", v: formatINR(revenue) },
+            ]}
+          />
+
+          <Panel title="Registered people" className="shadow-none" bodyClassName="p-0">
+            {rows.length === 0 ? (
+              <p className="px-4 py-6 text-center text-[13px] text-[var(--fg-muted)]">
+                Nobody has registered yet.
+              </p>
+            ) : (
+              <ul className="divide-y divide-[var(--border)]">
+                {rows.map((r) => (
+                  <li key={r._id || r.order_reference} className="flex items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13.5px] font-semibold">
+                        {r.participant_name || r.email || "—"}
+                      </p>
+                      <p className="truncate text-[11.5px] text-[var(--fg-muted)]">
+                        {r.participant_email || r.email} · {formatDate(r.created_at)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 font-mono text-[12px] font-semibold">
+                      {formatINR(r.payable_amount ?? r.price_snapshot ?? 0)}
+                    </span>
+                    <StatusBadge value={r.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        </div>
+      )}
+    </Modal>
   );
 }
