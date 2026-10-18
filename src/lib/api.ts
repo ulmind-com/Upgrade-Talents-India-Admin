@@ -231,6 +231,14 @@ export const judgesApi = {
   unassign: (body: any) => api<any>("/api/admin/judges/assignments", { method: "DELETE", body }),
 };
 
+export const kycApi = {
+  analytics: () => api<any>("/api/admin/kyc/analytics"),
+  records: (q?: any) => api<any>("/api/admin/kyc/records", { query: q }),
+  record: (email: string) => api<any>(`/api/admin/kyc/records/${encodeURIComponent(email)}`),
+  override: (email: string, body: { status: "VERIFIED" | "REJECTED"; reason: string }) =>
+    api<any>(`/api/admin/kyc/records/${encodeURIComponent(email)}/override`, { method: "POST", body }),
+};
+
 export const volunteersApi = {
   list: (q?: any) => api<any>("/api/admin/volunteers/", { query: q }),
   create: (body: any) => api<any>("/api/admin/volunteers/", { method: "POST", body }),

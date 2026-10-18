@@ -8,7 +8,7 @@ import {
   LayoutGrid, Users, CalendarDays, Ticket, Trophy, Gavel, GraduationCap, Presentation,
   Crown, ShoppingBag, Award, BadgeCheck, Gift, Bell, Globe, FileClock, Settings,
   LogOut, Menu, X, Sun, Moon, Search, ExternalLink, ScanLine, HandHeart, ShieldCheck,
-  Sparkles, Mail, Bell as BellIcon,
+  Sparkles, Mail, Bell as BellIcon, Fingerprint,
 } from "lucide-react";
 import { useAdmin, useTheme } from "./Providers";
 import { cn } from "@/lib/utils";
@@ -57,6 +57,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: "General",
     items: [
       { href: "/users", label: "Users", Icon: Users },
+      { href: "/kyc", label: "Identity (KYC)", Icon: Fingerprint },
       { href: "/notifications", label: "Notifications", Icon: Bell },
       { href: "/website", label: "Website Content", Icon: Globe },
       { href: "/audit", label: "Audit Log", Icon: FileClock },
