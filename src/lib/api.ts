@@ -215,7 +215,8 @@ export const competitionsApi = {
   startFinalization: (id: string) => api<any>(`${comp}/${id}/finalization/start`, { method: "POST" }),
   approveResults: (id: string) => api<any>(`${comp}/${id}/results/approve`, { method: "POST" }),
   publishResults: (id: string) => api<any>(`${comp}/${id}/results/publish`, { method: "POST" }),
-  openSession: (id: string) => api<any>(`${comp}/${id}/session/open`, { method: "POST" }),
+  openSession: (id: string, pin?: string) =>
+    api<any>(`${comp}/${id}/session/open`, { method: "POST", query: pin ? { pin } : undefined }),
   closeSession: (id: string) => api<any>(`${comp}/${id}/session/close`, { method: "POST" }),
   feedbacks: (id: string) => api<any>(`${comp}/${id}/feedbacks`),
 };

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Gavel, Lock, Trophy, Send, RefreshCw, Eye, UserPlus, UserMinus } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
-import { Button, Modal, Panel, StatusBadge, Loading, useResource, useConfirm } from "@/components/Kit";
+import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm } from "@/components/Kit";
 import { KeyValues } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
 import { competitionsApi, judgesApi, safe } from "@/lib/api";
@@ -190,8 +190,9 @@ function CompetitionControls({
     [id]
   );
 
+  const [pin, setPin] = useState("");
+
   const actions = [
-    { label: "Open judging session", Icon: Gavel, fn: () => competitionsApi.openSession(id) },
     { label: "Close judging session", Icon: Gavel, fn: () => competitionsApi.closeSession(id) },
     { label: "Close audience voting", Icon: Lock, fn: () => competitionsApi.closeVoting(id), confirm: "Voting cannot be reopened from here." },
     { label: "Lock judging", Icon: Lock, fn: () => competitionsApi.lockJudging(id), confirm: "Judges will no longer be able to change scores." },
@@ -219,6 +220,41 @@ function CompetitionControls({
           />
 
           <Panel title="Workflow controls" className="shadow-none" bodyClassName="p-4">
+            <div className="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="min-w-[160px] flex-1">
+                <Field label="Session PIN" hint="Leave empty to open the session without a PIN.">
+                  {(p) => (
+                    <Input
+                      {...p}
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value)}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="e.g. 4821"
+                    />
+                  )}
+                </Field>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="mb-1 shrink-0"
+                onClick={() =>
+                  onAction(
+                    "Open judging session",
+                    async () => {
+                      await competitionsApi.openSession(id, pin.trim() || undefined);
+                      setPin("");
+                    },
+                    reload
+                  )
+                }
+              >
+                <Gavel className="size-3.5 shrink-0" aria-hidden />
+                <span className="truncate">Open judging session</span>
+              </Button>
+            </div>
+
             <div className="grid gap-2.5 sm:grid-cols-2">
               {actions.map((a) => (
                 <Button
