@@ -24,15 +24,15 @@ export default function JudgesPage() {
         emptyBody: "Add a judge and send them an invitation to get access.",
         load: () => judgesApi.list({ limit: 200 }),
         create: (b) => judgesApi.create(b),
-        searchKeys: ["name", "email"],
+        searchKeys: ["full_name", "email"],
         columns: [
-          { key: "name", header: "Judge", render: (r: any) => (
+          { key: "full_name", header: "Judge", render: (r: any) => (
             <div className="min-w-0">
-              <p className="truncate font-semibold">{r.name || "Unnamed"}</p>
+              <p className="truncate font-semibold">{r.full_name || r.name || "Unnamed"}</p>
               <p className="truncate text-[11.5px] text-[var(--fg-muted)]">{r.email}</p>
             </div>
           ) },
-          { key: "expertise", header: "Expertise", render: (r: any) => r.expertise || r.specialization || "—" },
+          { key: "designation", header: "Expertise", render: (r: any) => r.designation || r.expertise || "—" },
           { key: "is_active", header: "Status", render: (r: any) => <StatusBadge value={r.is_active ?? r.status} /> },
           { key: "created_at", header: "Added", render: (r: any) => formatDate(r.created_at) },
         ],
@@ -42,17 +42,17 @@ export default function JudgesPage() {
           </Button>
         ),
         fields: [
-          { name: "name", label: "Full name", required: true, half: true },
+          { name: "full_name", label: "Full name", required: true, half: true },
           { name: "email", label: "Email", type: "email", required: true, half: true },
           { name: "phone_number", label: "Phone", half: true },
-          { name: "expertise", label: "Expertise", half: true, placeholder: "Hip hop, Contemporary" },
-          { name: "bio", label: "Short bio", type: "textarea" },
+          { name: "designation", label: "Expertise", half: true, placeholder: "Hip hop, Contemporary" },
+          { name: "biography", label: "Short bio", type: "textarea" },
         ],
         toBody: (v) => ({
-          name: v.name, email: v.email,
+          full_name: v.full_name, email: v.email,
           phone_number: v.phone_number || null,
-          expertise: v.expertise || null,
-          bio: v.bio || null,
+          designation: v.designation || null,
+          biography: v.biography || null,
         }),
       }}
     />
