@@ -162,6 +162,11 @@ p { text-wrap: pretty; overflow-wrap: anywhere; }
 
 .page-shell { background: var(--page); }
 
+/* Lock the dashboard shell to exactly one viewport: no outer page scroll.
+   Only the inner <main> scrolls. Login (no .page-shell) keeps normal scrolling. */
+html, body { height: 100%; }
+body:has(.page-shell) { overflow: hidden; overscroll-behavior: none; }
+
 @media (min-width: 1024px) {
   .app-frame {
     border-radius: 26px;
