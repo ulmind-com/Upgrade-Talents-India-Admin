@@ -26,9 +26,9 @@ export default function VipPage() {
     async () => (!eventId ? null : {
       capacity: await safe(vipApi.capacity(eventId), null),
       analytics: await safe(vipApi.analytics(eventId), null),
-      passes: await safe(vipApi.listPasses(eventId, { limit: 200 }), []),
-      bookings: await safe(vipApi.listBookings(eventId, { limit: 200 }), []),
-      checkins: await safe(vipApi.checkins(eventId, { limit: 200 }), []),
+      passes: await safe(vipApi.listPasses(eventId, { limit: 100 }), []),
+      bookings: await safe(vipApi.listBookings(eventId, { limit: 100 }), []),
+      checkins: await safe(vipApi.checkins(eventId, { limit: 100 }), []),
     }),
     [eventId]
   );
@@ -40,7 +40,8 @@ export default function VipPage() {
   const passes = toRows(data?.passes);
   const bookings = toRows(data?.bookings);
   const checkins = toRows(data?.checkins);
-  const cap = data?.capacity || {};
+  const rawCap = data?.capacity || {};
+  const cap = rawCap.overall_capacity || rawCap;
 
   const revoke = async (row: any) => {
     const ok = await confirm("Revoke this VIP pass?", "The holder will be refused at the gate from now on.");
@@ -69,8 +70,8 @@ export default function VipPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Total VIP capacity" value={formatNumber(cap.total_capacity ?? cap.capacity ?? 0)} Icon={Crown} accent index={0} />
-        <StatCard label="Passes issued" value={formatNumber(cap.issued ?? passes.length)} Icon={Ticket} index={1} />
-        <StatCard label="Remaining" value={formatNumber(cap.remaining ?? cap.available ?? 0)} Icon={Crown} index={2} />
+        <StatCard label="Passes issued" value={formatNumber(cap.confirmed_count ?? cap.booked_count ?? cap.issued ?? passes.length)} Icon={Ticket} index={1} />
+        <StatCard label="Remaining" value={formatNumber(cap.available_count ?? cap.remaining ?? cap.available ?? 0)} Icon={Crown} index={2} />
         <StatCard label="Checked in" value={formatNumber(checkins.filter((c) => c.outcome === "ALLOWED" || c.allowed).length)} Icon={Ticket} index={3} />
       </div>
 
