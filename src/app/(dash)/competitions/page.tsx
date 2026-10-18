@@ -159,7 +159,7 @@ export default function CompetitionsPage() {
                   ]
                 : [],
               dynamic_submission_fields: [
-                { name: "Performance Video", label: "Performance Video", type: "VIDEO", required: true, display_order: 1 },
+                { name: "Performance Entry (Video, Audio or Link)", label: "Performance Entry (Video, Audio or Link)", type: "VIDEO", required: true, display_order: 1 },
                 { name: "Portfolio / Photos", label: "Photos or Portfolio", type: "IMAGE", required: false, display_order: 2 },
               ],
             };
