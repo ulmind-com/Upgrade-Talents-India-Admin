@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Gavel, Lock, Trophy, Send, RefreshCw, Eye } from "lucide-react";
+import { Gavel, Lock, Trophy, Send, RefreshCw, Eye, UserPlus, UserMinus } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Modal, Panel, StatusBadge, Loading, useResource, useConfirm } from "@/components/Kit";
 import { KeyValues } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
-import { competitionsApi, safe } from "@/lib/api";
+import { competitionsApi, judgesApi, safe } from "@/lib/api";
 import { formatDate, rowId } from "@/lib/utils";
 
 export default function CompetitionsPage() {
@@ -185,6 +185,7 @@ function CompetitionControls({
     async () => (!id ? null : {
       overview: await safe(competitionsApi.overview(id), null),
       progress: await safe(competitionsApi.judgingProgress(id), null),
+      judges: await safe(judgesApi.list({ limit: 200 }), []),
     }),
     [id]
   );
@@ -233,8 +234,93 @@ function CompetitionControls({
               ))}
             </div>
           </Panel>
+
+          <JudgesPanel
+            compId={id}
+            judges={data?.judges || []}
+            progress={data?.progress}
+            reload={reload}
+          />
         </div>
       )}
     </Modal>
+  );
+}
+
+function JudgesPanel({
+  compId, judges, progress, reload,
+}: {
+  compId: string;
+  judges: any[];
+  progress: any;
+  reload: () => void;
+}) {
+  const { push } = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const details: any[] = progress?.judge_details || [];
+  const assigned = new Map<string, any>(details.map((d: any) => [d.judge_email, d]));
+  const rows = [...judges].sort(
+    (a, b) => Number(assigned.has(b.email)) - Number(assigned.has(a.email))
+  );
+
+  const toggle = async (email: string, isAssigned: boolean) => {
+    setBusy(email);
+    try {
+      const body = { judge_email: email, competition_id: compId };
+      if (isAssigned) await judgesApi.unassign(body);
+      else await judgesApi.assign(body);
+      push("success", isAssigned ? `Removed ${email} from this competition.` : `Assigned ${email} to this competition.`);
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Could not update the assignment.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Panel
+      title="Judges on this competition"
+      subtitle="Assigned judges see this competition in their scoring portal."
+      className="shadow-none"
+      bodyClassName="p-0"
+    >
+      {rows.length === 0 ? (
+        <p className="px-4 py-6 text-center text-[13px] text-[var(--fg-muted)]">
+          No judges yet — add them from the Judges page first.
+        </p>
+      ) : (
+        <ul className="divide-y divide-[var(--border)]">
+          {rows.map((j) => {
+            const isAssigned = assigned.has(j.email);
+            const stat = assigned.get(j.email);
+            return (
+              <li key={j.email} className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13.5px] font-semibold">
+                    {j.full_name || j.name || "Unnamed"}
+                  </p>
+                  <p className="truncate text-[11.5px] text-[var(--fg-muted)]">
+                    {j.email}
+                    {isAssigned && stat ? ` · ${stat.scored ?? 0} scored · ${stat.pending ?? 0} pending` : ""}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={isAssigned ? "ghost" : "secondary"}
+                  loading={busy === j.email}
+                  disabled={!!busy && busy !== j.email}
+                  onClick={() => toggle(j.email, isAssigned)}
+                >
+                  {isAssigned ? <UserMinus className="size-3.5" aria-hidden /> : <UserPlus className="size-3.5" aria-hidden />}
+                  {isAssigned ? "Remove" : "Assign"}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Panel>
   );
 }
