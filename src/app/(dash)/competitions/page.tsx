@@ -158,8 +158,12 @@ export default function CompetitionsPage() {
                     { name: "Overall Impression", max_score: 10, weight: 1.0, display_order: 3 },
                   ]
                 : [],
+              /* No commas in a field name: entries are posted to the API as a
+                 single comma separated field_names string, so a comma inside
+                 the name splits it in two and the entry is rejected as a
+                 missing required field. */
               dynamic_submission_fields: [
-                { name: "Performance Entry (Video, Audio or Link)", label: "Performance Entry (Video, Audio or Link)", type: "VIDEO", required: true, display_order: 1 },
+                { name: "Performance Entry (Video / Audio / Link)", label: "Performance Entry (Video / Audio / Link)", type: "VIDEO", required: true, display_order: 1 },
                 { name: "Portfolio / Photos", label: "Photos or Portfolio", type: "IMAGE", required: false, display_order: 2 },
               ],
             };
