@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Ticket } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, StatusBadge } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
@@ -44,13 +44,22 @@ export default function EventsPage() {
           { key: "is_published", header: "Live", render: (r) => <StatusBadge value={r.is_published ? "published" : "draft"} /> },
         ],
         rowActions: (row, { reload }) => (
-          <Button
-            size="sm"
-            variant={row.is_published ? "secondary" : "success"}
-            onClick={() => togglePublish(row, reload)}
-          >
-            {row.is_published ? <><EyeOff className="size-3.5" aria-hidden /> Unpublish</> : <><Eye className="size-3.5" aria-hidden /> Publish</>}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="secondary"
+              href={`/tickets?eventId=${rowId(row)}`}
+            >
+              <Ticket className="size-3.5" aria-hidden /> Tickets
+            </Button>
+            <Button
+              size="sm"
+              variant={row.is_published ? "secondary" : "success"}
+              onClick={() => togglePublish(row, reload)}
+            >
+              {row.is_published ? <><EyeOff className="size-3.5" aria-hidden /> Unpublish</> : <><Eye className="size-3.5" aria-hidden /> Publish</>}
+            </Button>
+          </div>
         ),
         fields: [
           { name: "title", label: "Title", required: true, placeholder: "Neon Nights Battle" },

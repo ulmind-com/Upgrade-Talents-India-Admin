@@ -1,17 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CrudPage } from "@/components/Crud";
 import { Panel, Select, useResource, Loading, ErrorState, EmptyState } from "@/components/Kit";
 import { cmsApi, toRows } from "@/lib/api";
 import { formatDate, formatINR } from "@/lib/utils";
 
-export default function TicketsPage() {
+function TicketsContent() {
+  const searchParams = useSearchParams();
+  const paramEventId = searchParams?.get("eventId") || "";
   const { data: events, loading, error, reload } = useResource(() => cmsApi.listEvents({ limit: 200 }), []);
-  const [eventId, setEventId] = useState("");
+  const [eventId, setEventId] = useState(paramEventId);
 
   const list = toRows(events);
-  useEffect(() => { if (!eventId && list.length) setEventId(String(list[0]._id)); }, [list, eventId]);
+  useEffect(() => {
+    if (paramEventId && list.some((e) => String(e._id) === paramEventId)) {
+      setEventId(paramEventId);
+    } else if (!eventId && list.length) {
+      setEventId(String(list[0]._id));
+    }
+  }, [list, eventId, paramEventId]);
 
   if (loading) return <Loading rows={5} />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
@@ -83,5 +92,13 @@ export default function TicketsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function TicketsPage() {
+  return (
+    <Suspense fallback={<Loading rows={5} />}>
+      <TicketsContent />
+    </Suspense>
   );
 }
