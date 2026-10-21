@@ -1,18 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { Gavel, Lock, Trophy, Send, RefreshCw, Eye, UserPlus, UserMinus } from "lucide-react";
+import { useState, useMemo } from "react";
+import {
+  Gavel, Lock, Trophy, Send, RefreshCw, Eye, UserPlus, UserMinus,
+  Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail
+} from "lucide-react";
 import { CrudPage } from "@/components/Crud";
-import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm } from "@/components/Kit";
-import { KeyValues } from "@/components/Dash";
+import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
+import { KeyValues, StatCard } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
-import { competitionsApi, judgesApi, safe } from "@/lib/api";
-import { formatDate, rowId } from "@/lib/utils";
+import { competitionsApi, judgesApi, safe, toRows } from "@/lib/api";
+import { formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
 
 export default function CompetitionsPage() {
   const { push } = useToast();
   const { confirm, dialog } = useConfirm();
   const [detail, setDetail] = useState<any | null>(null);
+  const [modalTab, setModalTab] = useState<"participants" | "workflow">("participants");
 
   const run = async (label: string, fn: () => Promise<any>, reload: () => void, needsConfirm?: string) => {
     if (needsConfirm) {
@@ -49,13 +53,28 @@ export default function CompetitionsPage() {
             { key: "start_date", header: "Starts", render: (r: any) => formatDate(r.start_date || r.starts_at) },
           ],
           rowActions: (row, { reload }) => (
-            <>
-              <button
-                onClick={() => setDetail(row)}
-                aria-label="Open competition controls"
-                className="grid size-9 cursor-pointer place-items-center rounded-lg text-[var(--fg-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--brand)]"
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setDetail(row);
+                  setModalTab("participants");
+                }}
+                title="View Registered Participants & Submissions"
               >
-                <Eye className="size-4" aria-hidden />
+                <Users className="size-3.5" aria-hidden /> Participants
+              </Button>
+              <button
+                onClick={() => {
+                  setDetail(row);
+                  setModalTab("workflow");
+                }}
+                aria-label="Open competition judging controls"
+                title="Judging & Session Controls"
+                className="grid size-8 cursor-pointer place-items-center rounded-lg text-[var(--fg-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--brand)]"
+              >
+                <Gavel className="size-4" aria-hidden />
               </button>
               <Button
                 size="sm"
@@ -65,7 +84,7 @@ export default function CompetitionsPage() {
               >
                 {row.is_published ? "Unpublish" : "Publish"}
               </Button>
-            </>
+            </div>
           ),
           fields: [
             { name: "title", label: "Title", required: true, placeholder: "e.g. Big Classic Dance Competition" },
@@ -171,20 +190,28 @@ export default function CompetitionsPage() {
         }}
       />
 
-      <CompetitionControls comp={detail} onClose={() => setDetail(null)} onAction={run} />
+      <CompetitionControls
+        comp={detail}
+        initialTab={modalTab}
+        onClose={() => setDetail(null)}
+        onAction={run}
+      />
       {dialog}
     </div>
   );
 }
 
 function CompetitionControls({
-  comp, onClose, onAction,
+  comp, onClose, onAction, initialTab = "participants",
 }: {
   comp: any | null;
   onClose: () => void;
   onAction: (label: string, fn: () => Promise<any>, reload: () => void, confirmText?: string) => void;
+  initialTab?: "participants" | "workflow";
 }) {
   const id = comp ? rowId(comp) : "";
+  const [activeTab, setActiveTab] = useState<"participants" | "workflow">(initialTab);
+
   const { data, loading, reload } = useResource(
     async () => (!id ? null : {
       overview: await safe(competitionsApi.overview(id), null),
@@ -207,8 +234,41 @@ function CompetitionControls({
   ];
 
   return (
-    <Modal open={!!comp} onClose={onClose} title={comp?.title || comp?.name || "Competition"} subtitle="Judging, voting and result controls" wide>
-      {loading ? (
+    <Modal
+      open={!!comp}
+      onClose={onClose}
+      title={comp?.title || comp?.name || "Competition"}
+      subtitle={activeTab === "participants" ? "Registered participants, verified payments, and submitted media" : "Judging session, voting and ranking controls"}
+      wide
+    >
+      <div className="mb-5 flex gap-2 border-b border-[var(--border)] pb-3">
+        <button
+          onClick={() => setActiveTab("participants")}
+          aria-pressed={activeTab === "participants"}
+          className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+            activeTab === "participants"
+              ? "bg-[var(--brand)] text-[var(--on-brand)]"
+              : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
+          }`}
+        >
+          <Users className="inline size-3.5 mr-1.5" /> Participants & Submissions
+        </button>
+        <button
+          onClick={() => setActiveTab("workflow")}
+          aria-pressed={activeTab === "workflow"}
+          className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+            activeTab === "workflow"
+              ? "bg-[var(--brand)] text-[var(--on-brand)]"
+              : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
+          }`}
+        >
+          <Gavel className="inline size-3.5 mr-1.5" /> Judging & Session Controls
+        </button>
+      </div>
+
+      {activeTab === "participants" ? (
+        <CompetitionParticipantsPanel compId={id} compTitle={comp?.title} />
+      ) : loading ? (
         <Loading rows={4} />
       ) : (
         <div className="flex flex-col gap-6">
@@ -364,3 +424,153 @@ function JudgesPanel({
     </Panel>
   );
 }
+
+function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; compTitle?: string }) {
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [search, setSearch] = useState("");
+
+  const { data, loading, error, reload } = useResource(
+    () => (!compId ? Promise.resolve(null) : competitionsApi.participants(compId, { limit: 200 })),
+    [compId]
+  );
+
+  const rawParticipants = toRows(data?.participants);
+  const totalRegistered = data?.total_registered ?? rawParticipants.length;
+  const confirmedCount = data?.confirmed_count ?? rawParticipants.filter((p: any) => p.status === "CONFIRMED").length;
+  const pendingCount = data?.pending_payment_count ?? rawParticipants.filter((p: any) => p.status === "PENDING").length;
+  const submissionsCount = data?.submissions_count ?? rawParticipants.filter((p: any) => !!p.submission).length;
+  const totalFees = data?.total_fees_collected ?? 0;
+
+  const filtered = useMemo(() => {
+    return rawParticipants.filter((p: any) => {
+      const matchStatus = statusFilter === "ALL" || (p.status || "").toUpperCase() === statusFilter;
+      const s = search.toLowerCase().trim();
+      const matchSearch =
+        !s ||
+        (p.registration_reference || "").toLowerCase().includes(s) ||
+        (p.user_email || "").toLowerCase().includes(s) ||
+        (p.user_name || "").toLowerCase().includes(s) ||
+        (p.user_phone || "").toLowerCase().includes(s);
+      return matchStatus && matchSearch;
+    });
+  }, [rawParticipants, statusFilter, search]);
+
+  return (
+    <div className="flex flex-col gap-5 text-xs">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Registered" value={formatNumber(totalRegistered)} Icon={Users} accent index={0} />
+        <StatCard label="Confirmed" value={formatNumber(confirmedCount)} Icon={CheckCircle2} index={1} />
+        <StatCard label="Submissions" value={formatNumber(submissionsCount)} Icon={Video} index={2} />
+        <StatCard label="Fees Collected" value={formatINR(totalFees)} Icon={Trophy} index={3} />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: "ALL", label: "All Statuses" },
+              { value: "CONFIRMED", label: "Confirmed" },
+              { value: "PENDING", label: "Pending Payment" },
+            ]}
+            className="h-9 w-36 text-xs"
+          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-subtle)]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search participants..."
+              className="h-9 w-52 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)]"
+            />
+          </div>
+        </div>
+        <Button size="sm" variant="secondary" onClick={reload}>Refresh</Button>
+      </div>
+
+      <DataTable
+        rows={filtered}
+        loading={loading}
+        error={error}
+        onRetry={reload}
+        empty={{ title: "No registered participants yet", body: "Users who register for this competition will display here with their submitted media." }}
+        columns={[
+          {
+            key: "user",
+            header: "Participant",
+            render: (r: any) => (
+              <div>
+                <p className="font-semibold text-white">{r.user_name || "Participant"}</p>
+                <p className="font-mono text-[11px] text-[var(--fg-muted)]">{r.user_email}</p>
+                {r.user_phone && <p className="font-mono text-[10.5px] text-[var(--fg-subtle)]">{r.user_phone}</p>}
+              </div>
+            ),
+          },
+          {
+            key: "registration_reference",
+            header: "Reg Reference",
+            render: (r: any) => (
+              <div>
+                <span className="font-mono font-bold text-[var(--brand)]">{r.registration_reference}</span>
+                <span className="block text-[10.5px] text-[var(--fg-subtle)]">{formatDate(r.registered_at, true)}</span>
+              </div>
+            ),
+          },
+          {
+            key: "fee",
+            header: "Fee / Payment",
+            render: (r: any) => (
+              <div>
+                <span className="font-semibold text-white">{formatINR(r.fee)}</span>
+                <span className={`block text-[10px] font-bold uppercase ${r.payment_status === "PAID" || r.payment_status === "NOT_REQUIRED" ? "text-green-400" : "text-amber-400"}`}>
+                  {r.payment_status}
+                </span>
+              </div>
+            ),
+          },
+          {
+            key: "status",
+            header: "Registration",
+            render: (r: any) => <StatusBadge value={r.status} />,
+          },
+          {
+            key: "submission",
+            header: "Submitted Files / Media",
+            render: (r: any) => {
+              const sub = r.submission;
+              if (!sub) {
+                return <span className="text-[11px] text-[var(--fg-subtle)]">Awaiting files</span>;
+              }
+              const files = sub.files || {};
+              const entries = Object.entries(files);
+              return (
+                <div className="flex flex-col gap-1">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-400">
+                    <CheckCircle2 className="size-3" /> {sub.status || "Submitted"}
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {entries.map(([label, url]: any) => (
+                      <a
+                        key={label}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded bg-[var(--surface-3)] px-2 py-0.5 text-[10.5px] font-mono text-[var(--brand)] hover:underline"
+                        title={label}
+                      >
+                        <Video className="size-3" /> {label} <ExternalLink className="size-2.5 opacity-60" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              );
+            },
+          },
+        ]}
+      />
+    </div>
+  );
+}
+

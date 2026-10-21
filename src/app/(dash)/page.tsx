@@ -66,8 +66,8 @@ export default function Dashboard() {
   const stats = [
     { label: "Total events", value: formatNumber(events.length), hint: `${published} published · ${live} live`, Icon: CalendarDays, href: "/events", accent: true },
     { label: "Registered users", value: formatNumber(totalOf(data?.users, users)), hint: "Across website and app", Icon: Users, href: "/users" },
-    { label: "Tickets sold", value: formatNumber(sold), hint: `${formatNumber(stock)} still available`, Icon: Ticket, href: "/tickets" },
-    { label: "Ticket revenue", value: `₹${formatNumber(Math.round(revenue))}`, hint: "From issued tiers", Icon: TrendingUp, href: "/tickets" },
+    { label: "Tickets sold", value: formatNumber(sold), hint: `${formatNumber(stock)} still available`, Icon: Ticket, href: "/tickets?tab=bookings" },
+    { label: "Ticket revenue", value: `₹${formatNumber(Math.round(revenue))}`, hint: "From confirmed attendee bookings", Icon: TrendingUp, href: "/tickets?tab=bookings" },
   ];
 
   const secondary = [
@@ -221,12 +221,12 @@ export default function Dashboard() {
       <Panel title="Quick actions" subtitle="Jump straight into the common jobs">
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {[
+            { label: "Attendee ticket bookings", href: "/tickets?tab=bookings", Icon: Ticket },
+            { label: "Competition participants", href: "/competitions", Icon: Trophy },
+            { label: "VIP bookings & passes", href: "/vip?tab=bookings", Icon: Crown },
+            { label: "Merchandise orders", href: "/merchandise", Icon: ShoppingBag },
             { label: "Create an event", href: "/events", Icon: CalendarDays },
-            { label: "Add ticket tiers", href: "/tickets", Icon: Ticket },
-            { label: "Edit website content", href: "/website", Icon: Globe },
-            { label: "Issue VIP passes", href: "/vip", Icon: Crown },
             { label: "Send an announcement", href: "/notifications", Icon: Bell },
-            { label: "Review competitions", href: "/competitions", Icon: Trophy },
           ].map((a) => (
             <Link
               key={a.label}
