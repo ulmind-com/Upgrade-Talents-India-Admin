@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 import { authApi, adminToken } from "@/lib/api";
+import { play } from "@/lib/sound";
 
 /* ───────── THEME ───────── */
 type Theme = "light" | "dark";
@@ -38,6 +39,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<Toast[]>([]);
 
   const push = useCallback((tone: Toast["tone"], message: string) => {
+    play(tone === "error" ? "error" : tone === "success" ? "success" : "open");
     const id = Date.now() + Math.random();
     setItems((p) => [...p, { id, tone, message }]);
     setTimeout(() => setItems((p) => p.filter((t) => t.id !== id)), 4500);

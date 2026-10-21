@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider, ThemeProvider, ToastProvider } from "@/components/Providers";
+import { SoundProvider } from "@/components/SoundProvider";
 
 export const metadata: Metadata = {
   title: { default: "Admin — Upgrade Talents India", template: "%s | UTI Admin" },
@@ -29,9 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to main content
         </a>
         <ThemeProvider>
-          <ToastProvider>
-            <AuthProvider>{children}</AuthProvider>
-          </ToastProvider>
+          <SoundProvider>
+            <ToastProvider>
+              <AuthProvider>{children}</AuthProvider>
+            </ToastProvider>
+          </SoundProvider>
         </ThemeProvider>
       </body>
     </html>

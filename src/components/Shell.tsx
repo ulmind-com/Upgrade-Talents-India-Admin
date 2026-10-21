@@ -8,9 +8,10 @@ import {
   LayoutGrid, Users, CalendarDays, Ticket, Trophy, Gavel, GraduationCap, Presentation,
   Crown, ShoppingBag, Award, BadgeCheck, Gift, Bell, Globe, FileClock, Settings,
   LogOut, Menu, X, Sun, Moon, Search, ExternalLink, ScanLine, HandHeart, ShieldCheck,
-  Sparkles, Mail, Bell as BellIcon, Fingerprint,
+  Sparkles, Mail, Bell as BellIcon, Fingerprint, Volume2, VolumeX,
 } from "lucide-react";
 import { useAdmin, useTheme } from "./Providers";
+import { useSound } from "./SoundProvider";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; Icon: any; badge?: string };
@@ -95,6 +96,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { admin, loading, logout } = useAdmin();
   const { theme, toggle } = useTheme();
+  const { enabled: soundOn, toggle: toggleSound } = useSound();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
 
@@ -284,7 +286,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               ))}
 
               <button
+                onClick={toggleSound}
+                data-sound="off"
+                aria-pressed={soundOn}
+                aria-label={soundOn ? "Mute interface sounds" : "Unmute interface sounds"}
+                title={soundOn ? "Sound on" : "Sound off"}
+                className="grid size-11 cursor-pointer place-items-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] transition-colors hover:text-[var(--fg)]"
+              >
+                {soundOn ? <Volume2 className="size-[18px]" aria-hidden /> : <VolumeX className="size-[18px]" aria-hidden />}
+              </button>
+
+              <button
                 onClick={toggle}
+                data-sound="toggle-on"
                 aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`}
                 className="grid size-11 cursor-pointer place-items-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] transition-colors hover:text-[var(--fg)]"
               >
