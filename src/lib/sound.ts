@@ -18,7 +18,7 @@ export type SoundName =
   | "error";
 
 const STORAGE_KEY = "uti_admin_sound";
-const MASTER_GAIN = 0.32;
+const MASTER_GAIN = 0.6;
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
