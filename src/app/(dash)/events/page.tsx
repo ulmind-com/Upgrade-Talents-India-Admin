@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, Ticket } from "lucide-react";
+import { Eye, EyeOff, Ticket, Users, Crown } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, StatusBadge } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
@@ -48,9 +48,26 @@ export default function EventsPage() {
             <Button
               size="sm"
               variant="secondary"
-              href={`/tickets?eventId=${rowId(row)}`}
+              href={`/tickets?eventId=${rowId(row)}&tab=bookings`}
+              title="View Attendee Bookings"
             >
-              <Ticket className="size-3.5" aria-hidden /> Tickets
+              <Users className="size-3.5" aria-hidden /> Bookings
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              href={`/vip?eventId=${rowId(row)}`}
+              title="View VIP Passes & Bookings"
+            >
+              <Crown className="size-3.5 text-amber-400" aria-hidden /> VIP
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              href={`/tickets?eventId=${rowId(row)}&tab=tiers`}
+              title="Configure Ticket Tiers"
+            >
+              <Ticket className="size-3.5" aria-hidden /> Tiers
             </Button>
             <Button
               size="sm"

@@ -154,6 +154,9 @@ export const cmsApi = {
   createTicket: (body: any) => api<any>(`${cms}/tickets`, { method: "POST", body }),
   updateTicket: (id: string, body: any) => api<any>(`${cms}/tickets/${id}`, { method: "PUT", body }),
   deleteTicket: (id: string) => api<any>(`${cms}/tickets/${id}`, { method: "DELETE" }),
+  listEventBookings: (eventId: string, q?: any) => api<any>(`${cms}/events/${eventId}/bookings`, { query: q }),
+  listAllBookings: (q?: any) => api<any>(`${cms}/bookings`, { query: q }),
+  getBookingDetail: (bookingId: string) => api<any>(`${cms}/bookings/${bookingId}`),
 
   listContestPromos: () => api<any[]>(`${cms}/contest-promotions`),
   createContestPromo: (body: any) => api<any>(`${cms}/contest-promotions`, { method: "POST", body }),
@@ -219,6 +222,7 @@ export const competitionsApi = {
     api<any>(`${comp}/${id}/session/open`, { method: "POST", query: pin ? { pin } : undefined }),
   closeSession: (id: string) => api<any>(`${comp}/${id}/session/close`, { method: "POST" }),
   feedbacks: (id: string) => api<any>(`${comp}/${id}/feedbacks`),
+  participants: (id: string, q?: any) => api<any>(`${comp}/${id}/participants`, { query: q }),
 };
 
 /* ═══════════════ JUDGES / VOLUNTEERS ═══════════════ */
@@ -278,6 +282,7 @@ export const vipApi = {
   revokePass: (id: string, body?: any) => api<any>(`${vip}/vip-passes/${id}/revoke`, { method: "POST", body }),
   passHistory: (id: string) => api<any>(`${vip}/vip-passes/${id}/history`),
   listBookings: (eventId: string, q?: any) => api<any>(`${vip}/events/${eventId}/vip-bookings`, { query: q }),
+  listAllBookings: (q?: any) => api<any>(`${vip}/vip-bookings`, { query: q }),
   cancelBooking: (id: string, body?: any) => api<any>(`${vip}/vip-bookings/${id}/cancel`, { method: "POST", body }),
   checkins: (eventId: string, q?: any) => api<any>(`${vip}/events/${eventId}/vip-checkins`, { query: q }),
   verifyPass: (body: any) => api<any>(`${vip}/vip-passes/verify`, { method: "POST", body }),
@@ -361,7 +366,7 @@ export const badgesApi = {
 /** Normalises the different list shapes the backend returns. */
 export function toRows(payload: any): any[] {
   if (Array.isArray(payload)) return payload;
-  for (const key of ["items", "data", "results", "rows", "records", "users", "events", "orders", "products", "announcements", "transactions", "referrals", "certificates", "passes", "bookings", "judges", "volunteers", "competitions", "logs", "badges"]) {
+  for (const key of ["items", "data", "results", "rows", "records", "users", "events", "orders", "products", "announcements", "transactions", "referrals", "certificates", "passes", "bookings", "participants", "judges", "volunteers", "competitions", "logs", "badges"]) {
     if (Array.isArray(payload?.[key])) return payload[key];
   }
   return [];
