@@ -1,5 +1,5 @@
 /**
- * Eventora Admin API client.
+ * Upgrade Talents India Admin API client.
  * One typed function per backend endpoint — the backend contract is never altered here.
  */
 
