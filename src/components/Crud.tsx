@@ -12,7 +12,7 @@ import { rowId, toDateInput, toDateTimeInput } from "@/lib/utils";
 export type FieldSpec = {
   name: string;
   label: string;
-  type?: "text" | "textarea" | "number" | "date" | "datetime" | "select" | "toggle" | "email" | "url";
+  type?: "text" | "textarea" | "number" | "date" | "datetime" | "select" | "toggle" | "email" | "url" | "custom";
   hint?: string;
   required?: boolean;
   options?: { value: string; label: string }[];
@@ -20,6 +20,7 @@ export type FieldSpec = {
   /** Narrow the field to half a row on wider screens. */
   half?: boolean;
   defaultValue?: any;
+  render?: (props: { value: any; onChange: (v: any) => void; error?: string }) => ReactNode;
 };
 
 export type CrudConfig<T = any> = {
@@ -254,6 +255,14 @@ function FormField({
 }: {
   spec: FieldSpec; value: any; error?: string; onChange: (v: any) => void;
 }) {
+  if (spec.render) {
+    return (
+      <Field label={spec.label} hint={spec.hint} error={error} required={spec.required}>
+        {() => spec.render!({ value, onChange, error })}
+      </Field>
+    );
+  }
+
   if (spec.type === "toggle") {
     return <Toggle checked={!!value} onChange={onChange} label={spec.label} />;
   }

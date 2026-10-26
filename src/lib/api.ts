@@ -223,6 +223,16 @@ export const competitionsApi = {
   closeSession: (id: string) => api<any>(`${comp}/${id}/session/close`, { method: "POST" }),
   feedbacks: (id: string) => api<any>(`${comp}/${id}/feedbacks`),
   participants: (id: string, q?: any) => api<any>(`${comp}/${id}/participants`, { query: q }),
+  uploadCard: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api<any>(`${comp}/upload-card`, { method: "POST", form: fd });
+  },
+  uploadBanner: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api<any>(`${comp}/upload-banner`, { method: "POST", form: fd });
+  },
 };
 
 /* ═══════════════ JUDGES / VOLUNTEERS ═══════════════ */

@@ -3,14 +3,227 @@
 import { useState, useMemo } from "react";
 import {
   Gavel, Lock, Trophy, Send, RefreshCw, Eye, UserPlus, UserMinus,
-  Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail
+  Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
+  Upload, Loader2, Plus, Trash2, Image as ImageIcon
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
 import { KeyValues, StatCard } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
 import { competitionsApi, judgesApi, safe, toRows } from "@/lib/api";
-import { formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
+import { formatDate, formatINR, formatNumber, rowId, cn } from "@/lib/utils";
+
+function ImageUploaderField({
+  label,
+  aspectRatioLabel,
+  aspectClass,
+  value,
+  onChange,
+  onUpload,
+}: {
+  label: string;
+  aspectRatioLabel: string;
+  aspectClass: string;
+  value: string;
+  onChange: (url: string) => void;
+  onUpload: (file: File) => Promise<any>;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const { push } = useToast();
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await onUpload(file);
+      const url = res?.url || res?.card_image_url || res?.banner_image_url || res?.banner_url || res?.image_url;
+      if (url) {
+        onChange(url);
+        push("success", `${label} uploaded successfully.`);
+      } else {
+        push("error", "No URL returned from upload.");
+      }
+    } catch (err: any) {
+      push("error", err?.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-semibold text-[var(--fg)]">
+          {label} <span className="font-bold text-[var(--brand)]">({aspectRatioLabel})</span>
+        </span>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="text-[11px] font-semibold text-[var(--danger)] hover:underline"
+          >
+            Clear image
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-start gap-3">
+        {value ? (
+          <div className={cn("relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] shrink-0 shadow-sm", aspectClass)}>
+            <img src={value} alt="" className="size-full object-cover" />
+          </div>
+        ) : (
+          <div className={cn("grid place-items-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] text-[11px] text-[var(--fg-subtle)] shrink-0", aspectClass)}>
+            <ImageIcon className="size-5 opacity-40" />
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 flex-1 min-w-0">
+          <label className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--fg)] hover:bg-[var(--surface-2)] transition-colors shadow-sm">
+            {uploading ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin text-[var(--brand)]" /> Uploading to Cloud…
+              </>
+            ) : (
+              <>
+                <Upload className="size-3.5 text-[var(--brand)]" /> Choose &amp; Upload Image
+              </>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={handleFile}
+            />
+          </label>
+
+          <Input
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Or paste direct image URL (https://…)"
+            className="text-xs"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JudgingCriteriaBuilder({
+  value,
+  onChange,
+}: {
+  value: any[];
+  onChange: (criteria: any[]) => void;
+}) {
+  const criteria = Array.isArray(value) ? value : [];
+
+  const addCriterion = () => {
+    onChange([
+      ...criteria,
+      {
+        name: `Criterion ${criteria.length + 1}`,
+        description: "",
+        max_score: 10,
+        weight: 1.0,
+        display_order: criteria.length + 1,
+      },
+    ]);
+  };
+
+  const removeCriterion = (idx: number) => {
+    onChange(criteria.filter((_, i) => i !== idx));
+  };
+
+  const updateCriterion = (idx: number, patch: Partial<any>) => {
+    onChange(
+      criteria.map((c, i) => (i === idx ? { ...c, ...patch } : c))
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-3.5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-bold text-[var(--fg)]">Dynamic Judging Criteria</p>
+          <p className="text-[11px] text-[var(--fg-muted)]">
+            Define categories, maximum scores &amp; weights for judges scoring worksheet.
+          </p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={addCriterion} type="button">
+          <Plus className="size-3.5" /> Add Criterion
+        </Button>
+      </div>
+
+      {criteria.length === 0 ? (
+        <div className="text-center py-4 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--fg-subtle)]">
+          <p className="italic">No criteria defined yet. Click &quot;Add Criterion&quot; to configure scoring dimensions.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {criteria.map((c, idx) => (
+            <div
+              key={idx}
+              className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-sm"
+            >
+              <div className="flex-1 min-w-0">
+                <input
+                  type="text"
+                  value={c.name || ""}
+                  onChange={(e) => updateCriterion(idx, { name: e.target.value })}
+                  placeholder="Criterion Name (e.g. Vocal Quality, Choreography, Style)"
+                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-xs font-semibold text-[var(--fg)] focus:border-[var(--brand)] focus:outline-none"
+                />
+              </div>
+              <div className="w-24 shrink-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-[var(--fg-subtle)]">Max:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={c.max_score ?? 10}
+                    onChange={(e) =>
+                      updateCriterion(idx, { max_score: parseFloat(e.target.value) || 10 })
+                    }
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-1.5 py-1 text-xs text-center font-bold text-[var(--fg)] focus:border-[var(--brand)] focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="w-20 shrink-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-[var(--fg-subtle)]">Wt:</span>
+                  <input
+                    type="number"
+                    step={0.1}
+                    min={0.1}
+                    max={5}
+                    value={c.weight ?? 1.0}
+                    onChange={(e) =>
+                      updateCriterion(idx, { weight: parseFloat(e.target.value) || 1.0 })
+                    }
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-1.5 py-1 text-xs text-center font-bold text-[var(--fg)] focus:border-[var(--brand)] focus:outline-none"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeCriterion(idx)}
+                className="grid size-7 shrink-0 place-items-center rounded text-[var(--danger)] hover:bg-[var(--surface-3)] transition-colors"
+                title="Remove Criterion"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CompetitionsPage() {
   const { push } = useToast();
@@ -90,6 +303,36 @@ export default function CompetitionsPage() {
             { name: "title", label: "Title", required: true, placeholder: "e.g. Big Classic Dance Competition" },
             { name: "category", label: "Category", half: true, placeholder: "Solo / Group / Freestyle" },
             { name: "max_participants", label: "Max participants", type: "number", half: true, placeholder: "e.g. 150" },
+            {
+              name: "card_image_url",
+              label: "16:9 Desktop Image / Card",
+              half: true,
+              render: ({ value, onChange }) => (
+                <ImageUploaderField
+                  label="Desktop / Card Image"
+                  aspectRatioLabel="16:9 Aspect Ratio"
+                  aspectClass="w-32 aspect-video"
+                  value={value}
+                  onChange={onChange}
+                  onUpload={(f) => competitionsApi.uploadCard(f)}
+                />
+              ),
+            },
+            {
+              name: "banner_image_url",
+              label: "9:16 Mobile Image / Banner",
+              half: true,
+              render: ({ value, onChange }) => (
+                <ImageUploaderField
+                  label="Mobile Banner Image"
+                  aspectRatioLabel="9:16 Aspect Ratio"
+                  aspectClass="w-16 aspect-[9/16]"
+                  value={value}
+                  onChange={onChange}
+                  onUpload={(f) => competitionsApi.uploadBanner(f)}
+                />
+              ),
+            },
             { name: "description", label: "Description", type: "textarea", placeholder: "Details about this competition…" },
             { name: "start_date", label: "Competition starts", type: "datetime", half: true, required: true },
             { name: "end_date", label: "Competition ends", type: "datetime", half: true, required: true },
@@ -102,11 +345,25 @@ export default function CompetitionsPage() {
             { name: "audience_voting_enabled", label: "Audience voting enabled", type: "toggle", half: true, defaultValue: true },
             { name: "judge_scoring_enabled", label: "Judge scoring enabled", type: "toggle", half: true, defaultValue: true },
             { name: "is_published", label: "Published", type: "toggle", half: true, defaultValue: false },
+            {
+              name: "judging_criteria",
+              label: "Dynamic Judging Criteria",
+              defaultValue: [
+                { name: "Skill & Technique", max_score: 10, weight: 1.0, display_order: 1 },
+                { name: "Creativity & Style", max_score: 10, weight: 1.0, display_order: 2 },
+                { name: "Overall Impression", max_score: 10, weight: 1.0, display_order: 3 },
+              ],
+              render: ({ value, onChange }) => (
+                <JudgingCriteriaBuilder value={value} onChange={onChange} />
+              ),
+            },
           ],
           toForm: (r: any) => ({
             title: r.title || r.name || "",
             description: r.description || "",
             category: r.category || "",
+            card_image_url: r.card_image_url || r.image_url || "",
+            banner_image_url: r.banner_image_url || r.banner_url || "",
             max_participants: r.max_participants ?? "",
             start_date: r.start_date || r.starts_at || "",
             end_date: r.end_date || r.ends_at || "",
@@ -118,6 +375,13 @@ export default function CompetitionsPage() {
             max_age: r.max_age ?? "",
             audience_voting_enabled: r.audience_voting_enabled ?? r.voting_enabled ?? true,
             judge_scoring_enabled: r.judge_scoring_enabled ?? true,
+            judging_criteria: Array.isArray(r.judging_criteria) && r.judging_criteria.length
+              ? r.judging_criteria
+              : [
+                  { name: "Skill & Technique", max_score: 10, weight: 1.0, display_order: 1 },
+                  { name: "Creativity & Style", max_score: 10, weight: 1.0, display_order: 2 },
+                  { name: "Overall Impression", max_score: 10, weight: 1.0, display_order: 3 },
+                ],
             is_published: !!r.is_published,
           }),
           toBody: (v: any, editing: any) => {
@@ -127,11 +391,41 @@ export default function CompetitionsPage() {
               return isNaN(d.getTime()) ? null : d.toISOString();
             };
 
+            const voteEnabled = v.audience_voting_enabled !== undefined ? !!v.audience_voting_enabled : true;
+            let judgeEnabled = v.judge_scoring_enabled !== undefined ? !!v.judge_scoring_enabled : true;
+            if (!voteEnabled && !judgeEnabled) {
+              judgeEnabled = true;
+            }
+
+            const cleanCriteria = Array.isArray(v.judging_criteria) && v.judging_criteria.length
+              ? v.judging_criteria.map((c: any, idx: number) => ({
+                  name: String(c.name || `Criterion ${idx + 1}`).trim(),
+                  description: c.description ? String(c.description).trim() : null,
+                  max_score: Number(c.max_score) || 10,
+                  weight: Number(c.weight) || 1.0,
+                  display_order: idx + 1,
+                }))
+              : judgeEnabled
+              ? [
+                  { name: "Skill & Technique", max_score: 10, weight: 1.0, display_order: 1 },
+                  { name: "Creativity & Style", max_score: 10, weight: 1.0, display_order: 2 },
+                  { name: "Overall Impression", max_score: 10, weight: 1.0, display_order: 3 },
+                ]
+              : [];
+
             if (editing) {
               return {
-                title: v.title,
-                description: v.description || null,
+                title: v.title ? String(v.title).trim() : undefined,
+                description: v.description !== undefined ? String(v.description || "").trim() : undefined,
+                category: v.category ? String(v.category).trim() : undefined,
+                card_image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
+                image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
+                banner_image_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
+                banner_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
                 is_published: !!v.is_published,
+                audience_voting_enabled: voteEnabled,
+                judge_scoring_enabled: judgeEnabled,
+                judging_criteria: cleanCriteria,
               };
             }
 
@@ -141,12 +435,6 @@ export default function CompetitionsPage() {
             const regEnd = toIso(v.registration_deadline) || sDate;
             const subEnd = toIso(v.submission_deadline) || eDate;
 
-            const voteEnabled = v.audience_voting_enabled !== undefined ? !!v.audience_voting_enabled : true;
-            let judgeEnabled = v.judge_scoring_enabled !== undefined ? !!v.judge_scoring_enabled : true;
-            if (!voteEnabled && !judgeEnabled) {
-              judgeEnabled = true;
-            }
-
             const audienceWeight = voteEnabled && judgeEnabled ? 0.5 : voteEnabled ? 1.0 : 0.0;
             const judgeWeight = voteEnabled && judgeEnabled ? 0.5 : judgeEnabled ? 1.0 : 0.0;
 
@@ -155,6 +443,10 @@ export default function CompetitionsPage() {
               description: String(v.description || v.title || "").trim(),
               category: String(v.category || "General").trim() || "General",
               type: "General",
+              card_image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
+              image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
+              banner_image_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
+              banner_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
               max_participants: v.max_participants === "" || v.max_participants == null ? null : Number(v.max_participants),
               participation_fee: v.participation_fee === "" || v.participation_fee == null ? 0 : Number(v.participation_fee),
               currency: "INR",
@@ -170,13 +462,7 @@ export default function CompetitionsPage() {
               judge_scoring_enabled: judgeEnabled,
               audience_vote_weight: audienceWeight,
               judge_score_weight: judgeWeight,
-              judging_criteria: judgeEnabled
-                ? [
-                    { name: "Skill & Technique", max_score: 10, weight: 1.0, display_order: 1 },
-                    { name: "Creativity & Style", max_score: 10, weight: 1.0, display_order: 2 },
-                    { name: "Overall Impression", max_score: 10, weight: 1.0, display_order: 3 },
-                  ]
-                : [],
+              judging_criteria: cleanCriteria,
               /* No commas in a field name: entries are posted to the API as a
                  single comma separated field_names string, so a comma inside
                  the name splits it in two and the entry is rejected as a
