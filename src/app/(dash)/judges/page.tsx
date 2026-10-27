@@ -131,12 +131,15 @@ function AssignModal({
     if (!email) return null;
     const comps = toRows(await safe(competitionsApi.list({ limit: 100 }), []));
     
-    // Direct backend assignments lookup
+    // 1. Direct backend assignments lookup
     const directAssignments = await safe(judgesApi.assignments(email), []);
-    const assigned = new Set<string>((directAssignments || []).map((id: any) => String(id)));
+    const initialFromRow = Array.isArray(judge?.assigned_competitions) ? judge.assigned_competitions : [];
+    const assigned = new Set<string>(
+      [...(initialFromRow || []), ...(directAssignments || [])].map((id: any) => String(id))
+    );
 
-    // Fallback: Check judging progress if direct API was empty
-    if (assigned.size === 0 && comps.length > 0) {
+    // 2. Comprehensive check across competition progress
+    if (comps.length > 0) {
       const progress = await Promise.all(
         comps.map((c: any) => safe(competitionsApi.judgingProgress(rowId(c)), null))
       );
@@ -144,6 +147,8 @@ function AssignModal({
         const details: any[] = progress[i]?.judges || progress[i]?.judge_details || [];
         if (details.some((d: any) => String(d?.judge_email || "").trim().toLowerCase() === email)) {
           assigned.add(rowId(c));
+          if (c._id) assigned.add(String(c._id));
+          if (c.id) assigned.add(String(c.id));
         }
       });
     }
@@ -186,7 +191,11 @@ function AssignModal({
         <ul className="flex flex-col divide-y divide-[var(--border)]">
           {comps.map((c) => {
             const cid = rowId(c);
-            const isAssigned = !!data?.assigned.has(cid);
+            const isAssigned = !!(
+              data?.assigned.has(cid) ||
+              (c._id && data?.assigned.has(String(c._id))) ||
+              (c.id && data?.assigned.has(String(c.id)))
+            );
             return (
               <li key={cid} className="flex items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
