@@ -241,6 +241,8 @@ export const judgesApi = {
   create: (body: any) => api<any>("/api/admin/judges/", { method: "POST", body }),
   sendInvitation: (email: string) =>
     api<any>(`/api/admin/judges/${encodeURIComponent(email)}/send-invitation`, { method: "POST" }),
+  assignments: (email: string) =>
+    api<string[]>(`/api/admin/judges/${encodeURIComponent(email)}/assignments`),
   assign: (body: any) => api<any>("/api/admin/judges/assignments", { method: "POST", body }),
   unassign: (body: any) => api<any>("/api/admin/judges/assignments", { method: "DELETE", body }),
 };
