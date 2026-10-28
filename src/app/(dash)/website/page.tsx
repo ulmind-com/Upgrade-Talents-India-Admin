@@ -69,7 +69,8 @@ function BrandSection() {
     setBusy(true);
     const body: any = {};
     ["brand_name", "logo_url", "favicon_url", "tagline", "homepage_title", "homepage_description",
-     "contact_email", "contact_phone", "office_address", "support_url", "privacy_policy_url", "terms_url"]
+     "contact_email", "contact_phone", "office_address", "support_url", "privacy_policy_url", "terms_url",
+     "competitions_section_label", "competitions_section_title", "competitions_section_link"]
       .forEach((k) => { body[k] = v(k) || null; });
 
     body.social_media = ["facebook", "instagram", "twitter", "youtube", "linkedin"]
@@ -119,6 +120,14 @@ function BrandSection() {
             {text("support_url", "Support / help centre URL", undefined, "url")}
             {text("privacy_policy_url", "Privacy policy URL", undefined, "url")}
             {text("terms_url", "Terms URL", undefined, "url")}
+          </div>
+        </Panel>
+
+        <Panel title="Upcoming Competitions section" subtitle="Homepage 3D Coverflow carousel section title & button">
+          <div className="flex flex-col gap-4">
+            {text("competitions_section_label", "Section label / eyebrow", "Default: What's next")}
+            {text("competitions_section_title", "Section main heading", "Default: Upcoming Competitions")}
+            {text("competitions_section_link", "View All link URL", "Default: /competitions")}
           </div>
         </Panel>
 
