@@ -198,6 +198,7 @@ export const usersApi = {
   achievements: (id: string) => api<any>(`/api/admin/users/${id}/achievements`),
   activitySummary: (id: string) => api<any>(`/api/admin/users/${id}/activity-summary`),
   vipBookings: (id: string) => api<any>(`/api/admin/users/${id}/vip-bookings`),
+  ticketBookings: (id: string) => api<any>(`/api/admin/users/${id}/tickets`),
 };
 
 /* ═══════════════ COMPETITIONS ═══════════════ */

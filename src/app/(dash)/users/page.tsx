@@ -126,6 +126,7 @@ function UserDetail({ user, onClose }: { user: any | null; onClose: () => void }
       summary: await safe(usersApi.profileSummary(id), null),
       achievements: await safe(usersApi.achievements(id), null),
       activity: await safe(usersApi.activitySummary(id), null),
+      tickets: await safe(usersApi.ticketBookings(id), null),
     }),
     [id]
   );
@@ -147,6 +148,83 @@ function UserDetail({ user, onClose }: { user: any | null; onClose: () => void }
               { k: "Verified", v: <StatusBadge value={user?.is_verified ?? user?.verified} /> },
             ]}
           />
+
+          {/* Ticket Bookings & Passes History */}
+          <Panel
+            title="Ticket Bookings & Gate Admission History"
+            subtitle={
+              data?.tickets?.total_bookings != null
+                ? `${data.tickets.total_bookings} booking(s) • ${data.tickets.total_tickets_bought} ticket(s) purchased • ₹${Number(data.tickets.total_spent || 0).toLocaleString("en-IN")} total spent`
+                : "Record of all event passes and tickets purchased by this user"
+            }
+            className="shadow-none"
+          >
+            {data?.tickets?.bookings?.length ? (
+              <div className="flex flex-col gap-3">
+                {data.tickets.bookings.map((b: any) => {
+                  const bQty = Number(b.quantity || 1);
+                  const tix: any[] = b.tickets || [];
+                  const checkedIn = tix.filter((t: any) => t.is_checked_in).length;
+                  const isAll = checkedIn === bQty && bQty > 0;
+                  return (
+                    <div
+                      key={b._id || b.booking_reference}
+                      className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-[var(--brand)]">
+                            {b.booking_reference}
+                          </span>
+                          <span className="rounded bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--fg-muted)]">
+                            {b.payment_method || "ONLINE"}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[11px] text-[var(--fg-muted)]">
+                          {formatDate(b.booked_at || b.created_at, true)}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+                        <div>
+                          <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Event</span>
+                          <p className="font-semibold text-white truncate">{b.event_title || "Event"}</p>
+                          <p className="text-[10.5px] text-[var(--fg-muted)]">{b.event_venue || "—"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Tickets / Cost</span>
+                          <p className="font-bold text-white">{bQty} ticket{bQty > 1 ? "s" : ""}</p>
+                          <p className="font-mono text-[10.5px] text-[var(--fg-muted)]">₹{Number(b.total_amount || 0).toLocaleString("en-IN")}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Booking Status</span>
+                          <p className={`font-bold ${b.booking_status === "CONFIRMED" ? "text-green-400" : "text-amber-400"}`}>
+                            {b.booking_status}
+                          </p>
+                          <p className="text-[10px] font-mono text-[var(--fg-muted)]">{b.payment_status || "PENDING"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Gate Admission</span>
+                          <p className={`font-bold ${isAll ? "text-green-400" : checkedIn > 0 ? "text-amber-400" : "text-[var(--fg-muted)]"}`}>
+                            {checkedIn} / {bQty} Checked in
+                          </p>
+                          {tix.length > 0 && (
+                            <p className="font-mono text-[10px] text-[var(--brand)] truncate">
+                              Pass Ref: {tix[0]?.ticket_ref}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--fg-muted)] py-2">
+                No event tickets have been booked by this user yet.
+              </p>
+            )}
+          </Panel>
 
           {data?.summary && (
             <Panel title="Profile summary" className="shadow-none">
