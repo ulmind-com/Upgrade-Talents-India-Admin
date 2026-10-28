@@ -126,6 +126,8 @@ export const cmsApi = {
   updateFeaturedTiles: (tiles: any[]) => api<any>(`${cms}/featured-tiles`, { method: "PUT", body: tiles }),
   getHomepageStats: () => api<any[]>(`${cms}/homepage-stats`),
   updateHomepageStats: (stats: any[]) => api<any>(`${cms}/homepage-stats`, { method: "PUT", body: stats }),
+  getGallerySection: () => api<any>(`${cms}/gallery-section`),
+  updateGallerySection: (body: any) => api<any>(`${cms}/gallery-section`, { method: "PUT", body }),
 
   listEvents: (q?: any) => api<any[]>(`${cms}/events`, { query: q }),
   createEvent: (body: any) => api<any>(`${cms}/events`, { method: "POST", body }),

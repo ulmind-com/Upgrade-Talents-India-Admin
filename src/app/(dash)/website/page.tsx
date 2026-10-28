@@ -12,6 +12,7 @@ const TABS = [
   { key: "brand", label: "Brand & Contact" },
   { key: "banners", label: "Sponsored Banners" },
   { key: "tiles", label: "Featured 4 Tiles" },
+  { key: "gallery", label: "Gallery Section" },
   { key: "stats", label: "Stats Counter" },
   { key: "testimonials", label: "Testimonials" },
   { key: "live", label: "Live Events" },
@@ -46,6 +47,7 @@ export default function WebsitePage() {
       {tab === "brand" && <BrandSection />}
       {tab === "banners" && <BannersSection />}
       {tab === "tiles" && <FeaturedTilesSection />}
+      {tab === "gallery" && <GallerySectionEditor />}
       {tab === "stats" && <HomepageStatsSection />}
       {tab === "testimonials" && <TestimonialsSection />}
       {tab === "live" && <LiveEventsSection />}
@@ -644,6 +646,282 @@ function FeaturedTilesSection() {
         <Button size="md" onClick={handleSave} loading={busy}>
           <Save className="size-4" aria-hidden /> Save All 4 Tiles
         </Button>
+      </div>
+    </Panel>
+  );
+}
+
+/* ───────── HOMEPAGE GALLERY COLLAGE SECTION ───────── */
+
+const DEFAULT_GALLERY_IMAGES = [
+  { id: "img-1", image_url: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?q=80&w=800&auto=format&fit=crop", caption: "Center Hero Card" },
+  { id: "img-2", image_url: "https://images.unsplash.com/photo-1547153760-18fc86324498?q=80&w=800&auto=format&fit=crop", caption: "Top Left Card" },
+  { id: "img-3", image_url: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=800&auto=format&fit=crop", caption: "Bottom Left Card" },
+  { id: "img-4", image_url: "https://images.unsplash.com/photo-1469488865564-c2de10f69f96?q=80&w=800&auto=format&fit=crop", caption: "Top Right Card" },
+  { id: "img-5", image_url: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=800&auto=format&fit=crop", caption: "Mid Right Card" },
+  { id: "img-6", image_url: "https://images.unsplash.com/photo-1514306191717-452ec28c7814?q=80&w=800&auto=format&fit=crop", caption: "Bottom Center Card" },
+];
+
+const SLOT_DESCRIPTIONS = [
+  "Slot 1: Center Hero Card (Most Prominent)",
+  "Slot 2: Top Left Floating Card",
+  "Slot 3: Bottom Left Floating Card",
+  "Slot 4: Top Right Floating Card",
+  "Slot 5: Mid Right Floating Card",
+  "Slot 6: Bottom Center Floating Card",
+];
+
+function GallerySectionEditor() {
+  const { push } = useToast();
+  const { data, loading, reload } = useResource(async () => {
+    const res = await safe(cmsApi.getGallerySection(), null);
+    return res;
+  }, []);
+
+  const [label, setLabel] = useState("In motion");
+  const [title, setTitle] = useState("A stage worth watching");
+  const [description, setDescription] = useState(
+    "Every performance, workshop and showdown — captured and brought to life. Scroll through the moments that make Upgrade Talents unforgettable."
+  );
+  const [viewAllUrl, setViewAllUrl] = useState("/gallery");
+  const [images, setImages] = useState<any[]>(DEFAULT_GALLERY_IMAGES);
+  const [busy, setBusy] = useState(false);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (data) {
+      if (data.label) setLabel(data.label);
+      if (data.title) setTitle(data.title);
+      if (data.description) setDescription(data.description);
+      if (data.view_all_url) setViewAllUrl(data.view_all_url);
+      if (Array.isArray(data.images) && data.images.length > 0) {
+        const merged = Array.from({ length: 6 }, (_, idx) => {
+          return data.images[idx] || DEFAULT_GALLERY_IMAGES[idx] || { id: `img-${idx + 1}`, image_url: "", caption: "" };
+        });
+        setImages(merged);
+      } else {
+        setImages(DEFAULT_GALLERY_IMAGES);
+      }
+    }
+  }, [data]);
+
+  const updateImage = (idx: number, patch: Partial<any>) => {
+    setImages((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], ...patch };
+      return copy;
+    });
+  };
+
+  const handleFileUpload = async (idx: number, file: File) => {
+    setUploadingIdx(idx);
+    try {
+      const res = await cmsApi.uploadBannerImage(file, "16:9");
+      if (res?.url) {
+        updateImage(idx, { image_url: res.url });
+        push("success", `Gallery Card ${idx + 1} photo uploaded successfully.`);
+      }
+    } catch (err: any) {
+      push("error", err?.message || "Failed to upload image.");
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
+
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      const payload = {
+        label,
+        title,
+        description,
+        view_all_url: viewAllUrl,
+        images,
+      };
+      await cmsApi.updateGallerySection(payload);
+      push("success", "Homepage gallery section saved successfully.");
+      reload();
+    } catch (err: any) {
+      push("error", err?.message || "Could not save gallery section.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <Panel title="Gallery Section"><div className="skeleton h-64 w-full" /></Panel>;
+
+  return (
+    <Panel
+      title="Homepage Gallery Collage ('In Motion')"
+      subtitle="Customize the 6 floating stage photo cards, heading, and description displayed in the homepage gallery section."
+      action={
+        <Button size="sm" onClick={handleSave} loading={busy}>
+          <Save className="size-3.5" aria-hidden /> Save Gallery Section
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-8">
+        {/* Section Headings & Text */}
+        <div className="grid gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h3 className="text-sm font-bold text-[var(--fg)]">Section Titles & Link</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Section Eyebrow Label" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={label}
+                  placeholder="e.g. In motion"
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Heading Title" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={title}
+                  placeholder="e.g. A stage worth watching"
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+
+          <Field label="Description / Caption">
+            {({ id }) => (
+              <Textarea
+                id={id}
+                rows={2}
+                value={description}
+                placeholder="Every performance, workshop and showdown..."
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            )}
+          </Field>
+
+          <Field label="Explore Gallery Button Link">
+            {({ id }) => (
+              <Input
+                id={id}
+                value={viewAllUrl}
+                placeholder="/gallery"
+                onChange={(e) => setViewAllUrl(e.target.value)}
+              />
+            )}
+          </Field>
+        </div>
+
+        {/* 6 Photo Cards Grid */}
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-[var(--fg)]">6 Floating Stage Photos</h3>
+              <p className="text-xs text-[var(--fg-muted)]">Upload photos to replace the 6 fanned cards in the floating collage.</p>
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {images.map((img, idx) => (
+              <div
+                key={img.id || `gallery-slot-${idx}`}
+                className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-sm"
+              >
+                <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="grid size-6 place-items-center rounded-full bg-[var(--brand)] text-[11px] font-bold text-[var(--on-brand)]">
+                      {idx + 1}
+                    </span>
+                    <span className="font-semibold text-xs text-[var(--fg)]">
+                      {SLOT_DESCRIPTIONS[idx] || `Card ${idx + 1}`}
+                    </span>
+                  </div>
+                  {img.image_url && (
+                    <button
+                      type="button"
+                      onClick={() => updateImage(idx, { image_url: "" })}
+                      className="text-[11px] font-medium text-[var(--danger)] hover:underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {/* Image Preview & Upload Button */}
+                <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl border border-[var(--border)] bg-black/40">
+                  {img.image_url ? (
+                    <img
+                      src={img.image_url}
+                      alt={img.caption || `Card ${idx + 1}`}
+                      className="size-full object-cover object-center"
+                    />
+                  ) : (
+                    <div className="grid size-full place-items-center text-center p-4 text-[var(--fg-subtle)]">
+                      <div>
+                        <ImageIcon className="mx-auto size-8 opacity-40 mb-1" />
+                        <span className="text-[11px]">No photo uploaded</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="absolute inset-x-2 bottom-2">
+                    <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-black/75 px-3 py-1.5 text-[11px] font-semibold text-white shadow-md backdrop-blur-md hover:bg-black/90 transition-all">
+                      {uploadingIdx === idx ? (
+                        <>
+                          <Loader2 className="size-3.5 animate-spin text-[var(--brand)]" /> Uploading…
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="size-3.5 text-[var(--brand)]" /> {img.image_url ? "Change Photo" : "Upload Photo"}
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingIdx === idx}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleFileUpload(idx, f);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Direct URL Input */}
+                <Field label="Or Photo URL">
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      value={img.image_url || ""}
+                      placeholder="https://..."
+                      onChange={(e) => updateImage(idx, { image_url: e.target.value })}
+                    />
+                  )}
+                </Field>
+
+                {/* Card Caption / Label */}
+                <Field label="Card Label / Caption (Optional)">
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      value={img.caption || ""}
+                      placeholder="e.g. Solo Performance"
+                      onChange={(e) => updateImage(idx, { caption: e.target.value })}
+                    />
+                  )}
+                </Field>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button size="md" onClick={handleSave} loading={busy}>
+            <Save className="size-4" aria-hidden /> Save Gallery Section
+          </Button>
+        </div>
       </div>
     </Panel>
   );
