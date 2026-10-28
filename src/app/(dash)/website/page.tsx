@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Panel, StatusBadge, Textarea, Toggle, useResource } from "@/components/Kit";
@@ -11,6 +11,7 @@ import { formatDate, fromDateTimeInput, rowId, cn } from "@/lib/utils";
 const TABS = [
   { key: "brand", label: "Brand & Contact" },
   { key: "banners", label: "Sponsored Banners" },
+  { key: "tiles", label: "Featured 4 Tiles" },
   { key: "testimonials", label: "Testimonials" },
   { key: "live", label: "Live Events" },
   { key: "contests", label: "Contest Promo" },
@@ -43,6 +44,7 @@ export default function WebsitePage() {
 
       {tab === "brand" && <BrandSection />}
       {tab === "banners" && <BannersSection />}
+      {tab === "tiles" && <FeaturedTilesSection />}
       {tab === "testimonials" && <TestimonialsSection />}
       {tab === "live" && <LiveEventsSection />}
       {tab === "contests" && <ContestSection />}
@@ -383,6 +385,248 @@ function BannersSection() {
         }),
       }}
     />
+  );
+}
+
+/* ───────── FEATURED 4 TILES ───────── */
+
+const DEFAULT_FEATURED_TILES = [
+  {
+    id: "tile-competition",
+    title: "Competition",
+    subtitle: "National Championship",
+    action_text: "Learn more",
+    image_url: "https://images.unsplash.com/photo-1547153760-18fc86324498?q=80&w=1200&auto=format&fit=crop",
+    target_url: "/competitions",
+    icon_name: "Trophy",
+    display_order: 1,
+  },
+  {
+    id: "tile-event",
+    title: "Event",
+    subtitle: "Live Stage Shows",
+    action_text: "Learn more",
+    image_url: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=1200&auto=format&fit=crop",
+    target_url: "/events",
+    icon_name: "CalendarDays",
+    display_order: 2,
+  },
+  {
+    id: "tile-shop",
+    title: "Shop",
+    subtitle: "Official Streetwear & Merch",
+    action_text: "Learn more",
+    image_url: "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1200&auto=format&fit=crop",
+    target_url: "/shop",
+    icon_name: "ShoppingBag",
+    display_order: 3,
+  },
+  {
+    id: "tile-course",
+    title: "Course",
+    subtitle: "Masterclasses & Workshops",
+    action_text: "Learn more",
+    image_url: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?q=80&w=1200&auto=format&fit=crop",
+    target_url: "/courses",
+    icon_name: "GraduationCap",
+    display_order: 4,
+  },
+];
+
+function FeaturedTilesSection() {
+  const { push } = useToast();
+  const { data, loading, reload } = useResource(async () => {
+    const res = await safe(cmsApi.getFeaturedTiles(), []);
+    return Array.isArray(res) && res.length >= 4 ? res : DEFAULT_FEATURED_TILES;
+  }, []);
+
+  const [tiles, setTiles] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (data && data.length >= 4) {
+      setTiles(data.slice(0, 4));
+    } else {
+      setTiles(DEFAULT_FEATURED_TILES);
+    }
+  }, [data]);
+
+  const updateTile = (idx: number, patch: Partial<any>) => {
+    setTiles((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], ...patch };
+      return copy;
+    });
+  };
+
+  const handleFileUpload = async (idx: number, file: File) => {
+    setUploadingIdx(idx);
+    try {
+      const res = await cmsApi.uploadBannerImage(file, "16:9");
+      if (res?.url) {
+        updateTile(idx, { image_url: res.url });
+        push("success", `Tile ${idx + 1} photo uploaded successfully.`);
+      }
+    } catch (err: any) {
+      push("error", err?.message || "Failed to upload image.");
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
+
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      await cmsApi.updateFeaturedTiles(tiles);
+      push("success", "Homepage 4 category tiles saved successfully.");
+      reload();
+    } catch (err: any) {
+      push("error", err?.message || "Could not save featured tiles.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <Panel title="Featured 4 Tiles"><div className="skeleton h-64 w-full" /></Panel>;
+
+  return (
+    <Panel
+      title="Homepage Featured 4 Category Tiles"
+      subtitle="Customize the 4 quick navigation showcase tiles directly under the hero banner (Competition, Event, Shop, Course)."
+      action={
+        <Button size="sm" onClick={handleSave} loading={busy}>
+          <Save className="size-3.5" aria-hidden /> Save All 4 Tiles
+        </Button>
+      }
+    >
+      <div className="grid gap-6 md:grid-cols-2">
+        {tiles.map((tile, idx) => (
+          <div
+            key={tile.id || `tile-${idx}`}
+            className="flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5"
+          >
+            {/* Header: Position badge and default name */}
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <div className="flex items-center gap-2">
+                <span className="grid size-6 place-items-center rounded-full bg-[var(--brand)] text-[11px] font-bold text-[var(--on-brand)]">
+                  {idx + 1}
+                </span>
+                <span className="font-bold text-[14px] text-[var(--fg)]">
+                  Position {idx + 1}: {tile.title || "Category"}
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-[var(--fg-muted)]">
+                {idx === 0 ? "1st (Competition)" : idx === 1 ? "2nd (Event)" : idx === 2 ? "3rd (Shop)" : "4th (Course)"}
+              </span>
+            </div>
+
+            {/* Image Preview & Upload */}
+            <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-[var(--border)] bg-black/40">
+              {tile.image_url ? (
+                <img
+                  src={tile.image_url}
+                  alt={tile.title}
+                  className="size-full object-cover object-center"
+                />
+              ) : (
+                <div className="flex size-full flex-col items-center justify-center gap-2 text-[var(--fg-muted)]">
+                  <ImageIcon className="size-8 opacity-40" />
+                  <span className="text-[12px]">No photo set</span>
+                </div>
+              )}
+
+              {/* Upload Overlay Button */}
+              <div className="absolute bottom-2 right-2 flex items-center gap-2">
+                <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-black/75 px-3 py-1.5 text-[11.5px] font-semibold text-white backdrop-blur-md transition-colors hover:bg-black">
+                  {uploadingIdx === idx ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                  <span>{uploadingIdx === idx ? "Uploading..." : "Upload Photo"}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={uploadingIdx === idx}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleFileUpload(idx, f);
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Inputs: Title & Subtitle */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Tile Name / Title" required>
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={tile.title || ""}
+                    placeholder="e.g. Competition"
+                    onChange={(e) => updateTile(idx, { title: e.target.value })}
+                  />
+                )}
+              </Field>
+
+              <Field label="Subtitle / Tagline">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={tile.subtitle || ""}
+                    placeholder="e.g. National Championship"
+                    onChange={(e) => updateTile(idx, { subtitle: e.target.value })}
+                  />
+                )}
+              </Field>
+            </div>
+
+            {/* Inputs: Target URL & Action Text */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Target Link (Href)" required>
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={tile.target_url || ""}
+                    placeholder="e.g. /competitions"
+                    onChange={(e) => updateTile(idx, { target_url: e.target.value })}
+                  />
+                )}
+              </Field>
+
+              <Field label="Action Text">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={tile.action_text || "Learn more"}
+                    placeholder="e.g. Learn more"
+                    onChange={(e) => updateTile(idx, { action_text: e.target.value })}
+                  />
+                )}
+              </Field>
+            </div>
+
+            {/* Photo URL Direct Input */}
+            <Field label="Photo URL (or use Upload above)">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="url"
+                  value={tile.image_url || ""}
+                  placeholder="https://..."
+                  onChange={(e) => updateTile(idx, { image_url: e.target.value })}
+                />
+              )}
+            </Field>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex justify-end">
+        <Button size="md" onClick={handleSave} loading={busy}>
+          <Save className="size-4" aria-hidden /> Save All 4 Tiles
+        </Button>
+      </div>
+    </Panel>
   );
 }
 

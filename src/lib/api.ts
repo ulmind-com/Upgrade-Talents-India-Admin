@@ -122,6 +122,8 @@ const cms = "/api/admin";
 export const cmsApi = {
   getSettings: () => api<any>(`${cms}/website-settings`),
   updateSettings: (body: any) => api<any>(`${cms}/website-settings`, { method: "PUT", body }),
+  getFeaturedTiles: () => api<any[]>(`${cms}/featured-tiles`),
+  updateFeaturedTiles: (tiles: any[]) => api<any>(`${cms}/featured-tiles`, { method: "PUT", body: tiles }),
 
   listEvents: (q?: any) => api<any[]>(`${cms}/events`, { query: q }),
   createEvent: (body: any) => api<any>(`${cms}/events`, { method: "POST", body }),
