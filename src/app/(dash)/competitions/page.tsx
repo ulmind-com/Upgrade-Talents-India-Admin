@@ -4,7 +4,8 @@ import { useState, useMemo } from "react";
 import {
   Gavel, Lock, Trophy, Send, RefreshCw, Eye, UserPlus, UserMinus,
   Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
-  Upload, Loader2, Plus, Trash2, Image as ImageIcon
+  Upload, Loader2, Plus, Trash2, Image as ImageIcon,
+  CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
@@ -717,109 +718,455 @@ function JudgesPanel({
 }
 
 function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; compTitle?: string }) {
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [filterMode, setFilterMode] = useState<string>("ALL");
   const [search, setSearch] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [copiedRef, setCopiedRef] = useState<string | null>(null);
+  const { push } = useToast();
 
   const { data, loading, error, reload } = useResource(
-    () => (!compId ? Promise.resolve(null) : competitionsApi.participants(compId, { limit: 200 })),
+    () => (!compId ? Promise.resolve(null) : competitionsApi.participants(compId, { limit: 500 })),
     [compId]
   );
 
   const rawParticipants = toRows(data?.participants);
   const totalRegistered = data?.total_registered ?? rawParticipants.length;
   const confirmedCount = data?.confirmed_count ?? rawParticipants.filter((p: any) => p.status === "CONFIRMED").length;
-  const pendingCount = data?.pending_payment_count ?? rawParticipants.filter((p: any) => p.status === "PENDING").length;
   const submissionsCount = data?.submissions_count ?? rawParticipants.filter((p: any) => !!p.submission).length;
-  const totalFees = data?.total_fees_collected ?? 0;
+
+  // Online metrics:
+  const onlineTotal = data?.online_total ?? rawParticipants.filter((p: any) => p.payment_method === "ONLINE" || (!p.cash_payment && p.payment_method !== "CASH" && p.payment_method !== "FREE")).length;
+  const onlinePaid = data?.online_paid ?? rawParticipants.filter((p: any) => (p.payment_method === "ONLINE" || (!p.cash_payment && p.payment_method !== "CASH")) && p.payment_status === "PAID").length;
+  const onlinePending = data?.online_pending ?? rawParticipants.filter((p: any) => (p.payment_method === "ONLINE" || (!p.cash_payment && p.payment_method !== "CASH")) && p.payment_status !== "PAID" && Number(p.fee) > 0).length;
+  const onlineFees = data?.online_fees_collected ?? rawParticipants.filter((p: any) => (p.payment_method === "ONLINE" || (!p.cash_payment && p.payment_method !== "CASH")) && p.payment_status === "PAID").reduce((sum: number, p: any) => sum + (Number(p.fee) || 0), 0);
+
+  // Cash metrics:
+  const cashTotal = data?.cash_total ?? rawParticipants.filter((p: any) => Boolean(p.cash_payment || p.payment_method === "CASH")).length;
+  const cashCollected = data?.cash_collected ?? rawParticipants.filter((p: any) => Boolean(p.cash_payment || p.payment_method === "CASH") && (p.payment_status === "PAID" || p.cash_status === "COLLECTED" || p.cash_status === "PAID")).length;
+  const cashPending = data?.cash_pending ?? rawParticipants.filter((p: any) => Boolean(p.cash_payment || p.payment_method === "CASH") && p.payment_status !== "PAID" && p.cash_status !== "COLLECTED" && p.cash_status !== "PAID").length;
+  const cashFeesCollected = data?.cash_fees_collected ?? rawParticipants.filter((p: any) => Boolean(p.cash_payment || p.payment_method === "CASH") && (p.payment_status === "PAID" || p.cash_status === "COLLECTED" || p.cash_status === "PAID")).reduce((sum: number, p: any) => sum + (Number(p.fee) || 0), 0);
+  const cashFeesPending = data?.cash_fees_pending ?? rawParticipants.filter((p: any) => Boolean(p.cash_payment || p.payment_method === "CASH") && p.payment_status !== "PAID" && p.cash_status !== "COLLECTED" && p.cash_status !== "PAID").reduce((sum: number, p: any) => sum + (Number(p.fee) || 0), 0);
+
+  const totalFees = data?.total_fees_collected ?? (onlineFees + cashFeesCollected);
+
+  const handleCopy = (text: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedRef(text);
+    push("info", `Copied "${text}" to clipboard`);
+    setTimeout(() => setCopiedRef(null), 2200);
+  };
+
+  const handleConfirmCash = async (regId: string, name: string, fee: number) => {
+    setActionLoading(regId);
+    try {
+      await competitionsApi.confirmCashPayment(compId, regId);
+      push("success", `Cash payment of ${formatINR(fee)} confirmed for ${name || "participant"}!`);
+      reload();
+    } catch (err: any) {
+      push("error", err?.message || "Failed to confirm cash payment.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRevertCash = async (regId: string, name: string) => {
+    if (!confirm(`Revert cash payment status for ${name || "this participant"} back to pending?`)) return;
+    setActionLoading(regId);
+    try {
+      await competitionsApi.revertCashPayment(compId, regId);
+      push("info", `Cash payment reverted to pending for ${name || "participant"}.`);
+      reload();
+    } catch (err: any) {
+      push("error", err?.message || "Failed to revert cash payment.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     return rawParticipants.filter((p: any) => {
-      const matchStatus = statusFilter === "ALL" || (p.status || "").toUpperCase() === statusFilter;
+      const isCash = Boolean(p.cash_payment || p.payment_method === "CASH");
+      const isFree = p.payment_method === "FREE" || Number(p.fee) === 0 || p.payment_status === "NOT_REQUIRED";
+      const isPaid = p.payment_status === "PAID" || p.cash_status === "COLLECTED" || p.cash_status === "PAID";
+
+      let matchFilter = true;
+      if (filterMode === "ONLINE_PAID") {
+        matchFilter = !isCash && !isFree && p.payment_status === "PAID";
+      } else if (filterMode === "ONLINE_PENDING") {
+        matchFilter = !isCash && !isFree && p.payment_status !== "PAID";
+      } else if (filterMode === "CASH_ALL") {
+        matchFilter = isCash;
+      } else if (filterMode === "CASH_PENDING") {
+        matchFilter = isCash && !isPaid;
+      } else if (filterMode === "CASH_COLLECTED") {
+        matchFilter = isCash && isPaid;
+      } else if (filterMode === "FREE") {
+        matchFilter = isFree;
+      } else if (filterMode === "CONFIRMED") {
+        matchFilter = p.status === "CONFIRMED";
+      } else if (filterMode === "PENDING") {
+        matchFilter = p.status === "PENDING";
+      }
+
       const s = search.toLowerCase().trim();
       const matchSearch =
         !s ||
         (p.registration_reference || "").toLowerCase().includes(s) ||
         (p.user_email || "").toLowerCase().includes(s) ||
         (p.user_name || "").toLowerCase().includes(s) ||
-        (p.user_phone || "").toLowerCase().includes(s);
-      return matchStatus && matchSearch;
+        (p.user_phone || "").toLowerCase().includes(s) ||
+        (isCash ? "cash venue offline spot" : "online upi card razorpay").includes(s);
+
+      return matchFilter && matchSearch;
     });
-  }, [rawParticipants, statusFilter, search]);
+  }, [rawParticipants, filterMode, search]);
 
   return (
     <div className="flex flex-col gap-5 text-xs">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Registered" value={formatNumber(totalRegistered)} Icon={Users} accent index={0} />
-        <StatCard label="Confirmed" value={formatNumber(confirmedCount)} Icon={CheckCircle2} index={1} />
-        <StatCard label="Submissions" value={formatNumber(submissionsCount)} Icon={Video} index={2} />
-        <StatCard label="Fees Collected" value={formatINR(totalFees)} Icon={Trophy} index={3} />
+      {/* ── Top Stat Cards with Online vs Cash Breakdown ── */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <StatCard
+          label="Total Registered"
+          value={formatNumber(totalRegistered)}
+          hint={`${confirmedCount} confirmed • ${submissionsCount} media`}
+          Icon={Users}
+          accent
+          index={0}
+        />
+        <StatCard
+          label="Online Payments"
+          value={`${onlinePaid} Paid`}
+          hint={onlinePending > 0 ? `${onlinePending} Pending • ${formatINR(onlineFees)}` : `${formatINR(onlineFees)} collected`}
+          Icon={CreditCard}
+          index={1}
+        />
+        <StatCard
+          label="Cash at Venue"
+          value={`${cashTotal} Chosen`}
+          hint={`${cashCollected} Received • ${cashPending} Pending`}
+          Icon={Banknote}
+          index={2}
+        />
+        <StatCard
+          label="Submissions"
+          value={formatNumber(submissionsCount)}
+          hint="Media entries submitted"
+          Icon={Video}
+          index={3}
+        />
+        <StatCard
+          label="Revenue Collected"
+          value={formatINR(totalFees)}
+          hint={cashFeesPending > 0 ? `+${formatINR(cashFeesPending)} cash pending` : "All fees collected"}
+          Icon={CircleDollarSign}
+          index={4}
+        />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            options={[
-              { value: "ALL", label: "All Statuses" },
-              { value: "CONFIRMED", label: "Confirmed" },
-              { value: "PENDING", label: "Pending Payment" },
-            ]}
-            className="h-9 w-36 text-xs"
-          />
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-subtle)]" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search participants..."
-              className="h-9 w-52 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)]"
-            />
+      {/* ── Filter Pills & Search Bar ── */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Quick Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setFilterMode("ALL")}
+              className={cn(
+                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                filterMode === "ALL"
+                  ? "bg-[var(--brand)] text-[var(--on-brand)] shadow-sm"
+                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
+              )}
+            >
+              <Users className="size-3.5" /> All ({totalRegistered})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterMode("ONLINE_PAID")}
+              className={cn(
+                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                filterMode === "ONLINE_PAID"
+                  ? "bg-sky-500/25 text-sky-200 border border-sky-500/50 shadow-sm"
+                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-sky-300"
+              )}
+            >
+              <CreditCard className="size-3.5 text-sky-400" /> Online Paid ({onlinePaid})
+            </button>
+
+            {onlinePending > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterMode("ONLINE_PENDING")}
+                className={cn(
+                  "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                  filterMode === "ONLINE_PENDING"
+                    ? "bg-amber-500/25 text-amber-200 border border-amber-500/50 shadow-sm"
+                    : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-amber-300"
+                )}
+              >
+                <Clock className="size-3.5 text-amber-400" /> Online Pending ({onlinePending})
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setFilterMode("CASH_ALL")}
+              className={cn(
+                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                filterMode === "CASH_ALL"
+                  ? "bg-amber-500/25 text-amber-200 border border-amber-500/50 shadow-sm"
+                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-amber-300"
+              )}
+            >
+              <Banknote className="size-3.5 text-amber-400" /> Cash on Venue ({cashTotal})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterMode("CASH_PENDING")}
+              className={cn(
+                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                filterMode === "CASH_PENDING"
+                  ? "bg-amber-500 text-black font-bold shadow-md"
+                  : "border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+              )}
+            >
+              <span className="size-2 rounded-full bg-amber-400 animate-pulse" />
+              Cash Pending ({cashPending})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterMode("CASH_COLLECTED")}
+              className={cn(
+                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                filterMode === "CASH_COLLECTED"
+                  ? "bg-emerald-500/25 text-emerald-200 border border-emerald-500/50 shadow-sm"
+                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-emerald-300"
+              )}
+            >
+              <CheckCircle2 className="size-3.5 text-emerald-400" /> Cash Received ({cashCollected})
+            </button>
+          </div>
+
+          {/* Search & Refresh */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-subtle)]" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name, email, phone, cash..."
+                className="h-9 w-60 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)] transition-colors"
+              />
+            </div>
+            <Button size="sm" variant="secondary" onClick={reload}>
+              <RefreshCw className="size-3 mr-1" /> Refresh
+            </Button>
           </div>
         </div>
-        <Button size="sm" variant="secondary" onClick={reload}>Refresh</Button>
+
+        {/* Informative helper banner for cash collection */}
+        {cashPending > 0 && (
+          <div className="flex items-center justify-between rounded-xl border border-amber-500/25 bg-amber-500/10 px-3.5 py-2 text-[11px] text-amber-200">
+            <div className="flex items-center gap-2">
+              <Banknote className="size-4 shrink-0 text-amber-400" />
+              <span>
+                <strong className="font-semibold text-amber-300">{cashPending} participant{cashPending > 1 ? "s" : ""}</strong> selected <strong>Cash on Venue</strong> payment (Total <strong className="font-semibold text-white">{formatINR(cashFeesPending)}</strong> pending collection). You can verify and collect cash on the spot using the button below.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFilterMode("CASH_PENDING")}
+              className="cursor-pointer whitespace-nowrap rounded-lg bg-amber-500/20 px-2 py-0.5 font-bold text-amber-300 hover:bg-amber-500/30"
+            >
+              View pending cash →
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* ── Participants Table with Rich Payment Badges & Actions ── */}
       <DataTable
         rows={filtered}
         loading={loading}
         error={error}
         onRetry={reload}
-        empty={{ title: "No registered participants yet", body: "Users who register for this competition will display here with their submitted media." }}
+        empty={{
+          title: "No participants match your filter",
+          body: search || filterMode !== "ALL"
+            ? "Try resetting your search query or payment filters above."
+            : "Users who register for this competition will display here with their payment mode and submitted media."
+        }}
         columns={[
           {
             key: "user",
             header: "Participant",
-            render: (r: any) => (
-              <div>
-                <p className="font-semibold text-white">{r.user_name || "Participant"}</p>
-                <p className="font-mono text-[11px] text-[var(--fg-muted)]">{r.user_email}</p>
-                {r.user_phone && <p className="font-mono text-[10.5px] text-[var(--fg-subtle)]">{r.user_phone}</p>}
-              </div>
-            ),
+            render: (r: any) => {
+              const initial = ((r.user_name || r.user_email || "P").trim()[0] || "P").toUpperCase();
+              return (
+                <div className="flex items-center gap-3">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600/30 to-indigo-600/30 border border-violet-500/30 font-bold text-violet-200 text-xs shadow-inner">
+                    {initial}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white truncate">{r.user_name || "Participant"}</p>
+                    <a
+                      href={`mailto:${r.user_email}`}
+                      className="block font-mono text-[11px] text-[var(--fg-muted)] hover:text-white truncate"
+                    >
+                      {r.user_email}
+                    </a>
+                    {r.user_phone && (
+                      <a
+                        href={`tel:${r.user_phone}`}
+                        className="inline-flex items-center gap-1 font-mono text-[10.5px] text-[var(--fg-subtle)] hover:text-white"
+                      >
+                        <Phone className="size-2.5" /> {r.user_phone}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            },
           },
           {
             key: "registration_reference",
             header: "Reg Reference",
             render: (r: any) => (
               <div>
-                <span className="font-mono font-bold text-[var(--brand)]">{r.registration_reference}</span>
-                <span className="block text-[10.5px] text-[var(--fg-subtle)]">{formatDate(r.registered_at, true)}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-[var(--brand)] tracking-wider">
+                    {r.registration_reference}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(r.registration_reference)}
+                    title="Copy registration reference"
+                    className="cursor-pointer text-[var(--fg-subtle)] hover:text-white transition-colors"
+                  >
+                    {copiedRef === r.registration_reference ? (
+                      <Check className="size-3 text-emerald-400" />
+                    ) : (
+                      <Copy className="size-3" />
+                    )}
+                  </button>
+                </div>
+                <span className="block text-[10.5px] text-[var(--fg-subtle)]">
+                  {formatDate(r.registered_at, true)}
+                </span>
               </div>
             ),
           },
           {
             key: "fee",
-            header: "Fee / Payment",
-            render: (r: any) => (
-              <div>
-                <span className="font-semibold text-white">{formatINR(r.fee)}</span>
-                <span className={`block text-[10px] font-bold uppercase ${r.payment_status === "PAID" || r.payment_status === "NOT_REQUIRED" ? "text-green-400" : "text-amber-400"}`}>
-                  {r.payment_status}
-                </span>
-              </div>
-            ),
+            header: "Fee / Payment Method",
+            render: (r: any) => {
+              const isCash = Boolean(r.cash_payment || r.payment_method === "CASH");
+              const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
+              const isPaid = r.payment_status === "PAID" || r.cash_status === "COLLECTED" || r.cash_status === "PAID";
+
+              if (isFree) {
+                return (
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-purple-300">
+                      <Trophy className="size-3 text-purple-400" /> Free Entry
+                    </span>
+                    <span className="block mt-1 text-[10.5px] text-[var(--fg-subtle)] font-medium">
+                      No Fee Required
+                    </span>
+                  </div>
+                );
+              }
+
+              if (isCash) {
+                return (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white text-[13px]">{formatINR(r.fee)}</span>
+                      <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.12)]">
+                        <Banknote className="size-3 text-amber-400" /> Cash on Venue
+                      </span>
+                    </div>
+
+                    {isPaid ? (
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
+                          <CheckCircle2 className="size-3.5 shrink-0" />
+                          <span>Cash Received at Venue</span>
+                          <button
+                            type="button"
+                            title="Revert cash payment back to pending"
+                            disabled={actionLoading === r._id}
+                            onClick={() => handleRevertCash(r._id, r.user_name)}
+                            className="cursor-pointer ml-1 text-[10px] text-[var(--fg-subtle)] hover:text-amber-400 underline"
+                          >
+                            Revert
+                          </button>
+                        </div>
+                        {r.cash_collected_at && (
+                          <span className="block text-[10px] font-mono text-[var(--fg-subtle)]">
+                            Collected: {formatDate(r.cash_collected_at, true)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1 mt-0.5">
+                        <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-300">
+                          <Clock className="size-3 shrink-0 animate-pulse text-amber-400" />
+                          <span>User chose Cash payment (Pending)</span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={actionLoading === r._id}
+                          onClick={() => handleConfirmCash(r._id, r.user_name, r.fee)}
+                          className="cursor-pointer mt-0.5 inline-flex items-center gap-1.5 w-fit rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm disabled:opacity-50"
+                        >
+                          {actionLoading === r._id ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <Check className="size-3" />
+                          )}
+                          Mark Cash Collected
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Online payment
+              return (
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white text-[13px]">{formatINR(r.fee)}</span>
+                    <span className="inline-flex items-center gap-1 rounded-md border border-sky-500/40 bg-sky-500/15 px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-sky-300 shadow-[0_0_12px_rgba(14,165,233,0.12)]">
+                      <CreditCard className="size-3 text-sky-400" /> Online Payment
+                    </span>
+                  </div>
+
+                  {r.payment_status === "PAID" ? (
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
+                      <CheckCircle2 className="size-3.5 shrink-0" />
+                      <span>Paid Online</span>
+                    </div>
+                  ) : r.payment_status === "FAILED" ? (
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-rose-400">
+                      <AlertCircle className="size-3.5 shrink-0" />
+                      <span>Payment Failed</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-400">
+                      <Clock className="size-3.5 shrink-0" />
+                      <span>Online Payment Pending</span>
+                    </div>
+                  )}
+                </div>
+              );
+            },
           },
           {
             key: "status",

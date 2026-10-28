@@ -233,6 +233,10 @@ export const competitionsApi = {
   closeSession: (id: string) => api<any>(`${comp}/${id}/session/close`, { method: "POST" }),
   feedbacks: (id: string) => api<any>(`${comp}/${id}/feedbacks`),
   participants: (id: string, q?: any) => api<any>(`${comp}/${id}/participants`, { query: q }),
+  confirmCashPayment: (compId: string, regId: string) =>
+    api<any>(`${comp}/${compId}/participants/${regId}/confirm-cash`, { method: "PATCH" }),
+  revertCashPayment: (compId: string, regId: string) =>
+    api<any>(`${comp}/${compId}/participants/${regId}/revert-cash`, { method: "PATCH" }),
   uploadCard: (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
