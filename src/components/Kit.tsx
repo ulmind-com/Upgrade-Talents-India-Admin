@@ -464,21 +464,86 @@ export function Select({ options, invalid, className, ...rest }: React.SelectHTM
   );
 }
 
-export function Toggle({ checked, onChange, label, id }: { checked: boolean; onChange: (v: boolean) => void; label: string; id?: string }) {
+export function Toggle({
+  checked,
+  onChange,
+  label,
+  id,
+  hint,
+  disabled = false,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  id?: string;
+  hint?: string;
+  disabled?: boolean;
+}) {
   const auto = useId();
   const tid = id || auto;
+
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-3">
-      <label htmlFor={tid} className="cursor-pointer text-[13px] font-medium">{label}</label>
+    <div
+      onClick={() => {
+        if (!disabled) onChange(!checked);
+      }}
+      className={cn(
+        "group flex items-center justify-between gap-3.5 rounded-xl border px-4 py-3 transition-all duration-200 select-none cursor-pointer",
+        disabled && "opacity-50 pointer-events-none cursor-not-allowed",
+        checked
+          ? "border-emerald-500/40 bg-emerald-500/[0.05] hover:border-emerald-500/60"
+          : "border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--border-strong)]"
+      )}
+    >
+      <div className="flex flex-col min-w-0 pr-1">
+        <label
+          htmlFor={tid}
+          onClick={(e) => e.preventDefault()}
+          className="cursor-pointer text-[13px] font-semibold text-[var(--fg)] group-hover:text-white transition-colors"
+        >
+          {label}
+        </label>
+        {hint ? (
+          <span className="mt-0.5 text-[11px] text-[var(--fg-muted)]">{hint}</span>
+        ) : (
+          <span className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium transition-colors">
+            <span
+              className={cn(
+                "size-1.5 rounded-full transition-colors",
+                checked ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" : "bg-slate-500"
+              )}
+            />
+            <span className={checked ? "text-emerald-400 font-medium" : "text-[var(--fg-muted)]"}>
+              {checked ? "Enabled" : "Disabled"}
+            </span>
+          </span>
+        )}
+      </div>
+
       <button
         id={tid}
         type="button"
         role="switch"
         aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={cn("relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", checked ? "bg-[var(--brand)]" : "bg-[var(--border-strong)]")}
+        disabled={disabled}
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange(!checked);
+        }}
+        className={cn(
+          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]",
+          checked
+            ? "bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)]"
+            : "bg-slate-700/80 border border-slate-600/50 hover:bg-slate-700"
+        )}
       >
-        <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform duration-200", checked ? "translate-x-[22px]" : "translate-x-0.5")} />
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none inline-block size-5 rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out",
+            checked ? "translate-x-5" : "translate-x-0"
+          )}
+        />
       </button>
     </div>
   );
