@@ -125,6 +125,7 @@ function AssignModal({
 }) {
   const { push } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  const [sendingInvite, setSendingInvite] = useState(false);
   const email: string = (judge?.email || "").trim().toLowerCase();
 
   const { data, loading, reload } = useResource(async () => {
@@ -160,15 +161,32 @@ function AssignModal({
     setBusy(compId);
     try {
       const body = { judge_email: judge?.email || email, competition_id: compId };
-      if (isAssigned) await judgesApi.unassign(body);
-      else await judgesApi.assign(body);
-      push("success", isAssigned ? "Removed judge from this competition." : "Assigned judge to this competition.");
+      if (isAssigned) {
+        await judgesApi.unassign(body);
+        push("success", "Removed judge from this competition.");
+      } else {
+        await judgesApi.assign(body);
+        push("success", `Judge assigned to competition & official appointment email sent to ${judge?.email || email}!`);
+      }
       await reload();
       onUpdated?.();
     } catch (e: any) {
       push("error", e?.message || "Could not update the assignment.");
     } finally {
       setBusy(null);
+    }
+  };
+
+  const sendEmail = async () => {
+    if (!email) return;
+    setSendingInvite(true);
+    try {
+      await judgesApi.sendInvitation(email);
+      push("success", `Official appointment email dispatched to ${email}.`);
+    } catch (e: any) {
+      push("error", e?.message || "Could not send invitation email.");
+    } finally {
+      setSendingInvite(false);
     }
   };
 
@@ -181,6 +199,19 @@ function AssignModal({
       title={judge?.full_name || judge?.name || "Judge"}
       subtitle={`Competitions ${judge?.email || email} can score`}
     >
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-[var(--border)]">
+        <p className="text-[12px] text-[var(--fg-muted)]">
+          Assigning automatically dispatches the appointment email to the judge.
+        </p>
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={sendingInvite}
+          onClick={sendEmail}
+        >
+          <Send className="size-3" aria-hidden /> Resend Email
+        </Button>
+      </div>
       {loading ? (
         <Loading rows={4} />
       ) : comps.length === 0 ? (
