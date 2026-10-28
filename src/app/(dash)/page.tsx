@@ -11,7 +11,7 @@ import {
 } from "@/lib/api";
 import { Panel, useResource, Loading, ErrorState, StatusBadge, Button, Badge } from "@/components/Kit";
 import { StatCard, HatchBars, Gauge } from "@/components/Dash";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate, formatINR, formatNumber } from "@/lib/utils";
 
 export default function Dashboard() {
   const { data, loading, error, reload } = useResource(async () => {
@@ -67,7 +67,7 @@ export default function Dashboard() {
     { label: "Total events", value: formatNumber(events.length), hint: `${published} published · ${live} live`, Icon: CalendarDays, href: "/events", accent: true },
     { label: "Registered users", value: formatNumber(totalOf(data?.users, users)), hint: "Across website and app", Icon: Users, href: "/users" },
     { label: "Tickets sold", value: formatNumber(sold), hint: `${formatNumber(stock)} still available`, Icon: Ticket, href: "/tickets?tab=bookings" },
-    { label: "Ticket revenue", value: `₹${formatNumber(Math.round(revenue))}`, hint: "From confirmed attendee bookings", Icon: TrendingUp, href: "/tickets?tab=bookings" },
+    { label: "Ticket revenue", value: formatINR(revenue), hint: "From confirmed attendee bookings", Icon: TrendingUp, href: "/tickets?tab=bookings" },
   ];
 
   const secondary = [

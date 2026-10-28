@@ -11,7 +11,7 @@ import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, 
 import { KeyValues, StatCard } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
 import { competitionsApi, judgesApi, safe, toRows } from "@/lib/api";
-import { formatDate, formatINR, formatNumber, rowId, cn } from "@/lib/utils";
+import { formatDate, formatINR, formatNumber, fromDateTimeInput, rowId, cn } from "@/lib/utils";
 
 function ImageUploaderField({
   label,
@@ -263,7 +263,7 @@ export default function CompetitionsPage() {
             ) },
             { key: "status", header: "Status", render: (r: any) => <StatusBadge value={r.status || r.state} /> },
             { key: "is_published", header: "Published", render: (r: any) => <StatusBadge value={r.is_published ? "published" : "draft"} /> },
-            { key: "start_date", header: "Starts", render: (r: any) => formatDate(r.start_date || r.starts_at) },
+            { key: "start_date", header: "Starts", render: (r: any) => formatDate(r.start_date || r.starts_at, true) },
           ],
           rowActions: (row, { reload }) => (
             <div className="flex items-center gap-1.5">
@@ -334,11 +334,11 @@ export default function CompetitionsPage() {
               ),
             },
             { name: "description", label: "Description", type: "textarea", placeholder: "Details about this competition…" },
-            { name: "start_date", label: "Competition starts", type: "datetime", half: true, required: true },
-            { name: "end_date", label: "Competition ends", type: "datetime", half: true, required: true },
-            { name: "registration_start_date", label: "Registration starts", type: "datetime", half: true, hint: "Defaults to now if empty" },
-            { name: "registration_deadline", label: "Registration deadline", type: "datetime", half: true, hint: "Defaults to competition start if empty" },
-            { name: "submission_deadline", label: "Submission deadline", type: "datetime", half: true, hint: "Defaults to competition end if empty" },
+            { name: "start_date", label: "Competition starts (IST)", type: "datetime", half: true, required: true },
+            { name: "end_date", label: "Competition ends (IST)", type: "datetime", half: true, required: true },
+            { name: "registration_start_date", label: "Registration starts (IST)", type: "datetime", half: true, hint: "Defaults to now if empty" },
+            { name: "registration_deadline", label: "Registration deadline (IST)", type: "datetime", half: true, hint: "Defaults to competition start if empty" },
+            { name: "submission_deadline", label: "Submission deadline (IST)", type: "datetime", half: true, hint: "Defaults to competition end if empty" },
             { name: "participation_fee", label: "Entry fee (₹)", type: "number", half: true, defaultValue: 0 },
             { name: "min_age", label: "Min age", type: "number", half: true, placeholder: "Optional" },
             { name: "max_age", label: "Max age", type: "number", half: true, placeholder: "Optional" },
@@ -385,11 +385,7 @@ export default function CompetitionsPage() {
             is_published: !!r.is_published,
           }),
           toBody: (v: any, editing: any) => {
-            const toIso = (val?: string | null) => {
-              if (!val) return null;
-              const d = new Date(val);
-              return isNaN(d.getTime()) ? null : d.toISOString();
-            };
+            const toIso = (val?: string | null) => fromDateTimeInput(val);
 
             const voteEnabled = v.audience_voting_enabled !== undefined ? !!v.audience_voting_enabled : true;
             let judgeEnabled = v.judge_scoring_enabled !== undefined ? !!v.judge_scoring_enabled : true;

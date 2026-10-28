@@ -280,7 +280,7 @@ export default function EventsPage() {
               },
               { name: "venue", label: "Venue", required: true, half: true },
               { name: "date", label: "Date", type: "date", required: true, half: true },
-              { name: "time", label: "Time", half: true, placeholder: "7:30 PM" },
+              { name: "time", label: "Time (IST)", half: true, placeholder: "7:30 PM IST" },
               {
                 name: "price",
                 label: "Base price (₹)",

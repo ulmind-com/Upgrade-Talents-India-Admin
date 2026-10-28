@@ -7,7 +7,7 @@ import { Button, Loading, Modal, Panel, StatusBadge, useResource } from "@/compo
 import { KeyValues } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
 import { safe } from "@/lib/api";
-import { formatDate, formatINR, rowId } from "@/lib/utils";
+import { formatDate, formatINR, fromDateTimeInput, rowId } from "@/lib/utils";
 
 /** Courses and workshops share one backend shape, so they share one screen. */
 export default function LearnPage({
@@ -73,8 +73,8 @@ export default function LearnPage({
           { name: "available_seats", label: "Available seats", type: "number", half: true, defaultValue: 50 },
           { name: "start_date", label: "Start date", type: "date", half: true },
           { name: "end_date", label: "End date", type: "date", half: true },
-          { name: "registration_start_at", label: "Registration opens", type: "datetime", required: true, half: true },
-          { name: "registration_end_at", label: "Registration closes", type: "datetime", required: true, half: true },
+          { name: "registration_start_at", label: "Registration opens (IST)", type: "datetime", required: true, half: true },
+          { name: "registration_end_at", label: "Registration closes (IST)", type: "datetime", required: true, half: true },
           { name: "display_order", label: "Display order", type: "number", half: true, defaultValue: 0 },
           { name: "is_visible", label: "Visible", type: "toggle", half: true, defaultValue: true },
           { name: "is_published", label: "Published", type: "toggle", half: true, defaultValue: false },
@@ -88,8 +88,8 @@ export default function LearnPage({
           start_date: v.start_date || null,
           end_date: v.end_date || null,
           price: Number(v.price) || 0,
-          registration_start_at: v.registration_start_at ? new Date(v.registration_start_at).toISOString() : null,
-          registration_end_at: v.registration_end_at ? new Date(v.registration_end_at).toISOString() : null,
+          registration_start_at: fromDateTimeInput(v.registration_start_at),
+          registration_end_at: fromDateTimeInput(v.registration_end_at),
           available_seats: Number(v.available_seats) || 0,
           course_type: kind,
           is_published: !!v.is_published,

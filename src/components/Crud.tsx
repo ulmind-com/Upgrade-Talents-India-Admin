@@ -7,7 +7,7 @@ import {
 } from "./Kit";
 import { useToast } from "./Providers";
 import { toRows } from "@/lib/api";
-import { rowId, toDateInput, toDateTimeInput } from "@/lib/utils";
+import { rowId, toDateInput, toDateTimeInput, fromDateTimeInput } from "@/lib/utils";
 
 export type FieldSpec = {
   name: string;
@@ -110,7 +110,11 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
       : Object.fromEntries(
           fields.map((f) => [
             f.name,
-            f.type === "number" ? (values[f.name] === "" ? undefined : Number(values[f.name])) : values[f.name],
+            f.type === "number"
+              ? (values[f.name] === "" ? undefined : Number(values[f.name]))
+              : f.type === "datetime"
+              ? (values[f.name] ? fromDateTimeInput(values[f.name]) : null)
+              : values[f.name],
           ])
         );
 

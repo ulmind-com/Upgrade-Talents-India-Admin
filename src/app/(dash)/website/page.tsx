@@ -6,7 +6,7 @@ import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Panel, StatusBadge, Textarea, Toggle, useResource } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
 import { cmsApi, safe } from "@/lib/api";
-import { formatDate, rowId, cn } from "@/lib/utils";
+import { formatDate, fromDateTimeInput, rowId, cn } from "@/lib/utils";
 
 const TABS = [
   { key: "brand", label: "Brand & Contact" },
@@ -478,8 +478,8 @@ function LiveEventsSection() {
           { name: "stream_url", label: "Private stream URL", type: "url", required: true, hint: "Admin only — never shown on the public site." },
           { name: "public_url", label: "Public watch URL", type: "url", hint: "What viewers open." },
           { name: "image_url", label: "Thumbnail URL", type: "url", half: true },
-          { name: "start_time", label: "Starts", type: "datetime", required: true, half: true },
-          { name: "end_time", label: "Ends", type: "datetime", half: true },
+          { name: "start_time", label: "Starts (IST)", type: "datetime", required: true, half: true },
+          { name: "end_time", label: "Ends (IST)", type: "datetime", half: true },
           { name: "display_order", label: "Display order", type: "number", half: true, defaultValue: 0 },
           { name: "is_visible", label: "Visible", type: "toggle", half: true, defaultValue: true },
           { name: "is_published", label: "Published", type: "toggle", half: true, defaultValue: false },
@@ -488,8 +488,8 @@ function LiveEventsSection() {
           title: v.title, description: v.description || null,
           stream_url: v.stream_url, public_url: v.public_url || null,
           image_url: v.image_url || null,
-          start_time: v.start_time ? new Date(v.start_time).toISOString() : null,
-          end_time: v.end_time ? new Date(v.end_time).toISOString() : null,
+          start_time: fromDateTimeInput(v.start_time),
+          end_time: fromDateTimeInput(v.end_time),
           is_published: !!v.is_published, is_visible: !!v.is_visible,
           display_order: Number(v.display_order) || 0,
         }),

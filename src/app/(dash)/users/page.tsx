@@ -8,7 +8,7 @@ import {
 import { KeyValues } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
 import { usersApi, safe, toRows } from "@/lib/api";
-import { formatDate, rowId, titleCase } from "@/lib/utils";
+import { formatDate, formatINR, rowId, titleCase } from "@/lib/utils";
 
 export default function UsersPage() {
   const { push } = useToast();
@@ -194,7 +194,7 @@ function UserDetail({ user, onClose }: { user: any | null; onClose: () => void }
                         <div>
                           <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Tickets / Cost</span>
                           <p className="font-bold text-white">{bQty} ticket{bQty > 1 ? "s" : ""}</p>
-                          <p className="font-mono text-[10.5px] text-[var(--fg-muted)]">₹{Number(b.total_amount || 0).toLocaleString("en-IN")}</p>
+                          <p className="font-mono text-[10.5px] text-[var(--fg-muted)]">{formatINR(b.total_amount)}</p>
                         </div>
                         <div>
                           <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Booking Status</span>

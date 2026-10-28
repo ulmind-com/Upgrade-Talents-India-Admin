@@ -5,7 +5,7 @@ import { CrudPage } from "@/components/Crud";
 import { Button, StatusBadge, useConfirm } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
 import { notificationsApi } from "@/lib/api";
-import { formatDate, rowId } from "@/lib/utils";
+import { formatDate, fromDateTimeInput, rowId } from "@/lib/utils";
 
 export default function NotificationsPage() {
   const { push } = useToast();
@@ -64,7 +64,7 @@ export default function NotificationsPage() {
             { name: "priority", label: "Priority", type: "select", half: true, defaultValue: "NORMAL",
               options: ["LOW", "NORMAL", "HIGH", "URGENT"].map((v) => ({ value: v, label: v })) },
             { name: "action_url", label: "Action link", half: true, placeholder: "/events/abc123" },
-            { name: "scheduled_at", label: "Schedule for", type: "datetime", half: true, hint: "Leave blank to send manually." },
+            { name: "scheduled_at", label: "Schedule for (IST)", type: "datetime", half: true, hint: "Leave blank to send manually." },
           ],
           toBody: (v) => ({
             title: v.title,
@@ -72,7 +72,7 @@ export default function NotificationsPage() {
             notification_type: v.notification_type,
             priority: v.priority,
             action_url: v.action_url || null,
-            scheduled_at: v.scheduled_at ? new Date(v.scheduled_at).toISOString() : null,
+            scheduled_at: fromDateTimeInput(v.scheduled_at),
           }),
         }}
       />

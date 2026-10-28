@@ -13,7 +13,7 @@ import {
 } from "@/components/Kit";
 import { StatCard } from "@/components/Dash";
 import { cmsApi, toRows } from "@/lib/api";
-import { formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
+import { formatDate, formatINR, formatNumber, fromDateTimeInput, rowId } from "@/lib/utils";
 
 function TicketsContent() {
   const searchParams = useSearchParams();
@@ -572,8 +572,8 @@ function TicketTiersManager({
               { name: "price", label: "Price (₹)", type: "number", required: true, half: true, defaultValue: 0 },
               { name: "total_quantity", label: "Total quantity", type: "number", required: true, half: true, defaultValue: 100 },
               { name: "available", label: "Available now", type: "number", half: true, hint: "Leave blank to match total." },
-              { name: "sale_start", label: "Sale starts", type: "datetime", half: true },
-              { name: "sale_end", label: "Sale ends", type: "datetime", half: true },
+              { name: "sale_start", label: "Sale starts (IST)", type: "datetime", half: true },
+              { name: "sale_end", label: "Sale ends (IST)", type: "datetime", half: true },
               { name: "display_order", label: "Display order", type: "number", half: true, defaultValue: 0 },
               { name: "is_visible", label: "Visible on booking page", type: "toggle", half: true, defaultValue: true },
             ],
@@ -583,8 +583,8 @@ function TicketTiersManager({
                 price: Number(v.price) || 0,
                 total_quantity: Number(v.total_quantity) || 0,
                 available: v.available === "" ? Number(v.total_quantity) || 0 : Number(v.available),
-                sale_start: v.sale_start || null,
-                sale_end: v.sale_end || null,
+                sale_start: fromDateTimeInput(v.sale_start),
+                sale_end: fromDateTimeInput(v.sale_end),
                 is_visible: !!v.is_visible,
                 display_order: Number(v.display_order) || 0,
               };
