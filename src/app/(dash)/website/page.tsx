@@ -12,6 +12,7 @@ const TABS = [
   { key: "brand", label: "Brand & Contact" },
   { key: "banners", label: "Sponsored Banners" },
   { key: "tiles", label: "Featured 4 Tiles" },
+  { key: "stats", label: "Stats Counter" },
   { key: "testimonials", label: "Testimonials" },
   { key: "live", label: "Live Events" },
   { key: "contests", label: "Contest Promo" },
@@ -45,6 +46,7 @@ export default function WebsitePage() {
       {tab === "brand" && <BrandSection />}
       {tab === "banners" && <BannersSection />}
       {tab === "tiles" && <FeaturedTilesSection />}
+      {tab === "stats" && <HomepageStatsSection />}
       {tab === "testimonials" && <TestimonialsSection />}
       {tab === "live" && <LiveEventsSection />}
       {tab === "contests" && <ContestSection />}
@@ -70,7 +72,8 @@ function BrandSection() {
     const body: any = {};
     ["brand_name", "logo_url", "favicon_url", "tagline", "homepage_title", "homepage_description",
      "contact_email", "contact_phone", "office_address", "support_url", "privacy_policy_url", "terms_url",
-     "competitions_section_label", "competitions_section_title", "competitions_section_link"]
+     "competitions_section_label", "competitions_section_title", "competitions_section_link",
+     "live_stage_label", "live_stage_title"]
       .forEach((k) => { body[k] = v(k) || null; });
 
     body.social_media = ["facebook", "instagram", "twitter", "youtube", "linkedin"]
@@ -128,6 +131,13 @@ function BrandSection() {
             {text("competitions_section_label", "Section label / eyebrow", "Default: What's next")}
             {text("competitions_section_title", "Section main heading", "Default: Upcoming Competitions")}
             {text("competitions_section_link", "View All link URL", "Default: /competitions")}
+          </div>
+        </Panel>
+
+        <Panel title="Live Stage section" subtitle="Homepage streaming stage section title & label">
+          <div className="flex flex-col gap-4">
+            {text("live_stage_label", "Section label / eyebrow", "Default: Streaming right now")}
+            {text("live_stage_title", "Section main heading", "Default: Live Stage")}
           </div>
         </Panel>
 
@@ -633,6 +643,155 @@ function FeaturedTilesSection() {
       <div className="mt-6 flex justify-end">
         <Button size="md" onClick={handleSave} loading={busy}>
           <Save className="size-4" aria-hidden /> Save All 4 Tiles
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
+/* ───────── HOMEPAGE STATS COUNTER (4 NUMBERS) ───────── */
+
+const DEFAULT_HOMEPAGE_STATS = [
+  { label: "Live events", value: 12, suffix: "+", icon: "calendar" },
+  { label: "Dancers on stage", value: 25000, suffix: "+", icon: "users" },
+  { label: "Masterclasses", value: 40, suffix: "+", icon: "graduation" },
+  { label: "Cities covered", value: 28, suffix: "", icon: "trophy" },
+];
+
+function HomepageStatsSection() {
+  const { push } = useToast();
+  const { data, loading, reload } = useResource(async () => {
+    const res = await safe(cmsApi.getHomepageStats(), []);
+    return Array.isArray(res) && res.length >= 4 ? res : DEFAULT_HOMEPAGE_STATS;
+  }, []);
+
+  const [stats, setStats] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (data && data.length >= 4) {
+      setStats(data.slice(0, 4));
+    } else {
+      setStats(DEFAULT_HOMEPAGE_STATS);
+    }
+  }, [data]);
+
+  const updateStat = (idx: number, patch: Partial<any>) => {
+    setStats((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], ...patch };
+      return copy;
+    });
+  };
+
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      await cmsApi.updateHomepageStats(stats);
+      push("success", "Homepage stats counters saved successfully.");
+      reload();
+    } catch (err: any) {
+      push("error", err?.message || "Could not save stats.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReset = () => {
+    setStats(DEFAULT_HOMEPAGE_STATS);
+  };
+
+  if (loading) return <Panel title="Stats Counter"><div className="skeleton h-64 w-full" /></Panel>;
+
+  return (
+    <Panel
+      title="Homepage Stats Counter (4 Numbers)"
+      subtitle="Customize the 4 animated metric counters shown on the homepage (numbers, suffixes, labels, and icons)."
+      action={
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={handleReset}>
+            Reset defaults
+          </Button>
+          <Button size="sm" onClick={handleSave} loading={busy}>
+            <Save className="size-3.5" aria-hidden /> Save All Stats
+          </Button>
+        </div>
+      }
+    >
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {stats.map((s, idx) => (
+          <div
+            key={idx}
+            className="flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5"
+          >
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <span className="rounded-full bg-[var(--surface)] px-2.5 py-0.5 font-mono text-[11px] font-bold text-[var(--fg-muted)]">
+                Stat #{idx + 1}
+              </span>
+              <span className="font-mono text-xs font-semibold text-[var(--brand)]">
+                {s.value?.toLocaleString?.() || s.value}{s.suffix}
+              </span>
+            </div>
+
+            <Field label="Label / Text" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={s.label || ""}
+                  onChange={(e) => updateStat(idx, { label: e.target.value })}
+                  placeholder="e.g. Live events"
+                />
+              )}
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Value (Number)" required>
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    type="number"
+                    value={s.value ?? 0}
+                    onChange={(e) => updateStat(idx, { value: Number(e.target.value) || 0 })}
+                  />
+                )}
+              </Field>
+
+              <Field label="Suffix">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={s.suffix ?? ""}
+                    onChange={(e) => updateStat(idx, { suffix: e.target.value })}
+                    placeholder="e.g. +"
+                  />
+                )}
+              </Field>
+            </div>
+
+            <Field label="Icon Style">
+              {({ id }) => (
+                <select
+                  id={id}
+                  value={(s.icon || "calendar").toLowerCase()}
+                  onChange={(e) => updateStat(idx, { icon: e.target.value })}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] outline-none"
+                >
+                  <option value="calendar">Calendar (Live Events)</option>
+                  <option value="users">Users (Dancers On Stage)</option>
+                  <option value="graduation">Graduation Cap (Masterclasses)</option>
+                  <option value="trophy">Trophy (Cities Covered)</option>
+                  <option value="clock">Clock</option>
+                  <option value="sparkles">Sparkles</option>
+                </select>
+              )}
+            </Field>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex justify-end">
+        <Button size="md" onClick={handleSave} loading={busy}>
+          <Save className="size-4" aria-hidden /> Save All Stats
         </Button>
       </div>
     </Panel>
