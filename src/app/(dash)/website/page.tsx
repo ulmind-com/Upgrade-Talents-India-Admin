@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, Save, Check, Radio } from "lucide-react";
+import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Panel, StatusBadge, Textarea, Toggle, useResource } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
 import { cmsApi, safe } from "@/lib/api";
-import { formatDate, rowId } from "@/lib/utils";
+import { formatDate, rowId, cn } from "@/lib/utils";
 
 const TABS = [
   { key: "brand", label: "Brand & Contact" },
@@ -137,61 +137,249 @@ function BrandSection() {
   );
 }
 
-/* ───────── BANNERS ───────── */
+/* ───────── BANNERS (Hero Slider & Sponsors) ───────── */
+
+function BannerImageUploadField({
+  label,
+  aspectRatioLabel,
+  aspectClass,
+  value,
+  onChange,
+  ratio = "16:9",
+}: {
+  label: string;
+  aspectRatioLabel: string;
+  aspectClass: string;
+  value: string;
+  onChange: (url: string) => void;
+  ratio?: "16:9" | "9:16";
+}) {
+  const [uploading, setUploading] = useState(false);
+  const { push } = useToast();
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await cmsApi.uploadBannerImage(file, ratio);
+      const url = res?.url;
+      if (url) {
+        onChange(url);
+        push("success", `${label} uploaded successfully.`);
+      } else {
+        push("error", "No URL returned from upload.");
+      }
+    } catch (err: any) {
+      push("error", err?.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-semibold text-[var(--fg)]">
+          {label} <span className="font-bold text-emerald-500">({aspectRatioLabel})</span>
+        </span>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="text-[11px] font-semibold text-[var(--danger)] hover:underline"
+          >
+            Clear image
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-start gap-3">
+        {value ? (
+          <div className={cn("relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] shrink-0 shadow-sm", aspectClass)}>
+            <img src={value} alt="" className="size-full object-cover" />
+          </div>
+        ) : (
+          <div className={cn("grid place-items-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] text-[11px] text-[var(--fg-subtle)] shrink-0", aspectClass)}>
+            <ImageIcon className="size-5 opacity-40" />
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 flex-1 min-w-0">
+          <label className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--fg)] hover:bg-[var(--surface-2)] transition-colors shadow-sm">
+            {uploading ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin text-[var(--brand)]" /> Uploading to Cloud…
+              </>
+            ) : (
+              <>
+                <Upload className="size-3.5 text-[var(--brand)]" /> Choose {aspectRatioLabel} Image
+              </>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={handleFile}
+            />
+          </label>
+
+          <Input
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={`Or paste ${aspectRatioLabel} image URL...`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function BannersSection() {
   const { push } = useToast();
   return (
     <CrudPage
       config={{
-        title: "Sponsored banners", singular: "Banner",
-        subtitle: "Partner logos and promos shown on the homepage",
+        title: "Hero Slider & Sponsored Banners",
+        singular: "Banner",
+        subtitle: "Homepage Hero Carousel & Partner promotions with 16:9 (Desktop) and 9:16 (Mobile) ratios",
         load: () => cmsApi.listBanners(),
         create: (b) => cmsApi.createBanner(b),
         update: (id, b) => cmsApi.updateBanner(id, b),
         remove: (id) => cmsApi.deleteBanner(id),
         searchKeys: ["title", "sponsor_name"],
         columns: [
-          { key: "title", header: "Banner", render: (r: any) => (
-            <div className="flex items-center gap-3">
-              {r.image_url && <img src={r.image_url} alt="" className="h-10 w-16 shrink-0 rounded-lg object-cover" />}
-              <span className="min-w-0">
-                <span className="block truncate font-semibold">{r.title}</span>
-                <span className="block truncate text-[11.5px] text-[var(--fg-muted)]">{r.sponsor_name || "—"}</span>
-              </span>
-            </div>
-          ) },
-          { key: "display_order", header: "Order", render: (r: any) => r.display_order ?? 0 },
-          { key: "is_published", header: "Live", render: (r: any) => <StatusBadge value={r.is_published ? "published" : "draft"} /> },
+          {
+            key: "title",
+            header: "Banners (16:9 & 9:16)",
+            render: (r: any) => {
+              const desktopImg = r.image_url_desktop || r.image_url;
+              const mobileImg = r.image_url_mobile || r.mobile_image_url;
+              return (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {desktopImg ? (
+                      <div className="relative" title="Desktop Banner (16:9)">
+                        <img src={desktopImg} alt="" className="h-9 w-16 shrink-0 rounded border border-[var(--border)] object-cover shadow-xs" />
+                        <span className="absolute bottom-0 right-0 bg-black/75 text-[7.5px] font-bold text-white px-1 rounded-tl">16:9</span>
+                      </div>
+                    ) : (
+                      <div className="h-9 w-16 rounded border border-dashed border-[var(--border)] flex items-center justify-center text-[8.5px] text-[var(--fg-muted)]">No 16:9</div>
+                    )}
+                    {mobileImg ? (
+                      <div className="relative" title="Mobile Banner (9:16)">
+                        <img src={mobileImg} alt="" className="h-9 w-5 shrink-0 rounded border border-[var(--border)] object-cover shadow-xs" />
+                        <span className="absolute bottom-0 right-0 bg-emerald-600/85 text-[7px] font-bold text-white px-0.5 rounded-tl">9:16</span>
+                      </div>
+                    ) : (
+                      <div className="h-9 w-5 rounded border border-dashed border-zinc-700/40 flex items-center justify-center text-[8px] text-[var(--fg-muted)]" title="Falls back to desktop image">—</div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[13px]">{r.title}</p>
+                    <div className="flex items-center gap-2 text-[11px] text-[var(--fg-muted)]">
+                      <span className="truncate">{r.sponsor_name ? `Sponsor: ${r.sponsor_name}` : "Direct Banner"}</span>
+                      {r.target_url && (
+                        <span className="truncate max-w-[150px] text-emerald-500 font-mono text-[10px]">
+                          &rarr; {r.target_url}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            },
+          },
+          { key: "display_order", header: "Slide Order", render: (r: any) => r.display_order ?? 0 },
+          {
+            key: "is_published",
+            header: "Live on Hero",
+            render: (r: any) => <StatusBadge value={r.is_published ? "published" : "draft"} />,
+          },
         ],
         rowActions: (row: any, { reload }: any) => (
-          <Button size="sm" variant={row.is_published ? "secondary" : "success"} onClick={async () => {
-            try { await cmsApi.publishBanner(rowId(row), { publish: !row.is_published }); push("success", "Banner updated."); reload(); }
-            catch (e: any) { push("error", e?.message || "Could not update."); }
-          }}>
+          <Button
+            size="sm"
+            variant={row.is_published ? "secondary" : "success"}
+            onClick={async () => {
+              try {
+                await cmsApi.publishBanner(rowId(row), { publish: !row.is_published });
+                push("success", `Banner ${row.is_published ? "unpublished" : "published to Hero slider"}.`);
+                reload();
+              } catch (e: any) {
+                push("error", e?.message || "Could not update status.");
+              }
+            }}
+          >
             {row.is_published ? <EyeOff className="size-3.5" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
           </Button>
         ),
         fields: [
-          { name: "title", label: "Title", required: true, half: true },
-          { name: "sponsor_name", label: "Sponsor name", half: true },
-          { name: "image_url", label: "Image URL", type: "url", required: true },
-          { name: "description", label: "Caption", type: "textarea" },
-          { name: "target_url", label: "Click-through URL", type: "url", half: true },
-          { name: "display_position", label: "Position", half: true, defaultValue: "homepage" },
-          { name: "start_date", label: "Starts", type: "date", half: true },
-          { name: "end_date", label: "Ends", type: "date", half: true },
-          { name: "display_order", label: "Display order", type: "number", half: true, defaultValue: 0 },
-          { name: "is_visible", label: "Visible", type: "toggle", half: true, defaultValue: true },
-          { name: "is_published", label: "Published", type: "toggle", half: true, defaultValue: false },
+          { name: "title", label: "Banner Title / Campaign", required: true, half: true, placeholder: "e.g., Grand Dance Championship 2026" },
+          { name: "sponsor_name", label: "Sponsor / Brand Name (Optional)", half: true, placeholder: "e.g., Red Bull, Puma, UTI" },
+          {
+            name: "image_url",
+            label: "Desktop / Web Banner",
+            type: "custom",
+            required: true,
+            render: ({ value, onChange }) => (
+              <BannerImageUploadField
+                label="Desktop / Web View Banner"
+                aspectRatioLabel="16:9"
+                aspectClass="w-36 aspect-[16/9]"
+                value={value}
+                onChange={onChange}
+                ratio="16:9"
+              />
+            ),
+          },
+          {
+            name: "image_url_mobile",
+            label: "Mobile View Banner",
+            type: "custom",
+            render: ({ value, onChange }) => (
+              <BannerImageUploadField
+                label="Mobile View Banner"
+                aspectRatioLabel="9:16"
+                aspectClass="w-20 aspect-[9/16]"
+                value={value}
+                onChange={onChange}
+                ratio="9:16"
+              />
+            ),
+          },
+          { name: "target_url", label: "Click-through Link URL (Optional)", type: "url", half: true, placeholder: "/competitions or https://..." },
+          { name: "display_order", label: "Slide Order (0 = first)", type: "number", half: true, defaultValue: 0 },
+          { name: "description", label: "Caption / Promo Text (Optional)", type: "textarea", placeholder: "Short description or tagline" },
+          { name: "is_published", label: "Publish Immediately to Hero Slider", type: "toggle", half: true, defaultValue: true },
+          { name: "is_visible", label: "Active in Carousel", type: "toggle", half: true, defaultValue: true },
         ],
         toBody: (v) => ({
-          title: v.title, image_url: v.image_url,
-          description: v.description || null, sponsor_name: v.sponsor_name || null,
-          target_url: v.target_url || null, start_date: v.start_date || null, end_date: v.end_date || null,
-          display_position: v.display_position || "homepage",
+          title: v.title,
+          image_url: v.image_url,
+          image_url_desktop: v.image_url,
+          image_url_mobile: v.image_url_mobile || null,
+          mobile_image_url: v.image_url_mobile || null,
+          description: v.description || null,
+          sponsor_name: v.sponsor_name || null,
+          target_url: v.target_url || null,
+          display_position: "homepage",
           display_order: Number(v.display_order) || 0,
-          is_published: !!v.is_published, is_visible: !!v.is_visible,
+          is_published: !!v.is_published,
+          is_visible: !!v.is_visible,
+        }),
+        toForm: (r) => ({
+          title: r.title || "",
+          sponsor_name: r.sponsor_name || "",
+          image_url: r.image_url_desktop || r.image_url || "",
+          image_url_mobile: r.image_url_mobile || r.mobile_image_url || "",
+          description: r.description || "",
+          target_url: r.target_url || "",
+          display_order: r.display_order ?? 0,
+          is_published: r.is_published !== false,
+          is_visible: r.is_visible !== false,
         }),
       }}
     />

@@ -142,6 +142,11 @@ export const cmsApi = {
   updateBanner: (id: string, body: any) => api<any>(`${cms}/banners/${id}`, { method: "PUT", body }),
   deleteBanner: (id: string) => api<any>(`${cms}/banners/${id}`, { method: "DELETE" }),
   publishBanner: (id: string, q: any) => api<any>(`${cms}/banners/${id}/publish`, { method: "PATCH", query: q }),
+  uploadBannerImage: (file: File, ratio: "16:9" | "9:16" = "16:9") => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api<any>(`${cms}/banners/upload-image?ratio=${encodeURIComponent(ratio)}`, { method: "POST", form: fd });
+  },
 
   listTestimonials: () => api<any[]>(`${cms}/testimonials`),
   createTestimonial: (body: any) => api<any>(`${cms}/testimonials`, { method: "POST", body }),
