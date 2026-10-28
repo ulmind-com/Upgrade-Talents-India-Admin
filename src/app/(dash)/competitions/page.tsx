@@ -531,6 +531,7 @@ function CompetitionControls({
       onClose={onClose}
       title={comp?.title || comp?.name || "Competition"}
       subtitle={activeTab === "participants" ? "Registered participants, verified payments, and submitted media" : "Judging session, voting and ranking controls"}
+      size="3xl"
       wide
     >
       <div className="mb-5 flex gap-2 border-b border-[var(--border)] pb-3">
@@ -824,49 +825,111 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
   return (
     <div className="flex flex-col gap-5 text-xs">
-      {/* ── Top Stat Cards with Online vs Cash Breakdown ── */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <StatCard
-          label="Total Registered"
-          value={formatNumber(totalRegistered)}
-          hint={`${confirmedCount} confirmed • ${submissionsCount} media`}
-          Icon={Users}
-          accent
-          index={0}
-        />
-        <StatCard
-          label="Online Payments"
-          value={`${onlinePaid} Paid`}
-          hint={onlinePending > 0 ? `${onlinePending} Pending • ${formatINR(onlineFees)}` : `${formatINR(onlineFees)} collected`}
-          Icon={CreditCard}
-          index={1}
-        />
-        <StatCard
-          label="Cash at Venue"
-          value={`${cashTotal} Chosen`}
-          hint={`${cashCollected} Received • ${cashPending} Pending`}
-          Icon={Banknote}
-          index={2}
-        />
-        <StatCard
-          label="Submissions"
-          value={formatNumber(submissionsCount)}
-          hint="Media entries submitted"
-          Icon={Video}
-          index={3}
-        />
-        <StatCard
-          label="Revenue Collected"
-          value={formatINR(totalFees)}
-          hint={cashFeesPending > 0 ? `+${formatINR(cashFeesPending)} cash pending` : "All fees collected"}
-          Icon={CircleDollarSign}
-          index={4}
-        />
+      {/* ── KPI Metric Strip (Clean, Compact, No Word Breaks) ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {/* Total Registered */}
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 whitespace-nowrap">Total Registered</span>
+            <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400 shrink-0">
+              <Users className="size-3.5" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-white tabular-nums tracking-tight whitespace-nowrap">{formatNumber(totalRegistered)}</span>
+            <span className="text-[11px] font-medium text-[var(--fg-muted)]">participants</span>
+          </div>
+          <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-emerald-300/80">
+            <span className="size-1.5 rounded-full bg-emerald-400" />
+            <span>{confirmedCount} confirmed</span>
+          </div>
+        </div>
+
+        {/* Online Payments */}
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400 whitespace-nowrap">Online Payments</span>
+            <div className="flex size-7 items-center justify-center rounded-lg bg-sky-500/15 text-sky-400 shrink-0">
+              <CreditCard className="size-3.5" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-white tabular-nums tracking-tight whitespace-nowrap">{onlinePaid}</span>
+            <span className="text-[11px] font-medium text-sky-300 whitespace-nowrap">Paid</span>
+            {onlinePending > 0 && (
+              <span className="text-[10px] text-amber-400 font-semibold whitespace-nowrap">({onlinePending} pending)</span>
+            )}
+          </div>
+          <div className="mt-1 text-[10.5px] text-[var(--fg-muted)] truncate">
+            {formatINR(onlineFees)} collected
+          </div>
+        </div>
+
+        {/* Cash at Venue */}
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 whitespace-nowrap">Cash on Venue</span>
+            <div className="flex size-7 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400 shrink-0">
+              <Banknote className="size-3.5" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-white tabular-nums tracking-tight whitespace-nowrap">{cashTotal}</span>
+            <span className="text-[11px] font-medium text-amber-300 whitespace-nowrap">Selected</span>
+          </div>
+          <div className="mt-1 flex items-center gap-1.5 text-[10.5px]">
+            {cashPending > 0 ? (
+              <span className="inline-flex items-center gap-1 font-semibold text-amber-300 whitespace-nowrap">
+                <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+                {cashPending} Pending ({formatINR(cashFeesPending)})
+              </span>
+            ) : (
+              <span className="text-emerald-400 font-medium whitespace-nowrap">All cash collected</span>
+            )}
+          </div>
+        </div>
+
+        {/* Submissions */}
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-400 whitespace-nowrap">Submissions</span>
+            <div className="flex size-7 items-center justify-center rounded-lg bg-purple-500/15 text-purple-400 shrink-0">
+              <Video className="size-3.5" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1">
+            <span className="text-2xl font-black text-white tabular-nums tracking-tight whitespace-nowrap">{submissionsCount}</span>
+            <span className="text-[11px] font-medium text-[var(--fg-muted)]">entries</span>
+          </div>
+          <div className="mt-1 text-[10.5px] text-[var(--fg-muted)] truncate">
+            Media links uploaded
+          </div>
+        </div>
+
+        {/* Revenue Collected */}
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 whitespace-nowrap">Revenue Collected</span>
+            <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400 shrink-0">
+              <CircleDollarSign className="size-3.5" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1">
+            <span className="text-2xl font-black text-white tabular-nums tracking-tight whitespace-nowrap">{formatINR(totalFees)}</span>
+          </div>
+          <div className="mt-1 text-[10.5px] text-[var(--fg-muted)] truncate">
+            {cashFeesPending > 0 ? (
+              <span className="text-amber-300 font-medium">+{formatINR(cashFeesPending)} cash pending</span>
+            ) : (
+              <span>All fees collected</span>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* ── Filter Pills & Search Bar ── */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* ── Filter Pills & Search Bar Toolbar ── */}
+      <div className="flex flex-col gap-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-2.5 backdrop-blur-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
           {/* Quick Filter Pills */}
           <div className="flex flex-wrap items-center gap-1.5">
             <button
@@ -923,32 +986,36 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
               <Banknote className="size-3.5 text-amber-400" /> Cash on Venue ({cashTotal})
             </button>
 
-            <button
-              type="button"
-              onClick={() => setFilterMode("CASH_PENDING")}
-              className={cn(
-                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
-                filterMode === "CASH_PENDING"
-                  ? "bg-amber-500 text-black font-bold shadow-md"
-                  : "border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
-              )}
-            >
-              <span className="size-2 rounded-full bg-amber-400 animate-pulse" />
-              Cash Pending ({cashPending})
-            </button>
+            {cashPending > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterMode("CASH_PENDING")}
+                className={cn(
+                  "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                  filterMode === "CASH_PENDING"
+                    ? "bg-amber-500 text-black font-bold shadow-md"
+                    : "border border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
+                )}
+              >
+                <span className="size-2 rounded-full bg-amber-400 animate-pulse" />
+                Cash Pending ({cashPending})
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setFilterMode("CASH_COLLECTED")}
-              className={cn(
-                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
-                filterMode === "CASH_COLLECTED"
-                  ? "bg-emerald-500/25 text-emerald-200 border border-emerald-500/50 shadow-sm"
-                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-emerald-300"
-              )}
-            >
-              <CheckCircle2 className="size-3.5 text-emerald-400" /> Cash Received ({cashCollected})
-            </button>
+            {cashCollected > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterMode("CASH_COLLECTED")}
+                className={cn(
+                  "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                  filterMode === "CASH_COLLECTED"
+                    ? "bg-emerald-500/25 text-emerald-200 border border-emerald-500/50 shadow-sm"
+                    : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-emerald-300"
+                )}
+              >
+                <CheckCircle2 className="size-3.5 text-emerald-400" /> Cash Received ({cashCollected})
+              </button>
+            )}
           </div>
 
           {/* Search & Refresh */}
@@ -959,11 +1026,11 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, email, phone, cash..."
-                className="h-9 w-60 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)] transition-colors"
+                placeholder="Search participant, ref, cash…"
+                className="h-8.5 w-56 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)] transition-colors"
               />
             </div>
-            <Button size="sm" variant="secondary" onClick={reload}>
+            <Button size="sm" variant="secondary" onClick={reload} className="h-8.5 px-3">
               <RefreshCw className="size-3 mr-1" /> Refresh
             </Button>
           </div>
@@ -971,20 +1038,22 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
         {/* Informative helper banner for cash collection */}
         {cashPending > 0 && (
-          <div className="flex items-center justify-between rounded-xl border border-amber-500/25 bg-amber-500/10 px-3.5 py-2 text-[11px] text-amber-200">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
             <div className="flex items-center gap-2">
               <Banknote className="size-4 shrink-0 text-amber-400" />
               <span>
-                <strong className="font-semibold text-amber-300">{cashPending} participant{cashPending > 1 ? "s" : ""}</strong> selected <strong>Cash on Venue</strong> payment (Total <strong className="font-semibold text-white">{formatINR(cashFeesPending)}</strong> pending collection). You can verify and collect cash on the spot using the button below.
+                <strong className="font-semibold text-amber-300">{cashPending} participant{cashPending > 1 ? "s" : ""}</strong> selected <strong>Cash on Venue</strong> ({formatINR(cashFeesPending)} pending collection). Click "Mark Cash Collected" in the table when cash is received.
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setFilterMode("CASH_PENDING")}
-              className="cursor-pointer whitespace-nowrap rounded-lg bg-amber-500/20 px-2 py-0.5 font-bold text-amber-300 hover:bg-amber-500/30"
-            >
-              View pending cash →
-            </button>
+            {filterMode !== "CASH_PENDING" && (
+              <button
+                type="button"
+                onClick={() => setFilterMode("CASH_PENDING")}
+                className="cursor-pointer text-[10.5px] font-bold text-amber-300 hover:text-amber-100 underline whitespace-nowrap"
+              >
+                Filter cash pending ({cashPending}) →
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1005,25 +1074,27 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           {
             key: "user",
             header: "Participant",
+            width: "230px",
             render: (r: any) => {
               const initial = ((r.user_name || r.user_email || "P").trim()[0] || "P").toUpperCase();
               return (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 min-w-[200px] max-w-[240px]">
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600/30 to-indigo-600/30 border border-violet-500/30 font-bold text-violet-200 text-xs shadow-inner">
                     {initial}
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-white truncate">{r.user_name || "Participant"}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-white truncate text-xs">{r.user_name || "Participant"}</p>
                     <a
                       href={`mailto:${r.user_email}`}
                       className="block font-mono text-[11px] text-[var(--fg-muted)] hover:text-white truncate"
+                      title={r.user_email}
                     >
                       {r.user_email}
                     </a>
                     {r.user_phone && (
                       <a
                         href={`tel:${r.user_phone}`}
-                        className="inline-flex items-center gap-1 font-mono text-[10.5px] text-[var(--fg-subtle)] hover:text-white"
+                        className="inline-flex items-center gap-1 font-mono text-[10px] text-[var(--fg-subtle)] hover:text-white mt-0.5"
                       >
                         <Phone className="size-2.5" /> {r.user_phone}
                       </a>
@@ -1036,17 +1107,18 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           {
             key: "registration_reference",
             header: "Reg Reference",
+            width: "170px",
             render: (r: any) => (
-              <div>
+              <div className="min-w-[150px]">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-mono font-bold text-[var(--brand)] tracking-wider">
+                  <span className="font-mono font-bold text-[var(--brand)] text-[11.5px] tracking-wider whitespace-nowrap">
                     {r.registration_reference}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleCopy(r.registration_reference)}
-                    title="Copy registration reference"
-                    className="cursor-pointer text-[var(--fg-subtle)] hover:text-white transition-colors"
+                    title="Copy reference code"
+                    className="cursor-pointer text-[var(--fg-subtle)] hover:text-white transition-colors p-0.5 rounded"
                   >
                     {copiedRef === r.registration_reference ? (
                       <Check className="size-3 text-emerald-400" />
@@ -1055,7 +1127,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                     )}
                   </button>
                 </div>
-                <span className="block text-[10.5px] text-[var(--fg-subtle)]">
+                <span className="block text-[10.5px] text-[var(--fg-subtle)] whitespace-nowrap mt-0.5">
                   {formatDate(r.registered_at, true)}
                 </span>
               </div>
@@ -1064,6 +1136,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           {
             key: "fee",
             header: "Fee / Payment Method",
+            width: "270px",
             render: (r: any) => {
               const isCash = Boolean(r.cash_payment || r.payment_method === "CASH");
               const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
@@ -1071,8 +1144,8 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
               if (isFree) {
                 return (
-                  <div>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-purple-300">
+                  <div className="min-w-[160px]">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-purple-300 whitespace-nowrap">
                       <Trophy className="size-3 text-purple-400" /> Free Entry
                     </span>
                     <span className="block mt-1 text-[10.5px] text-[var(--fg-subtle)] font-medium">
@@ -1084,46 +1157,44 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
               if (isCash) {
                 return (
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1.5 min-w-[240px]">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-white text-[13px]">{formatINR(r.fee)}</span>
-                      <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.12)]">
+                      <span className="font-extrabold text-white text-[13px] tabular-nums whitespace-nowrap">{formatINR(r.fee)}</span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300 shadow-sm whitespace-nowrap">
                         <Banknote className="size-3 text-amber-400" /> Cash on Venue
                       </span>
                     </div>
 
                     {isPaid ? (
-                      <div>
-                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
-                          <CheckCircle2 className="size-3.5 shrink-0" />
-                          <span>Cash Received at Venue</span>
-                          <button
-                            type="button"
-                            title="Revert cash payment back to pending"
-                            disabled={actionLoading === r._id}
-                            onClick={() => handleRevertCash(r._id, r.user_name)}
-                            className="cursor-pointer ml-1 text-[10px] text-[var(--fg-subtle)] hover:text-amber-400 underline"
-                          >
-                            Revert
-                          </button>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                          <CheckCircle2 className="size-3.5 shrink-0" /> Cash Received
+                        </span>
+                        <button
+                          type="button"
+                          title="Revert cash payment back to pending"
+                          disabled={actionLoading === r._id}
+                          onClick={() => handleRevertCash(r._id, r.user_name)}
+                          className="cursor-pointer text-[10px] text-[var(--fg-subtle)] hover:text-amber-400 underline whitespace-nowrap"
+                        >
+                          Revert
+                        </button>
                         {r.cash_collected_at && (
-                          <span className="block text-[10px] font-mono text-[var(--fg-subtle)]">
-                            Collected: {formatDate(r.cash_collected_at, true)}
+                          <span className="text-[10px] font-mono text-[var(--fg-subtle)] whitespace-nowrap">
+                            • {formatDate(r.cash_collected_at, true)}
                           </span>
                         )}
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-1 mt-0.5">
-                        <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-300">
-                          <Clock className="size-3 shrink-0 animate-pulse text-amber-400" />
-                          <span>User chose Cash payment (Pending)</span>
-                        </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-300 whitespace-nowrap">
+                          <Clock className="size-3 shrink-0 text-amber-400 animate-pulse" /> Pending
+                        </span>
                         <button
                           type="button"
                           disabled={actionLoading === r._id}
                           onClick={() => handleConfirmCash(r._id, r.user_name, r.fee)}
-                          className="cursor-pointer mt-0.5 inline-flex items-center gap-1.5 w-fit rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm disabled:opacity-50"
+                          className="cursor-pointer inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
                         >
                           {actionLoading === r._id ? (
                             <Loader2 className="size-3 animate-spin" />
@@ -1140,26 +1211,26 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
               // Online payment
               return (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5 min-w-[200px]">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-[13px]">{formatINR(r.fee)}</span>
-                    <span className="inline-flex items-center gap-1 rounded-md border border-sky-500/40 bg-sky-500/15 px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-sky-300 shadow-[0_0_12px_rgba(14,165,233,0.12)]">
+                    <span className="font-extrabold text-white text-[13px] tabular-nums whitespace-nowrap">{formatINR(r.fee)}</span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-300 shadow-sm whitespace-nowrap">
                       <CreditCard className="size-3 text-sky-400" /> Online Payment
                     </span>
                   </div>
 
                   {r.payment_status === "PAID" ? (
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
                       <CheckCircle2 className="size-3.5 shrink-0" />
                       <span>Paid Online</span>
                     </div>
                   ) : r.payment_status === "FAILED" ? (
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-rose-400">
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-rose-400 whitespace-nowrap">
                       <AlertCircle className="size-3.5 shrink-0" />
                       <span>Payment Failed</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-400">
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-400 whitespace-nowrap">
                       <Clock className="size-3.5 shrink-0" />
                       <span>Online Payment Pending</span>
                     </div>
@@ -1171,34 +1242,38 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           {
             key: "status",
             header: "Registration",
+            width: "120px",
             render: (r: any) => <StatusBadge value={r.status} />,
           },
           {
             key: "submission",
             header: "Submitted Files / Media",
+            width: "240px",
             render: (r: any) => {
               const sub = r.submission;
               if (!sub) {
-                return <span className="text-[11px] text-[var(--fg-subtle)]">Awaiting files</span>;
+                return <span className="text-[11px] text-[var(--fg-subtle)] whitespace-nowrap">Awaiting files</span>;
               }
               const files = sub.files || {};
               const entries = Object.entries(files);
               return (
-                <div className="flex flex-col gap-1">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-400">
+                <div className="flex flex-col gap-1.5 min-w-[200px] max-w-[260px]">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-400 whitespace-nowrap">
                     <CheckCircle2 className="size-3" /> {sub.status || "Submitted"}
                   </span>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-col gap-1">
                     {entries.map(([label, url]: any) => (
                       <a
                         key={label}
                         href={url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 rounded bg-[var(--surface-3)] px-2 py-0.5 text-[10.5px] font-mono text-[var(--brand)] hover:underline"
-                        title={label}
+                        className="group/link inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-1 text-[10.5px] font-mono text-[var(--brand)] hover:border-[var(--brand)] transition-colors truncate max-w-[240px]"
+                        title={`${label}: ${url}`}
                       >
-                        <Video className="size-3" /> {label} <ExternalLink className="size-2.5 opacity-60" />
+                        <Video className="size-3 shrink-0 text-[var(--fg-muted)] group-hover/link:text-[var(--brand)]" />
+                        <span className="truncate flex-1">{label}</span>
+                        <ExternalLink className="size-2.5 shrink-0 opacity-60" />
                       </a>
                     ))}
                   </div>

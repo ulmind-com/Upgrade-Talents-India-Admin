@@ -292,10 +292,12 @@ export function DataTable<T extends Record<string, any>>({
 /* ═══════════ MODAL ═══════════ */
 
 export function Modal({
-  open, onClose, title, subtitle, children, footer, wide,
+  open, onClose, title, subtitle, children, footer, wide, size, className,
 }: {
   open: boolean; onClose: () => void; title: string; subtitle?: string;
   children: ReactNode; footer?: ReactNode; wide?: boolean;
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "full";
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -359,7 +361,24 @@ export function Modal({
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             className={cn(
               "relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-[var(--surface)] shadow-[var(--shadow-pop)] sm:rounded-2xl",
-              wide ? "sm:max-w-3xl" : "sm:max-w-lg"
+              size === "sm"
+                ? "sm:max-w-sm"
+                : size === "md"
+                ? "sm:max-w-md"
+                : size === "lg"
+                ? "sm:max-w-lg"
+                : size === "xl"
+                ? "sm:max-w-3xl"
+                : size === "2xl"
+                ? "sm:max-w-5xl"
+                : size === "3xl"
+                ? "sm:max-w-6xl xl:max-w-7xl"
+                : size === "full"
+                ? "sm:max-w-[96vw]"
+                : wide
+                ? "sm:max-w-5xl xl:max-w-6xl"
+                : "sm:max-w-lg",
+              className
             )}
           >
             <header className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-6 py-4">
