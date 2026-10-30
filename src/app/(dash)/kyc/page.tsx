@@ -39,7 +39,7 @@ export default function KycPage() {
       <div>
         <h1 className="text-[28px] font-bold tracking-tight">Identity Verification</h1>
         <p className="mt-1 text-[13.5px] text-[var(--fg-muted)]">
-          Aadhaar KYC pulled from DigiLocker. Duplicates are blocked automatically.
+          Aadhaar KYC identity verification. Duplicates are blocked automatically.
         </p>
       </div>
 
@@ -76,7 +76,7 @@ export default function KycPage() {
           error={error}
           onRetry={reload}
           pageSize={12}
-          searchKeys={["user_email", "aadhaar_masked", "digilocker_verified_name"]}
+          searchKeys={["user_email", "aadhaar_masked", "verified_name", "name"]}
           rowKey={(r: any) => r.user_email || r.aadhaar_masked}
           empty={{
             title: status ? "No records with this status" : "No verification attempts yet",
@@ -106,7 +106,7 @@ export default function KycPage() {
               header: "Person",
               render: (r: any) => (
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{r.digilocker_verified_name || r.user_email}</p>
+                  <p className="truncate font-semibold">{r.verified_name || r.name || r.user_email}</p>
                   <p className="truncate text-[11.5px] text-[var(--fg-muted)]">{r.user_email}</p>
                 </div>
               ),
@@ -190,7 +190,7 @@ function ReviewModal({
     <Modal
       open={!!record}
       onClose={onClose}
-      title={record?.digilocker_verified_name || email || "KYC record"}
+      title={record?.verified_name || record?.name || email || "KYC record"}
       subtitle="Verified identity details and manual override"
       wide
     >
@@ -206,9 +206,9 @@ function ReviewModal({
               { k: "Source", v: record.verification_source || "—" },
               { k: "Checksum valid", v: record.verhoeff_valid ? "Yes" : "No" },
               { k: "Admin override", v: record.admin_override ? "Yes" : "No" },
-              { k: "Verified name", v: record.digilocker_verified_name || "—" },
-              { k: "Date of birth", v: record.digilocker_verified_dob || "—" },
-              { k: "Address", v: record.digilocker_verified_address || "—" },
+              { k: "Verified name", v: record.verified_name || record.name || "—" },
+              { k: "Date of birth", v: record.verified_dob || record.date_of_birth || "—" },
+              { k: "Address", v: record.verified_address || record.address || "—" },
               { k: "Verified on", v: formatDate(record.verified_at || record.created_at, true) },
             ]}
           />
