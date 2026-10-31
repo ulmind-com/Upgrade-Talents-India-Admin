@@ -210,6 +210,8 @@ export const usersApi = {
   activitySummary: (id: string) => api<any>(`/api/admin/users/${id}/activity-summary`),
   vipBookings: (id: string) => api<any>(`/api/admin/users/${id}/vip-bookings`),
   ticketBookings: (id: string) => api<any>(`/api/admin/users/${id}/tickets`),
+  verifyGovtId: (id: string, body?: any) =>
+    api<any>(`/api/admin/users/${encodeURIComponent(id)}/verify-govt-id`, { method: "POST", body }),
 };
 
 /* ═══════════════ COMPETITIONS ═══════════════ */
@@ -239,6 +241,8 @@ export const competitionsApi = {
     api<any>(`${comp}/${compId}/participants/${regId}/confirm-cash`, { method: "PATCH" }),
   revertCashPayment: (compId: string, regId: string) =>
     api<any>(`${comp}/${compId}/participants/${regId}/revert-cash`, { method: "PATCH" }),
+  verifyParticipantGovtId: (compId: string, regId: string, body?: any) =>
+    api<any>(`${comp}/${compId}/participants/${regId}/verify-govt-id`, { method: "POST", body }),
   uploadCard: (file: File) => {
     const fd = new FormData();
     fd.append("file", file);

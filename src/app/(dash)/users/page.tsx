@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, RotateCcw, Trash2 } from "lucide-react";
+import { Eye, RotateCcw, Trash2, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
 import {
   Button, DataTable, EmptyState, ErrorState, Loading, Modal, Panel, StatusBadge, useConfirm, useResource,
 } from "@/components/Kit";
 import { KeyValues } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import { usersApi, safe, toRows } from "@/lib/api";
 import { formatDate, formatINR, rowId, titleCase } from "@/lib/utils";
 
@@ -43,20 +44,40 @@ export default function UsersPage() {
   };
 
   const columns = [
-    { key: "name", header: "User", render: (r: any) => (
-      <div className="flex items-center gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--brand-soft)] text-[11px] font-bold text-[var(--brand)]">
-          {String(r.name || r.email || "?").slice(0, 2).toUpperCase()}
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate font-semibold">{r.name || "Unnamed"}</span>
-          <span className="block truncate text-[11.5px] text-[var(--fg-muted)]">{r.email}</span>
-        </span>
-      </div>
-    ) },
+    { key: "name", header: "User", render: (r: any) => {
+      const isVerified = Boolean(r.is_verified ?? r.verified ?? r.verified_badge);
+      return (
+        <div className="flex items-center gap-3">
+          <span className="relative grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--brand-soft)] text-[11px] font-bold text-[var(--brand)]">
+            {String(r.name || r.email || "?").slice(0, 2).toUpperCase()}
+            {isVerified && (
+              <span className="absolute -bottom-1 -right-1">
+                <VerifiedBadge size="xs" />
+              </span>
+            )}
+          </span>
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5 truncate font-semibold">
+              {r.name || "Unnamed"}
+              {isVerified && <VerifiedBadge size="xs" />}
+            </span>
+            <span className="block truncate text-[11.5px] text-[var(--fg-muted)]">{r.email}</span>
+          </span>
+        </div>
+      );
+    } },
     { key: "phone_number", header: "Phone", render: (r: any) => r.phone_number || "—" },
     { key: "created_at", header: "Joined", render: (r: any) => formatDate(r.created_at || r.registered_at) },
-    { key: "is_verified", header: "Verified", render: (r: any) => <StatusBadge value={r.is_verified ?? r.verified} /> },
+    { key: "is_verified", header: "Verified", render: (r: any) => {
+      const isVerified = Boolean(r.is_verified ?? r.verified ?? r.verified_badge);
+      return isVerified ? (
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-sky-400">
+          <VerifiedBadge size="xs" /> Lifetime
+        </span>
+      ) : (
+        <StatusBadge value={false} />
+      );
+    } },
   ];
 
   return (
@@ -113,14 +134,46 @@ export default function UsersPage() {
         />
       </Panel>
 
-      <UserDetail user={detail} onClose={() => setDetail(null)} />
+      <UserDetail user={detail} onClose={() => setDetail(null)} onReload={reload} />
       {dialog}
     </div>
   );
 }
 
-function UserDetail({ user, onClose }: { user: any | null; onClose: () => void }) {
+function UserDetail({ user, onClose, onReload }: { user: any | null; onClose: () => void; onReload?: () => void }) {
   const id = user ? rowId(user) : "";
+  const [verifying, setVerifying] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(user);
+  const { push } = useToast();
+
+  const isVerified = Boolean(
+    currentUser?.is_verified ?? currentUser?.verified ?? currentUser?.verified_badge
+  );
+
+  const handleVerify = async () => {
+    if (!currentUser?.email) return;
+    setVerifying(true);
+    try {
+      await usersApi.verifyGovtId(currentUser.email, {
+        notes: "Manually verified by admin after physical Aadhaar card check.",
+        govt_id_type: "AADHAAR",
+      });
+      push("success", `✓ ${currentUser.name || currentUser.email} has been verified with lifetime Blue Badge!`);
+      setCurrentUser((prev: any) => ({
+        ...prev,
+        is_verified: true,
+        verified_badge: true,
+        verified_tick: true,
+        verification_status: "VERIFIED",
+      }));
+      onReload?.();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to verify user.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const { data, loading } = useResource(
     async () => (!id ? null : {
       summary: await safe(usersApi.profileSummary(id), null),
@@ -132,20 +185,61 @@ function UserDetail({ user, onClose }: { user: any | null; onClose: () => void }
   );
 
   return (
-    <Modal open={!!user} onClose={onClose} title={user?.name || user?.email || "User"} subtitle={user?.email} wide>
+    <Modal open={!!user} onClose={onClose} title={currentUser?.name || currentUser?.email || "User"} subtitle={currentUser?.email} wide>
       {loading ? (
         <Loading rows={4} />
       ) : (
         <div className="flex flex-col gap-6">
+          {/* Identity & Verification Status Banner */}
+          {isVerified ? (
+            <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3.5 flex items-start gap-3">
+              <VerifiedBadge size="md" className="mt-0.5" />
+              <div className="text-xs text-sky-200 leading-relaxed">
+                <p className="font-bold text-sky-300">Lifetime Verified Competitor & User</p>
+                <p className="text-[11.5px] text-sky-200/80 mt-0.5">
+                  Identity and physical Aadhaar card verified. The official Facebook-style Blue Badge is active permanently across the platform. No further verification is ever required.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <ShieldAlert className="size-5 text-amber-400 shrink-0" />
+                <div className="text-xs text-amber-200">
+                  <p className="font-bold text-amber-300">Physical Aadhaar Not Verified</p>
+                  <p className="text-[11px] text-amber-200/80">User has not been issued the verified blue tick badge yet.</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleVerify}
+                loading={verifying}
+                className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs"
+              >
+                <ShieldCheck className="size-3.5 mr-1" /> Verify Physical Aadhaar & Issue Blue Badge
+              </Button>
+            </div>
+          )}
+
           <KeyValues
             items={[
-              { k: "Email", v: user?.email },
-              { k: "Phone", v: user?.phone_number || "—" },
-              { k: "Date of birth", v: formatDate(user?.date_of_birth) },
-              { k: "Address", v: user?.address || "—" },
-              { k: "Referral code", v: user?.referral_code || "—" },
-              { k: "Joined", v: formatDate(user?.created_at || user?.registered_at, true) },
-              { k: "Verified", v: <StatusBadge value={user?.is_verified ?? user?.verified} /> },
+              { k: "Email", v: currentUser?.email },
+              { k: "Phone", v: currentUser?.phone_number || "—" },
+              { k: "Parent / Guardian Phone", v: currentUser?.parent_phone_number ? `+91 ${currentUser.parent_phone_number}` : "Not linked" },
+              { k: "Date of birth", v: formatDate(currentUser?.date_of_birth) },
+              { k: "Address", v: currentUser?.address || "—" },
+              { k: "Referral code", v: currentUser?.referral_code || "—" },
+              { k: "Joined", v: formatDate(currentUser?.created_at || currentUser?.registered_at, true) },
+              {
+                k: "Verification Status",
+                v: isVerified ? (
+                  <span className="inline-flex items-center gap-1.5 font-bold text-sky-400 text-xs">
+                    <VerifiedBadge size="xs" /> Verified Lifetime (Blue Badge)
+                  </span>
+                ) : (
+                  <StatusBadge value={false} />
+                ),
+              },
             ]}
           />
 

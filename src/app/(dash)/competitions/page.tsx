@@ -5,12 +5,14 @@ import {
   Gavel, Lock, Trophy, Send, RefreshCw, Eye, UserPlus, UserMinus,
   Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
   Upload, Loader2, Plus, Trash2, Image as ImageIcon,
-  CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw
+  CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
+  ShieldCheck, ShieldAlert, BadgeCheck
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
 import { KeyValues, StatCard } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import { competitionsApi, judgesApi, safe, toRows } from "@/lib/api";
 import { formatDate, formatINR, formatNumber, fromDateTimeInput, rowId, cn } from "@/lib/utils";
 
@@ -722,6 +724,8 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
   const [filterMode, setFilterMode] = useState<string>("ALL");
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [selectedParticipant, setSelectedParticipant] = useState<any | null>(null);
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
   const { push } = useToast();
 
@@ -782,6 +786,40 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
       push("error", err?.message || "Failed to revert cash payment.");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleVerifyAadhaar = async (p: any) => {
+    const regId = p._id || p.registration_id;
+    const name = p.user_name || p.user_email || "Participant";
+    setVerifyingId(regId);
+    try {
+      await competitionsApi.verifyParticipantGovtId(compId, regId, {
+        notes: `Manually verified after physical Aadhaar card check for competition ${compTitle || compId}`,
+        govt_id_type: p.govt_id_type || "AADHAAR",
+        govt_id_number: p.govt_id_number || undefined,
+      });
+      push("success", `✓ ${name} verified with permanent Blue Badge! Lifetime verification active.`);
+      reload();
+      if (selectedParticipant && (selectedParticipant._id === regId || selectedParticipant.registration_id === regId)) {
+        setSelectedParticipant((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                is_verified: true,
+                is_id_verified: true,
+                is_govt_id_verified: true,
+                verified_badge: true,
+                verified_tick: true,
+                verification_status: "VERIFIED",
+              }
+            : null
+        );
+      }
+    } catch (err: any) {
+      push("error", err?.message || "Failed to verify participant government ID.");
+    } finally {
+      setVerifyingId(null);
     }
   };
 
@@ -1074,16 +1112,27 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           {
             key: "user",
             header: "Participant",
-            width: "230px",
+            width: "250px",
             render: (r: any) => {
               const initial = ((r.user_name || r.user_email || "P").trim()[0] || "P").toUpperCase();
+              const isVerified = Boolean(
+                r.is_verified || r.verified_badge || r.verified_tick || r.is_id_verified || r.is_govt_id_verified
+              );
               return (
-                <div className="flex items-center gap-2.5 min-w-[200px] max-w-[240px]">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600/30 to-indigo-600/30 border border-violet-500/30 font-bold text-violet-200 text-xs shadow-inner">
+                <div className="flex items-center gap-2.5 min-w-[210px] max-w-[260px]">
+                  <div className="relative flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600/30 to-indigo-600/30 border border-violet-500/30 font-bold text-violet-200 text-xs shadow-inner">
                     {initial}
+                    {isVerified && (
+                      <span className="absolute -bottom-1 -right-1">
+                        <VerifiedBadge size="xs" />
+                      </span>
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-white truncate text-xs">{r.user_name || "Participant"}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-semibold text-white truncate text-xs">{r.user_name || "Participant"}</p>
+                      {isVerified && <VerifiedBadge size="xs" />}
+                    </div>
                     <a
                       href={`mailto:${r.user_email}`}
                       className="block font-mono text-[11px] text-[var(--fg-muted)] hover:text-white truncate"
@@ -1091,15 +1140,69 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                     >
                       {r.user_email}
                     </a>
-                    {r.user_phone && (
-                      <a
-                        href={`tel:${r.user_phone}`}
-                        className="inline-flex items-center gap-1 font-mono text-[10px] text-[var(--fg-subtle)] hover:text-white mt-0.5"
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {r.user_phone && (
+                        <a
+                          href={`tel:${r.user_phone}`}
+                          className="inline-flex items-center gap-1 font-mono text-[10px] text-[var(--fg-subtle)] hover:text-white"
+                        >
+                          <Phone className="size-2.5" /> {r.user_phone}
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedParticipant(r)}
+                        className="cursor-pointer text-[10.5px] font-semibold text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1 ml-auto"
                       >
-                        <Phone className="size-2.5" /> {r.user_phone}
-                      </a>
-                    )}
+                        <Eye className="size-3" /> View Profile & ID
+                      </button>
+                    </div>
                   </div>
+                </div>
+              );
+            },
+          },
+          {
+            key: "verification",
+            header: "Aadhaar / Blue Badge",
+            width: "200px",
+            render: (r: any) => {
+              const isVerified = Boolean(
+                r.is_verified || r.verified_badge || r.verified_tick || r.is_id_verified || r.is_govt_id_verified
+              );
+              const rId = r._id || r.registration_id;
+
+              if (isVerified) {
+                return (
+                  <div className="flex flex-col gap-1 min-w-[170px]">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-300 shadow-sm w-fit">
+                      <VerifiedBadge size="xs" /> Verified (Lifetime)
+                    </span>
+                    <span className="text-[10px] text-[var(--fg-subtle)]">
+                      Aadhaar checked • No re-check needed
+                    </span>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex flex-col gap-1.5 min-w-[170px]">
+                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-300">
+                    <ShieldAlert className="size-3 text-amber-400 shrink-0" /> Aadhaar Not Checked
+                  </span>
+                  <button
+                    type="button"
+                    disabled={verifyingId === rId}
+                    onClick={() => handleVerifyAadhaar(r)}
+                    className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50 w-fit"
+                  >
+                    {verifyingId === rId ? (
+                      <Loader2 className="size-3 animate-spin text-sky-400" />
+                    ) : (
+                      <ShieldCheck className="size-3 text-sky-400" />
+                    )}
+                    Verify Aadhaar
+                  </button>
                 </div>
               );
             },
@@ -1283,6 +1386,121 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           },
         ]}
       />
+
+      {/* ── Competitor Profile & Aadhaar Verification Modal ── */}
+      {selectedParticipant && (
+        <Modal
+          open={!!selectedParticipant}
+          onClose={() => setSelectedParticipant(null)}
+          title={selectedParticipant.user_name || "Competitor Profile"}
+          subtitle={`Registration Reference: ${selectedParticipant.registration_reference} • ${compTitle || "Competition"}`}
+          wide
+        >
+          <div className="flex flex-col gap-5 text-xs">
+            {/* Identity Banner */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+              <div className="flex items-center gap-3.5">
+                <div className="relative flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/30 to-violet-600/30 border border-violet-500/40 text-lg font-black text-violet-200 shadow-inner">
+                  {((selectedParticipant.user_name || selectedParticipant.user_email || "P").trim()[0] || "P").toUpperCase()}
+                  {(selectedParticipant.is_verified || selectedParticipant.verified_badge) && (
+                    <span className="absolute -bottom-1 -right-1">
+                      <VerifiedBadge size="sm" />
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+                    {selectedParticipant.user_name || "Participant"}
+                    {(selectedParticipant.is_verified || selectedParticipant.verified_badge) && (
+                      <VerifiedBadge size="sm" />
+                    )}
+                  </h3>
+                  <p className="text-xs text-[var(--fg-muted)] font-mono">{selectedParticipant.user_email}</p>
+                  {selectedParticipant.user_phone && (
+                    <p className="text-xs text-[var(--fg-subtle)] font-mono mt-0.5 flex items-center gap-1">
+                      <Phone className="size-3" /> {selectedParticipant.user_phone}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Action / Verified Tag */}
+              <div>
+                {(selectedParticipant.is_verified || selectedParticipant.verified_badge) ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-xs font-bold text-sky-300">
+                    <VerifiedBadge size="sm" />
+                    <span>Official Facebook Blue Badge Active</span>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => handleVerifyAadhaar(selectedParticipant)}
+                    loading={verifyingId === (selectedParticipant._id || selectedParticipant.registration_id)}
+                    className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs"
+                  >
+                    <ShieldCheck className="size-3.5 mr-1.5" /> Verify Aadhaar & Issue Blue Badge
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Verification Status Banner */}
+            {(selectedParticipant.is_verified || selectedParticipant.verified_badge) ? (
+              <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3.5 flex items-start gap-3">
+                <VerifiedBadge size="md" className="mt-0.5" />
+                <div className="text-xs text-sky-200 leading-relaxed">
+                  <p className="font-bold text-sky-300">Lifetime Verified Competitor</p>
+                  <p className="text-[11.5px] text-sky-200/80 mt-0.5">
+                    This user has been physically verified by admin with their Aadhaar / Government ID. 
+                    The official Blue Badge is permanently active across their profile, competition registrations, and live stages. 
+                    <strong>No further manual verification is ever required.</strong>
+                  </p>
+                  {selectedParticipant.verified_at && (
+                    <p className="text-[10.5px] text-sky-300/60 font-mono mt-1">
+                      Verified at: {formatDate(selectedParticipant.verified_at, true)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex items-start gap-3">
+                <ShieldAlert className="size-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-200 leading-relaxed">
+                  <p className="font-bold text-amber-300">Physical Aadhaar Check Required</p>
+                  <p className="text-[11.5px] text-amber-200/80 mt-0.5">
+                    Please inspect the competitor's original Aadhaar or valid Government ID at the venue or registration desk.
+                    Once confirmed, click "Verify Aadhaar & Issue Blue Badge". The blue checkmark badge will immediately reflect next to their name.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Registration Details Grid */}
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 flex flex-col gap-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--fg-muted)]">
+                Registration Input Details
+              </h4>
+              <KeyValues
+                items={[
+                  { k: "Full Name", v: selectedParticipant.user_name || "—" },
+                  { k: "Registered Email", v: selectedParticipant.user_email },
+                  { k: "Mobile Number", v: selectedParticipant.user_phone || "—" },
+                  { k: "Parent / Guardian Phone", v: selectedParticipant.parent_phone_number ? `+91 ${selectedParticipant.parent_phone_number}` : "Not provided" },
+                  { k: "Date of Birth", v: selectedParticipant.date_of_birth ? `${selectedParticipant.date_of_birth} ${selectedParticipant.age ? `(${selectedParticipant.age} years old)` : ""}` : "Not provided" },
+                  { k: "Residential Address", v: selectedParticipant.address || "Not provided" },
+                  { k: "Government ID Type", v: selectedParticipant.govt_id_type || "AADHAAR" },
+                  { k: "Government ID Number", v: selectedParticipant.govt_id_number || "Checked physically by admin" },
+                  { k: "Registration Ref", v: <span className="font-mono font-bold text-[var(--brand)]">{selectedParticipant.registration_reference}</span> },
+                  { k: "Registered At", v: formatDate(selectedParticipant.registered_at, true) },
+                  { k: "Payment Method", v: selectedParticipant.cash_payment || selectedParticipant.payment_method === "CASH" ? "Cash on Venue" : selectedParticipant.payment_method },
+                  { k: "Fee Amount", v: formatINR(selectedParticipant.fee) },
+                  { k: "Payment Status", v: <StatusBadge value={selectedParticipant.payment_status} /> },
+                ]}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
