@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Gavel, Lock, Trophy, Send, RefreshCw, Eye, UserPlus, UserMinus,
   Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
   Upload, Loader2, Plus, Trash2, Image as ImageIcon,
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
-  ShieldCheck, ShieldAlert, BadgeCheck
+  ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
@@ -232,7 +232,7 @@ export default function CompetitionsPage() {
   const { push } = useToast();
   const { confirm, dialog } = useConfirm();
   const [detail, setDetail] = useState<any | null>(null);
-  const [modalTab, setModalTab] = useState<"participants" | "workflow">("participants");
+  const [modalTab, setModalTab] = useState<"participants" | "workflow" | "stage">("participants");
 
   const run = async (label: string, fn: () => Promise<any>, reload: () => void, needsConfirm?: string) => {
     if (needsConfirm) {
@@ -270,6 +270,18 @@ export default function CompetitionsPage() {
           ],
           rowActions: (row, { reload }) => (
             <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setDetail(row);
+                  setModalTab("stage");
+                }}
+                className="border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-white"
+                title="Manage Live Stage Performance & Lineup Queue"
+              >
+                <Radio className="size-3.5 text-rose-500 animate-pulse" aria-hidden /> Live Stage
+              </Button>
               <Button
                 size="sm"
                 variant="secondary"
@@ -501,10 +513,14 @@ function CompetitionControls({
   comp: any | null;
   onClose: () => void;
   onAction: (label: string, fn: () => Promise<any>, reload: () => void, confirmText?: string) => void;
-  initialTab?: "participants" | "workflow";
+  initialTab?: "participants" | "workflow" | "stage";
 }) {
   const id = comp ? rowId(comp) : "";
-  const [activeTab, setActiveTab] = useState<"participants" | "workflow">(initialTab);
+  const [activeTab, setActiveTab] = useState<"participants" | "workflow" | "stage">(initialTab);
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   const { data, loading, reload } = useResource(
     async () => (!id ? null : {
@@ -532,37 +548,56 @@ function CompetitionControls({
       open={!!comp}
       onClose={onClose}
       title={comp?.title || comp?.name || "Competition"}
-      subtitle={activeTab === "participants" ? "Registered participants, verified payments, and submitted media" : "Judging session, voting and ranking controls"}
+      subtitle={
+        activeTab === "stage"
+          ? "Live stage sequence, performer on stage, and real-time lineup"
+          : activeTab === "participants"
+          ? "Registered participants, verified payments, and submitted media"
+          : "Judging session, voting and ranking controls"
+      }
       size="3xl"
       wide
     >
-      <div className="mb-5 flex gap-2 border-b border-[var(--border)] pb-3">
+      <div className="mb-5 flex flex-wrap gap-2 border-b border-[var(--border)] pb-3">
+        <button
+          onClick={() => setActiveTab("stage")}
+          aria-pressed={activeTab === "stage"}
+          className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+            activeTab === "stage"
+              ? "bg-rose-600 text-white shadow-md shadow-rose-600/30 font-bold"
+              : "border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
+          }`}
+        >
+          <Radio className="size-3.5 text-rose-400 animate-pulse" /> Live Stage Performance
+        </button>
         <button
           onClick={() => setActiveTab("participants")}
           aria-pressed={activeTab === "participants"}
-          className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+          className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
             activeTab === "participants"
               ? "bg-[var(--brand)] text-[var(--on-brand)]"
               : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
           }`}
         >
-          <Users className="inline size-3.5 mr-1.5" /> Participants & Submissions
+          <Users className="size-3.5" /> Participants & Submissions
         </button>
         <button
           onClick={() => setActiveTab("workflow")}
           aria-pressed={activeTab === "workflow"}
-          className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+          className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
             activeTab === "workflow"
               ? "bg-[var(--brand)] text-[var(--on-brand)]"
               : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
           }`}
         >
-          <Gavel className="inline size-3.5 mr-1.5" /> Judging & Session Controls
+          <Gavel className="size-3.5" /> Judging & Session Controls
         </button>
       </div>
 
-      {activeTab === "participants" ? (
-        <CompetitionParticipantsPanel compId={id} compTitle={comp?.title} />
+      {activeTab === "stage" ? (
+        <CompetitionStagePanel compId={id} compTitle={comp?.title || comp?.name} />
+      ) : activeTab === "participants" ? (
+        <CompetitionParticipantsPanel compId={id} compTitle={comp?.title || comp?.name} />
       ) : loading ? (
         <Loading rows={4} />
       ) : (
@@ -717,6 +752,446 @@ function JudgesPanel({
         </ul>
       )}
     </Panel>
+  );
+}
+
+function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitle?: string }) {
+  const { push } = useToast();
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const { data, loading, reload } = useResource(
+    () => (!compId ? Promise.resolve(null) : competitionsApi.stageDashboard(compId)),
+    [compId]
+  );
+
+  const currentPerformer = data?.current_performer;
+  const stageStatus = data?.stage_status || (currentPerformer ? "LIVE" : "IDLE");
+  const participants = Array.isArray(data?.participants) ? data.participants : [];
+  const completedCount = data?.completed_count ?? participants.filter((p: any) => p.stage_status === "COMPLETED").length;
+  const remainingCount = data?.remaining_count ?? participants.filter((p: any) => p.stage_status !== "COMPLETED").length;
+  const totalCount = data?.total_participants ?? participants.length;
+
+  const handleSetPerformer = async (identifier: string, name: string) => {
+    setActionLoading(`set-${identifier}`);
+    try {
+      await competitionsApi.setStagePerformer(compId, identifier);
+      push("success", `${name} is now LIVE ON STAGE! Judge panel and public page updated.`);
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to set stage performer.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleNextPerformer = async () => {
+    setActionLoading("next");
+    try {
+      const res = await competitionsApi.nextStagePerformer(compId);
+      const nextName = res?.current_performer?.user_name || "Next participant";
+      push("success", `${nextName} called to stage!`);
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to transition to next performer.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleEndPerformance = async () => {
+    setActionLoading("end");
+    try {
+      await competitionsApi.endStagePerformance(compId);
+      push("success", "Performance marked completed. Stage is now idle.");
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to end stage performance.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleClearStage = async () => {
+    setActionLoading("clear");
+    try {
+      await competitionsApi.clearStage(compId);
+      push("success", "Stage cleared.");
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to clear stage.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  if (loading && !data) {
+    return <Loading rows={5} />;
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* ── Top Live Stage Status & Action Bar ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface-2)] via-[var(--surface)] to-[var(--surface-2)] p-4 shadow-sm">
+        <div className="flex items-center gap-3.5">
+          <div className={cn(
+            "relative grid size-12 shrink-0 place-items-center rounded-2xl border shadow-inner",
+            currentPerformer
+              ? "border-rose-500/50 bg-rose-500/20 text-rose-400"
+              : "border-[var(--border)] bg-[var(--surface-3)] text-[var(--fg-muted)]"
+          )}>
+            <Radio className={cn("size-6", currentPerformer && "animate-pulse")} />
+            {currentPerformer && (
+              <span className="absolute -top-1 -right-1 size-3 rounded-full bg-rose-500 animate-ping" />
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                currentPerformer
+                  ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                  : "bg-[var(--surface-3)] text-[var(--fg-muted)] border border-[var(--border)]"
+              )}>
+                {currentPerformer ? "STAGE LIVE" : "STAGE IDLE"}
+              </span>
+              <span className="text-xs text-[var(--fg-subtle)] font-mono">
+                {compTitle || "Competition Stage"}
+              </span>
+            </div>
+            <p className="mt-1 text-sm font-bold text-white">
+              {currentPerformer
+                ? `Active Performer: ${currentPerformer.user_name || currentPerformer.user_email}`
+                : "No contestant currently on stage"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={handleNextPerformer}
+            disabled={!!actionLoading || remainingCount === 0}
+            className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md shadow-rose-600/30"
+          >
+            {actionLoading === "next" ? (
+              <Loader2 className="size-3.5 animate-spin mr-1.5" />
+            ) : (
+              <SkipForward className="size-3.5 mr-1.5" />
+            )}
+            Call Next Performer
+          </Button>
+
+          {currentPerformer && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleEndPerformance}
+              disabled={!!actionLoading}
+              className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-xs font-semibold"
+            >
+              {actionLoading === "end" ? (
+                <Loader2 className="size-3.5 animate-spin mr-1.5" />
+              ) : (
+                <Square className="size-3.5 mr-1.5" />
+              )}
+              End Performance
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => reload()}
+            title="Refresh Live Stage"
+            disabled={!!actionLoading}
+          >
+            <RefreshCw className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Metrics Cards ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-sky-300">Total Contestants</span>
+            <Users className="size-3.5 text-sky-400" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-white tabular-nums">{formatNumber(totalCount)}</div>
+        </div>
+
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-300">Stage Status</span>
+            <Radio className="size-3.5 text-rose-400 animate-pulse" />
+          </div>
+          <div className="mt-2 text-xl font-black text-rose-400 tracking-wide uppercase">{stageStatus}</div>
+        </div>
+
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Completed</span>
+            <CheckCircle2 className="size-3.5 text-emerald-400" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-white tabular-nums">{formatNumber(completedCount)}</div>
+        </div>
+
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300">Remaining Queue</span>
+            <Clock className="size-3.5 text-amber-400" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-white tabular-nums">{formatNumber(remainingCount)}</div>
+        </div>
+      </div>
+
+      {/* ── Active Performer Hero Card ── */}
+      {currentPerformer ? (
+        <div className="relative overflow-hidden rounded-2xl border-2 border-rose-500/40 bg-gradient-to-br from-rose-500/15 via-[var(--surface-2)] to-[var(--surface)] p-5 shadow-lg">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                {currentPerformer.user_photo || currentPerformer.avatar ? (
+                  <img
+                    src={currentPerformer.user_photo || currentPerformer.avatar}
+                    alt={currentPerformer.user_name}
+                    className="size-16 rounded-2xl object-cover border-2 border-rose-500 shadow-md"
+                  />
+                ) : (
+                  <div className="flex size-16 items-center justify-center rounded-2xl bg-rose-500/20 border-2 border-rose-500 text-rose-200 font-black text-xl shadow-md">
+                    {((currentPerformer.user_name || currentPerformer.user_email || "P")[0] || "P").toUpperCase()}
+                  </div>
+                )}
+                <span className="absolute -bottom-1 -right-1">
+                  <VerifiedBadge size="sm" />
+                </span>
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-rose-500 text-white font-extrabold text-[10px] px-2.5 py-0.5 uppercase tracking-wider animate-pulse flex items-center gap-1">
+                    <span className="size-1.5 rounded-full bg-white" /> NOW PERFORMING ON STAGE
+                  </span>
+                  <span className="font-mono text-xs font-bold text-rose-300">
+                    Order #{currentPerformer.stage_order || 1}
+                  </span>
+                </div>
+
+                <h3 className="mt-1 text-lg font-bold text-white flex items-center gap-1.5">
+                  {currentPerformer.user_name || "Performer"}
+                  {(currentPerformer.is_verified || currentPerformer.verified_badge) && (
+                    <VerifiedBadge size="sm" />
+                  )}
+                </h3>
+
+                <p className="text-xs text-[var(--fg-muted)]">
+                  {currentPerformer.entry_title || "Performance Entry"}
+                </p>
+
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] font-mono text-[var(--fg-subtle)]">
+                  {currentPerformer.registration_reference && (
+                    <span className="text-[var(--brand)] font-bold">
+                      Ref: {currentPerformer.registration_reference}
+                    </span>
+                  )}
+                  {currentPerformer.user_email && <span>{currentPerformer.user_email}</span>}
+                  {currentPerformer.user_phone && <span>Tel: {currentPerformer.user_phone}</span>}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleEndPerformance}
+                loading={actionLoading === "end"}
+                className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 font-bold"
+              >
+                <Square className="size-3.5 mr-1.5" /> End Performance
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleNextPerformer}
+                loading={actionLoading === "next"}
+                className="bg-rose-600 hover:bg-rose-500 text-white font-bold"
+              >
+                <SkipForward className="size-3.5 mr-1.5" /> Next Performer →
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/40 p-6 text-center">
+          <Mic className="size-8 mx-auto text-[var(--fg-muted)] opacity-60 mb-2" />
+          <p className="text-sm font-semibold text-white">Stage is Currently Idle</p>
+          <p className="text-xs text-[var(--fg-muted)] mt-1 max-w-md mx-auto">
+            Click <strong>"Call Next Performer"</strong> above to advance the lineup, or click <strong>"Send to Stage"</strong> next to any competitor below to put them on stage immediately.
+          </p>
+        </div>
+      )}
+
+      {/* ── Serial Performance Lineup Table ── */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Users className="size-4 text-[var(--brand)]" />
+              Serial Performance Lineup ({participants.length} Registered)
+            </h3>
+            <p className="text-xs text-[var(--fg-muted)] mt-0.5">
+              Admin controls who takes the stage in serial sequence. Judges and registered users receive live real-time sync.
+            </p>
+          </div>
+          <span className="text-xs text-[var(--fg-subtle)] font-mono">
+            {completedCount} of {participants.length} done
+          </span>
+        </div>
+
+        <DataTable
+          rows={participants}
+          columns={[
+            {
+              key: "stage_order",
+              header: "# Order",
+              width: "70px",
+              render: (r: any) => (
+                <span className="font-mono font-bold text-xs text-[var(--brand)]">
+                  #{r.stage_order || 1}
+                </span>
+              ),
+            },
+            {
+              key: "participant",
+              header: "Competitor & Profile",
+              width: "280px",
+              render: (r: any) => {
+                const isVerified = Boolean(r.is_verified || r.verified_badge || r.verified_tick);
+                return (
+                  <div className="flex items-center gap-3 min-w-[200px]">
+                    <div className="relative">
+                      {r.user_photo || r.avatar ? (
+                        <img
+                          src={r.user_photo || r.avatar}
+                          alt={r.user_name}
+                          className="size-9 rounded-xl object-cover border border-[var(--border)]"
+                        />
+                      ) : (
+                        <div className="flex size-9 items-center justify-center rounded-xl bg-[var(--surface-3)] text-xs font-bold text-[var(--fg-muted)]">
+                          {((r.user_name || r.user_email || "P")[0] || "P").toUpperCase()}
+                        </div>
+                      )}
+                      {isVerified && (
+                        <span className="absolute -bottom-1 -right-1">
+                          <VerifiedBadge size="xs" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-xs text-white truncate">
+                          {r.user_name || "Competitor"}
+                        </span>
+                        {isVerified && <VerifiedBadge size="xs" />}
+                      </div>
+                      <span className="block font-mono text-[11px] text-[var(--fg-subtle)] truncate">
+                        {r.user_email}
+                      </span>
+                    </div>
+                  </div>
+                );
+              },
+            },
+            {
+              key: "registration_reference",
+              header: "Reg Reference",
+              width: "150px",
+              render: (r: any) => (
+                <span className="font-mono text-xs text-emerald-400 font-bold whitespace-nowrap">
+                  {r.registration_reference || "—"}
+                </span>
+              ),
+            },
+            {
+              key: "stage_status",
+              header: "Stage Status",
+              width: "160px",
+              render: (r: any) => {
+                if (r.is_current_performer || r.stage_status === "ON_STAGE") {
+                  return (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-[11px] font-extrabold text-rose-300 shadow-sm animate-pulse whitespace-nowrap">
+                      <Radio className="size-3 text-rose-400 animate-ping" />
+                      ON STAGE NOW
+                    </span>
+                  );
+                }
+                if (r.stage_status === "COMPLETED") {
+                  return (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                        <CheckCircle2 className="size-3 text-emerald-400" /> Completed
+                      </span>
+                      {r.is_scored && (
+                        <span className="text-[10px] text-[var(--fg-subtle)] font-mono">
+                          Avg: {r.average_score} ({r.judge_score_count} judge{r.judge_score_count === 1 ? "" : "s"})
+                        </span>
+                      )}
+                    </div>
+                  );
+                }
+                return (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-0.5 text-[10.5px] font-medium text-[var(--fg-muted)] whitespace-nowrap">
+                    <Clock className="size-2.5" /> In Lineup
+                  </span>
+                );
+              },
+            },
+            {
+              key: "actions",
+              header: "Stage Action",
+              width: "160px",
+              render: (r: any) => {
+                const isOnStage = Boolean(r.is_current_performer || r.stage_status === "ON_STAGE");
+                const rId = r.registration_id || r.user_email;
+
+                if (isOnStage) {
+                  return (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleEndPerformance}
+                      loading={actionLoading === "end"}
+                      className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 text-[11px] font-bold"
+                    >
+                      <Square className="size-3 mr-1" /> End Now
+                    </Button>
+                  );
+                }
+
+                return (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={actionLoading === `set-${rId}`}
+                    onClick={() => handleSetPerformer(rId, r.user_name || "Competitor")}
+                    className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] whitespace-nowrap"
+                  >
+                    {actionLoading === `set-${rId}` ? (
+                      <Loader2 className="size-3 animate-spin mr-1" />
+                    ) : (
+                      <Mic className="size-3 mr-1" />
+                    )}
+                    Send to Stage
+                  </Button>
+                );
+              },
+            },
+          ]}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -1351,6 +1826,60 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
             header: "Registration",
             width: "120px",
             render: (r: any) => <StatusBadge value={r.status} />,
+          },
+          {
+            key: "stage",
+            header: "Live Stage",
+            width: "160px",
+            render: (r: any) => {
+              const isOnStage = Boolean(r.is_on_stage || r.stage_status === "ON_STAGE");
+              const isCompleted = r.stage_status === "COMPLETED";
+              const rId = r._id || r.registration_id;
+
+              if (isOnStage) {
+                return (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-[10.5px] font-extrabold text-rose-300 animate-pulse whitespace-nowrap">
+                    <Radio className="size-3 text-rose-400" /> On Stage Now
+                  </span>
+                );
+              }
+
+              if (isCompleted) {
+                return (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <CheckCircle2 className="size-3" /> Done Performing
+                  </span>
+                );
+              }
+
+              return (
+                <button
+                  type="button"
+                  disabled={actionLoading === `stage-${rId}`}
+                  onClick={async () => {
+                    setActionLoading(`stage-${rId}`);
+                    try {
+                      await competitionsApi.setStagePerformer(compId, rId);
+                      push("success", `${r.user_name || "Competitor"} is now LIVE ON STAGE!`);
+                      reload();
+                    } catch (e: any) {
+                      push("error", e?.message || "Failed to put competitor on stage.");
+                    } finally {
+                      setActionLoading(null);
+                    }
+                  }}
+                  className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
+                  title="Send this participant straight to the live performance stage"
+                >
+                  {actionLoading === `stage-${rId}` ? (
+                    <Loader2 className="size-3 animate-spin text-rose-400" />
+                  ) : (
+                    <Mic className="size-3 text-rose-400" />
+                  )}
+                  Send to Stage
+                </button>
+              );
+            },
           },
           {
             key: "submission",

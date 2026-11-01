@@ -243,6 +243,15 @@ export const competitionsApi = {
     api<any>(`${comp}/${compId}/participants/${regId}/revert-cash`, { method: "PATCH" }),
   verifyParticipantGovtId: (compId: string, regId: string, body?: any) =>
     api<any>(`${comp}/${compId}/participants/${regId}/verify-govt-id`, { method: "POST", body }),
+  stageDashboard: (compId: string) => api<any>(`${comp}/${compId}/stage`),
+  setStagePerformer: (compId: string, identifier: string, notes?: string) =>
+    api<any>(`${comp}/${compId}/stage/set-performer`, { method: "POST", body: { identifier, notes } }),
+  nextStagePerformer: (compId: string) =>
+    api<any>(`${comp}/${compId}/stage/next-performer`, { method: "POST" }),
+  endStagePerformance: (compId: string) =>
+    api<any>(`${comp}/${compId}/stage/end-performance`, { method: "POST" }),
+  clearStage: (compId: string) =>
+    api<any>(`${comp}/${compId}/stage/clear`, { method: "POST" }),
   uploadCard: (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
