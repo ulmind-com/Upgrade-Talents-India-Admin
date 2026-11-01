@@ -734,7 +734,11 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
     [compId]
   );
 
-  const rawParticipants = toRows(data?.participants);
+  const rawParticipants = useMemo(() => {
+    if (Array.isArray(data?.participants)) return data.participants;
+    if (Array.isArray(data)) return data;
+    return toRows(data);
+  }, [data]);
   const totalRegistered = data?.total_registered ?? rawParticipants.length;
   const confirmedCount = data?.confirmed_count ?? rawParticipants.filter((p: any) => p.status === "CONFIRMED").length;
   const submissionsCount = data?.submissions_count ?? rawParticipants.filter((p: any) => !!p.submission).length;

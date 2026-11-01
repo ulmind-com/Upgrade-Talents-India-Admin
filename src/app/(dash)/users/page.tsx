@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, RotateCcw, Trash2, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
+import { Eye, RotateCcw, Trash2, ShieldCheck, ShieldAlert, Loader2, Trophy, Banknote, CreditCard, Video } from "lucide-react";
 import {
   Button, DataTable, EmptyState, ErrorState, Loading, Modal, Panel, StatusBadge, useConfirm, useResource,
 } from "@/components/Kit";
@@ -180,6 +180,7 @@ function UserDetail({ user, onClose, onReload }: { user: any | null; onClose: ()
       achievements: await safe(usersApi.achievements(id), null),
       activity: await safe(usersApi.activitySummary(id), null),
       tickets: await safe(usersApi.ticketBookings(id), null),
+      competitions: await safe(usersApi.competitions(id), null),
     }),
     [id]
   );
@@ -316,6 +317,95 @@ function UserDetail({ user, onClose, onReload }: { user: any | null; onClose: ()
             ) : (
               <p className="text-xs text-[var(--fg-muted)] py-2">
                 No event tickets have been booked by this user yet.
+              </p>
+            )}
+          </Panel>
+
+          {/* Competition Registrations & Submissions */}
+          <Panel
+            title="Competition Registrations & Submissions"
+            subtitle={
+              Array.isArray(data?.competitions?.competitions) && data.competitions.competitions.length > 0
+                ? `${data.competitions.competitions.length} competition registration(s) found for this user`
+                : "Record of all talent contests and competitions registered by this user"
+            }
+            className="shadow-none"
+          >
+            {Array.isArray(data?.competitions?.competitions) && data.competitions.competitions.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {data.competitions.competitions.map((c: any) => {
+                  const isCash = Boolean(c.cash_payment || c.payment_method === "CASH");
+                  const isPaid = c.payment_status === "PAID" || c.cash_status === "COLLECTED" || c.registration_status === "CONFIRMED";
+                  return (
+                    <div
+                      key={c.competition_id || c.registration_reference || Math.random()}
+                      className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <Trophy className="size-4 text-[var(--brand)] shrink-0" />
+                          <span className="font-bold text-white text-[13px]">
+                            {c.competition_title || "Competition"}
+                          </span>
+                          {c.registration_reference && (
+                            <span className="font-mono text-[10.5px] rounded bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--fg-muted)]">
+                              {c.registration_reference}
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-mono text-[11px] text-[var(--fg-muted)]">
+                          {formatDate(c.registration_date || c.registered_at, true)}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+                        <div>
+                          <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Payment Method</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {isCash ? (
+                              <span className="inline-flex items-center gap-1 font-semibold text-amber-300">
+                                <Banknote className="size-3.5 text-amber-400" /> Cash on Venue
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-semibold text-sky-300">
+                                <CreditCard className="size-3.5 text-sky-400" /> Online (Razorpay)
+                              </span>
+                            )}
+                          </div>
+                          {Number(c.fee) > 0 && (
+                            <p className="font-mono text-[10.5px] text-[var(--fg-muted)] mt-0.5">{formatINR(c.fee)}</p>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Registration Status</span>
+                          <p className={`font-bold mt-0.5 ${c.registration_status === "CONFIRMED" ? "text-emerald-400" : "text-amber-400"}`}>
+                            {c.registration_status || "CONFIRMED"}
+                          </p>
+                          <p className="text-[10px] font-mono text-[var(--fg-muted)]">{isPaid ? "PAID" : "PENDING"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Performance Submission</span>
+                          <p className={`font-bold mt-0.5 ${c.submission_status && c.submission_status !== "NOT_SUBMITTED" ? "text-emerald-400" : "text-[var(--fg-muted)]"}`}>
+                            {c.submission_status && c.submission_status !== "NOT_SUBMITTED" ? "Entry Uploaded" : "No Media Uploaded"}
+                          </p>
+                          {c.submission_date && (
+                            <p className="text-[10px] text-[var(--fg-subtle)]">{formatDate(c.submission_date, true)}</p>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-[var(--fg-subtle)] font-bold">Official Rank</span>
+                          <p className="font-bold text-white mt-0.5">
+                            {c.official_rank ? `Rank #${c.official_rank}` : c.results_published ? "Unranked" : "Results Pending"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--fg-muted)] py-2">
+                No competition registrations found for this user yet.
               </p>
             )}
           </Panel>
