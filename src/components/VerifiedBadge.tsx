@@ -16,9 +16,9 @@ const sizeMap = {
 };
 
 /**
- * Facebook-style Official Blue Verified Badge
+ * Official Blue Verified Badge
  * Matches geometry and color palette of public/verified-badge.json:
- * Circle fill: Meta/Facebook Blue (#1877F2)
+ * Circle fill: Official Blue (#1877F2)
  * White checkmark path.
  * Lifetime permanent verification badge.
  */

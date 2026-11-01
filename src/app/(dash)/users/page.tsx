@@ -198,7 +198,7 @@ function UserDetail({ user, onClose, onReload }: { user: any | null; onClose: ()
               <div className="text-xs text-sky-200 leading-relaxed">
                 <p className="font-bold text-sky-300">Lifetime Verified Competitor & User</p>
                 <p className="text-[11.5px] text-sky-200/80 mt-0.5">
-                  Identity and physical Aadhaar card verified. The official Facebook-style Blue Badge is active permanently across the platform. No further verification is ever required.
+                  Identity and physical Aadhaar card verified. The official Blue Badge is active permanently across the platform. No further verification is ever required.
                 </p>
               </div>
             </div>
