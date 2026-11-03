@@ -1,11 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, ShieldCheck, Sparkles } from "lucide-react";
 import { authApi, adminToken } from "@/lib/api";
 import { useAdmin } from "@/components/Providers";
+
+const BG_CLIPS = ["/assets/dance1.mp4", "/assets/dance2.mp4", "/assets/dance3.mp4"];
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -17,6 +19,14 @@ export default function AdminLogin() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [clipIdx, setClipIdx] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.play().catch(() => {});
+  }, [clipIdx]);
 
   useEffect(() => {
     if (!loading && admin) router.replace("/");
@@ -46,24 +56,40 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-[#070a12] via-[#0b101e] to-[#05070d] p-4 sm:p-6 md:p-8 lg:p-12 overflow-hidden selection:bg-[#fca34d]/30 selection:text-white">
-      {/* Cinematic Dance Stage Ambient Lighting & Spotlights */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-32 right-1/4 size-[480px] rounded-full bg-amber-500/15 blur-[120px]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-32 left-10 size-[520px] rounded-full bg-violet-600/15 blur-[130px]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute top-1/4 left-1/2 -translate-x-1/2 size-[600px] rounded-full bg-sky-500/10 blur-[140px]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.03)_0%,transparent_70%)]"
-      />
+    <div className="relative flex min-h-screen w-full items-center justify-center bg-black p-4 sm:p-6 md:p-8 lg:p-12 overflow-hidden selection:bg-[#fca34d]/30 selection:text-white">
+      {/* ── CINEMATIC DANCE VIDEO BACKGROUND & POSTER ── */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        {/* Fallback & Pre-load Dance Stage Poster Image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 scale-105"
+          style={{
+            backgroundImage: "url('/admin-dance-card.webp'), url('/admin-dance-card.jpg'), url('/admin-login-art.png')",
+          }}
+        />
+
+        {/* Fullscreen Looping Video Reel */}
+        <video
+          ref={videoRef}
+          key={BG_CLIPS[clipIdx]}
+          autoPlay
+          muted
+          playsInline
+          poster="/admin-dance-card.webp"
+          onEnded={() => setClipIdx((i) => (i + 1) % BG_CLIPS.length)}
+          className="absolute inset-0 size-full object-cover object-center scale-105 transition-opacity duration-700"
+        >
+          <source src={BG_CLIPS[clipIdx]} type="video/mp4" />
+        </video>
+
+        {/* Ambient Dark Gradient & Cinematic Scrim Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#070a12]/75 via-[#0b101e]/60 to-[#05070d]/80 backdrop-blur-[2px]" />
+
+        {/* Dynamic Stage Lighting & Neon Atmosphere */}
+        <div className="absolute -top-32 right-1/4 size-[480px] rounded-full bg-amber-500/20 blur-[130px] mix-blend-screen" />
+        <div className="absolute -bottom-32 left-10 size-[520px] rounded-full bg-violet-600/20 blur-[140px] mix-blend-screen" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 size-[600px] rounded-full bg-sky-500/15 blur-[150px] mix-blend-screen" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.05)_0%,transparent_75%)]" />
+      </div>
 
       {/* Main Floating Dance Competition Admin Card */}
       <motion.div
