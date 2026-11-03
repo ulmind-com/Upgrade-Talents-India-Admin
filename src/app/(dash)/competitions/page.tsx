@@ -6,7 +6,8 @@ import {
   Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
   Upload, Loader2, Plus, Trash2, Image as ImageIcon,
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
-  ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square
+  ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square,
+  Link2, Music, FileUp, Sparkles
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
@@ -228,6 +229,267 @@ function JudgingCriteriaBuilder({
   );
 }
 
+const SUBMISSION_PRESETS = [
+  {
+    id: "link_only",
+    label: "🔗 Drive / YouTube Link Only",
+    hint: "Contestants only submit a video/drive link (No file or MP3 upload)",
+    fields: [
+      {
+        name: "Performance Link",
+        label: "YouTube / Drive Video Link",
+        type: "URL",
+        required: true,
+        allowed_formats: ["youtube", "drive", "url"],
+        description: "Submit public YouTube video or Google Drive link",
+        display_order: 1,
+      },
+    ],
+  },
+  {
+    id: "audio_only",
+    label: "🎵 MP3 Audio Only",
+    hint: "Contestants only upload an MP3 audio recording (.mp3 only)",
+    fields: [
+      {
+        name: "Audition Audio Track",
+        label: "MP3 Audio Recording",
+        type: "AUDIO",
+        required: true,
+        allowed_formats: ["mp3"],
+        max_size_mb: 20.0,
+        description: "Upload an MP3 audio file (.mp3 only)",
+        display_order: 1,
+      },
+    ],
+  },
+  {
+    id: "link_and_audio",
+    label: "🌟 Link + MP3 Audio",
+    hint: "Both a video link (Drive/YouTube) and audio MP3 are accepted",
+    fields: [
+      {
+        name: "Performance Link",
+        label: "YouTube / Drive Video Link",
+        type: "URL",
+        required: true,
+        allowed_formats: ["youtube", "drive", "url"],
+        description: "Submit YouTube or Google Drive performance video link",
+        display_order: 1,
+      },
+      {
+        name: "Backing Audio Track",
+        label: "MP3 Audio Track (Optional)",
+        type: "AUDIO",
+        required: false,
+        allowed_formats: ["mp3"],
+        max_size_mb: 20.0,
+        description: "Upload MP3 backing or vocal soundtrack",
+        display_order: 2,
+      },
+    ],
+  },
+  {
+    id: "file_only",
+    label: "📁 Document / Portfolio",
+    hint: "Contestants upload portfolio, photos or documents (.pdf, images, .zip)",
+    fields: [
+      {
+        name: "Portfolio Submission",
+        label: "Portfolio Document / Photos",
+        type: "DOCUMENT",
+        required: true,
+        allowed_formats: ["pdf", "docx", "png", "jpg", "zip"],
+        max_size_mb: 25.0,
+        description: "Upload PDF or image portfolio",
+        display_order: 1,
+      },
+    ],
+  },
+  {
+    id: "all_formats",
+    label: "🎛️ Full (Link + Audio + Portfolio)",
+    hint: "Configures all 3 formats for comprehensive multi-stage submissions",
+    fields: [
+      {
+        name: "Performance Video Link",
+        label: "YouTube / Drive Video Link",
+        type: "URL",
+        required: true,
+        display_order: 1,
+      },
+      {
+        name: "Audition Audio File",
+        label: "MP3 Audio Track",
+        type: "AUDIO",
+        required: false,
+        display_order: 2,
+      },
+      {
+        name: "Portfolio / Photos",
+        label: "Photos or Portfolio Document",
+        type: "DOCUMENT",
+        required: false,
+        display_order: 3,
+      },
+    ],
+  },
+];
+
+function SubmissionFieldsBuilder({
+  value,
+  onChange,
+}: {
+  value?: any[];
+  onChange: (val: any[]) => void;
+}) {
+  const fields = Array.isArray(value) && value.length > 0 ? value : [];
+
+  const addField = () => {
+    const nextOrder = fields.length + 1;
+    onChange([
+      ...fields,
+      {
+        name: `Submission Field ${nextOrder}`,
+        label: `Submission Field ${nextOrder}`,
+        type: "URL",
+        required: true,
+        display_order: nextOrder,
+      },
+    ]);
+  };
+
+  const removeField = (idx: number) => {
+    onChange(fields.filter((_, i) => i !== idx));
+  };
+
+  const updateField = (idx: number, patch: Partial<any>) => {
+    onChange(
+      fields.map((f, i) => {
+        if (i !== idx) return f;
+        const updated = { ...f, ...patch };
+        if (patch.label && (!f.name || f.name === f.label)) {
+          updated.name = patch.label;
+        }
+        return updated;
+      })
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-3.5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <p className="text-xs font-bold text-[var(--fg)] flex items-center gap-1.5">
+            <Sparkles className="size-3.5 text-amber-400" /> Submission Requirements &amp; Formats
+          </p>
+          <p className="text-[11px] text-[var(--fg-muted)]">
+            Configure what participants must submit. If only a link is added, participants only see the link field (no MP3/video upload needed).
+          </p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={addField} type="button">
+          <Plus className="size-3.5" /> Add Field
+        </Button>
+      </div>
+
+      {/* Quick 1-click Preset Selector */}
+      <div className="flex flex-col gap-1.5 pt-1">
+        <p className="text-[10px] font-semibold text-[var(--fg-subtle)] uppercase tracking-wider">Quick Presets:</p>
+        <div className="flex flex-wrap gap-1.5">
+          {SUBMISSION_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onChange(p.fields)}
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--fg-muted)] hover:border-[var(--brand)] hover:text-[var(--brand)] hover:bg-[var(--surface-2)] transition-all"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {fields.length === 0 ? (
+        <div className="text-center py-4 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--fg-subtle)]">
+          <p className="italic">No submission fields configured. Choose a preset above or click &quot;Add Field&quot;.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {fields.map((f, idx) => {
+            const fType = String(f.type || "URL").toUpperCase();
+            return (
+              <div
+                key={idx}
+                className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-sm"
+              >
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="grid size-5 place-items-center rounded bg-[var(--surface-2)] text-[10px] font-bold text-[var(--fg-subtle)]">
+                    #{idx + 1}
+                  </span>
+                  {fType === "URL" ? (
+                    <Link2 className="size-3.5 text-sky-400" />
+                  ) : fType === "VIDEO" ? (
+                    <Video className="size-3.5 text-rose-400" />
+                  ) : fType === "AUDIO" ? (
+                    <Music className="size-3.5 text-violet-400" />
+                  ) : (
+                    <FileUp className="size-3.5 text-amber-400" />
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={f.label || f.name || ""}
+                    onChange={(e) => updateField(idx, { label: e.target.value, name: e.target.value })}
+                    placeholder="Field Label (e.g. YouTube / Drive Video Link)"
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-xs font-semibold text-[var(--fg)] focus:border-[var(--brand)] focus:outline-none"
+                  />
+                </div>
+
+                <div className="w-full sm:w-44 shrink-0">
+                  <select
+                    value={fType}
+                    onChange={(e) => updateField(idx, { type: e.target.value })}
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs font-medium text-[var(--fg)] focus:border-[var(--brand)] focus:outline-none"
+                  >
+                    <option value="URL">🔗 Drive / YouTube Link</option>
+                    <option value="VIDEO">🔴 YouTube Link Only</option>
+                    <option value="AUDIO">🎵 MP3 Audio Upload</option>
+                    <option value="DOCUMENT">📁 Document / PDF Upload</option>
+                    <option value="IMAGE">🖼️ Photo / Image Upload</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-start gap-2 shrink-0">
+                  <label className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--fg-muted)] cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={f.required !== false}
+                      onChange={(e) => updateField(idx, { required: e.target.checked })}
+                      className="size-3.5 accent-[var(--brand)] rounded"
+                    />
+                    Required
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => removeField(idx)}
+                    className="grid size-7 place-items-center rounded text-[var(--danger)] hover:bg-[var(--surface-3)] transition-colors"
+                    title="Remove Field"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CompetitionsPage() {
   const { push } = useToast();
   const { confirm, dialog } = useConfirm();
@@ -276,6 +538,20 @@ export default function CompetitionsPage() {
                 </span>
               )
             ) },
+            { key: "formats", header: "Formats", render: (r: any) => {
+              const fmts = r.submission_formats || [];
+              const fields = r.dynamic_submission_fields || [];
+              const hasL = fmts.includes("VIDEO_LINK") || fields.some((f: any) => f.type === "URL" || f.type === "VIDEO" || /link|url|drive|youtube/i.test(f.name));
+              const hasA = fmts.includes("AUDIO") || fields.some((f: any) => f.type === "AUDIO" || /audio|mp3/i.test(f.name));
+              const hasF = fmts.includes("FILE") || fields.some((f: any) => f.type === "DOCUMENT" || f.type === "IMAGE" || /file|document|photo/i.test(f.name));
+              return (
+                <div className="flex flex-wrap items-center gap-1">
+                  {hasL && <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-sky-400">Link</span>}
+                  {hasA && <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-violet-400">MP3</span>}
+                  {hasF && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-400">File</span>}
+                </div>
+              );
+            } },
           ],
           rowActions: (row, { reload }) => (
             <div className="flex items-center gap-1.5">
@@ -370,6 +646,22 @@ export default function CompetitionsPage() {
             { name: "judge_scoring_enabled", label: "Judge scoring enabled", type: "toggle", half: true, defaultValue: true },
             { name: "is_published", label: "Published", type: "toggle", half: true, defaultValue: false },
             {
+              name: "dynamic_submission_fields",
+              label: "Submission Requirements & Formats",
+              defaultValue: [
+                {
+                  name: "Performance Link",
+                  label: "YouTube / Drive Video Link",
+                  type: "URL",
+                  required: true,
+                  display_order: 1,
+                },
+              ],
+              render: ({ value, onChange }) => (
+                <SubmissionFieldsBuilder value={value} onChange={onChange} />
+              ),
+            },
+            {
               name: "judging_criteria",
               label: "Dynamic Judging Criteria",
               defaultValue: [
@@ -399,6 +691,11 @@ export default function CompetitionsPage() {
             max_age: r.max_age ?? "",
             audience_voting_enabled: r.audience_voting_enabled ?? r.voting_enabled ?? true,
             judge_scoring_enabled: r.judge_scoring_enabled ?? true,
+            dynamic_submission_fields: Array.isArray(r.dynamic_submission_fields) && r.dynamic_submission_fields.length
+              ? r.dynamic_submission_fields
+              : (r.allow_audio_upload && !r.allow_video_link)
+              ? [{ name: "Audition Audio Track", label: "MP3 Audio Recording", type: "AUDIO", required: true, display_order: 1 }]
+              : [{ name: "Performance Link", label: "YouTube / Drive Video Link", type: "URL", required: true, display_order: 1 }],
             judging_criteria: Array.isArray(r.judging_criteria) && r.judging_criteria.length
               ? r.judging_criteria
               : [
@@ -433,6 +730,53 @@ export default function CompetitionsPage() {
                 ]
               : [];
 
+            const rawSubmissionFields = Array.isArray(v.dynamic_submission_fields) && v.dynamic_submission_fields.length > 0
+              ? v.dynamic_submission_fields
+              : [
+                  { name: "Performance Link", label: "YouTube / Drive Video Link", type: "URL", required: true, display_order: 1 },
+                ];
+
+            const cleanSubmissionFields = rawSubmissionFields.map((f: any, idx: number) => {
+              const safeName = String(f.name || f.label || `Field ${idx + 1}`).trim().replace(/,/g, " ");
+              const fieldType = String(f.type || "URL").toUpperCase();
+              return {
+                name: safeName,
+                label: String(f.label || safeName).trim().replace(/,/g, " "),
+                type: fieldType,
+                description: f.description ? String(f.description).trim() : null,
+                required: f.required !== false,
+                allowed_formats:
+                  fieldType === "AUDIO"
+                    ? ["mp3"]
+                    : fieldType === "VIDEO"
+                    ? ["youtube"]
+                    : fieldType === "URL"
+                    ? ["youtube", "drive", "url"]
+                    : ["pdf", "docx", "png", "jpg", "zip"],
+                max_size_mb: fieldType === "AUDIO" ? 20.0 : fieldType === "DOCUMENT" || fieldType === "IMAGE" ? 25.0 : null,
+                display_order: idx + 1,
+              };
+            });
+
+            const hasLink = cleanSubmissionFields.some((f: any) => f.type === "URL" || f.type === "VIDEO" || /link|url|drive|youtube/i.test(f.name));
+            const hasAudio = cleanSubmissionFields.some((f: any) => f.type === "AUDIO" || /audio|mp3|sound|song|singing/i.test(f.name));
+            const hasFile = cleanSubmissionFields.some((f: any) => f.type === "DOCUMENT" || f.type === "IMAGE" || f.type === "FILE" || /file|document|image|photo/i.test(f.name));
+
+            const allowedFormats: string[] = [];
+            if (hasFile) allowedFormats.push("FILE");
+            if (hasLink) allowedFormats.push("VIDEO_LINK");
+            if (hasAudio) allowedFormats.push("AUDIO");
+            if (allowedFormats.length === 0) allowedFormats.push("VIDEO_LINK");
+
+            const submissionFormatConfig = {
+              allow_file_upload: hasFile,
+              allow_video_link: hasLink,
+              allow_audio_upload: hasAudio,
+              allowed_submission_types: allowedFormats,
+              enabled_fields: cleanSubmissionFields.map((f: any) => f.name),
+              description: `Allowed submission formats: ${allowedFormats.join(", ")}`,
+            };
+
             if (editing) {
               return {
                 title: v.title ? String(v.title).trim() : undefined,
@@ -455,6 +799,12 @@ export default function CompetitionsPage() {
                 audience_voting_enabled: voteEnabled,
                 judge_scoring_enabled: judgeEnabled,
                 judging_criteria: cleanCriteria,
+                allow_file_upload: hasFile,
+                allow_video_link: hasLink,
+                allow_audio_upload: hasAudio,
+                submission_formats: allowedFormats,
+                submission_format_config: submissionFormatConfig,
+                dynamic_submission_fields: cleanSubmissionFields,
               };
             }
 
@@ -492,14 +842,12 @@ export default function CompetitionsPage() {
               audience_vote_weight: audienceWeight,
               judge_score_weight: judgeWeight,
               judging_criteria: cleanCriteria,
-              /* No commas in a field name: entries are posted to the API as a
-                 single comma separated field_names string, so a comma inside
-                 the name splits it in two and the entry is rejected as a
-                 missing required field. */
-              dynamic_submission_fields: [
-                { name: "Performance Entry (Video / Audio / Link)", label: "Performance Entry (Video / Audio / Link)", type: "VIDEO", required: true, display_order: 1 },
-                { name: "Portfolio / Photos", label: "Photos or Portfolio", type: "IMAGE", required: false, display_order: 2 },
-              ],
+              allow_file_upload: hasFile,
+              allow_video_link: hasLink,
+              allow_audio_upload: hasAudio,
+              submission_formats: allowedFormats,
+              submission_format_config: submissionFormatConfig,
+              dynamic_submission_fields: cleanSubmissionFields,
             };
           },
         }}
