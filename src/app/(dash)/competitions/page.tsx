@@ -267,6 +267,15 @@ export default function CompetitionsPage() {
             { key: "status", header: "Status", render: (r: any) => <StatusBadge value={r.status || r.state} /> },
             { key: "is_published", header: "Published", render: (r: any) => <StatusBadge value={r.is_published ? "published" : "draft"} /> },
             { key: "start_date", header: "Starts", render: (r: any) => formatDate(r.start_date || r.starts_at, true) },
+            { key: "registration_deadline", header: "Reg Deadline", render: (r: any) => (
+              r.registration_deadline ? (
+                <span className="text-xs text-[var(--fg)]">{formatDate(r.registration_deadline, true)}</span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+                  Open / No deadline
+                </span>
+              )
+            ) },
           ],
           rowActions: (row, { reload }) => (
             <div className="flex items-center gap-1.5">
@@ -352,7 +361,7 @@ export default function CompetitionsPage() {
             { name: "start_date", label: "Competition starts (IST)", type: "datetime", half: true, required: true },
             { name: "end_date", label: "Competition ends (IST)", type: "datetime", half: true, required: true },
             { name: "registration_start_date", label: "Registration starts (IST)", type: "datetime", half: true, hint: "Defaults to now if empty" },
-            { name: "registration_deadline", label: "Registration deadline (IST)", type: "datetime", half: true, hint: "Defaults to competition start if empty" },
+            { name: "registration_deadline", label: "Registration deadline (IST)", type: "datetime", half: true, hint: "Optional — leave empty for open-ended registration (no deadline)" },
             { name: "submission_deadline", label: "Submission deadline (IST)", type: "datetime", half: true, hint: "Defaults to competition end if empty" },
             { name: "participation_fee", label: "Entry fee (₹)", type: "number", half: true, defaultValue: 0 },
             { name: "min_age", label: "Min age", type: "number", half: true, placeholder: "Optional" },
@@ -440,7 +449,7 @@ export default function CompetitionsPage() {
                 start_date: toIso(v.start_date),
                 end_date: toIso(v.end_date),
                 registration_start_date: toIso(v.registration_start_date),
-                registration_deadline: toIso(v.registration_deadline),
+                registration_deadline: toIso(v.registration_deadline) || null,
                 submission_deadline: toIso(v.submission_deadline),
                 is_published: !!v.is_published,
                 audience_voting_enabled: voteEnabled,
@@ -452,7 +461,7 @@ export default function CompetitionsPage() {
             const sDate = toIso(v.start_date) || new Date().toISOString();
             const eDate = toIso(v.end_date) || new Date(Date.now() + 7 * 86400000).toISOString();
             const regStart = toIso(v.registration_start_date) || new Date().toISOString();
-            const regEnd = toIso(v.registration_deadline) || sDate;
+            const regEnd = toIso(v.registration_deadline) || null;
             const subEnd = toIso(v.submission_deadline) || eDate;
 
             const audienceWeight = voteEnabled && judgeEnabled ? 0.5 : voteEnabled ? 1.0 : 0.0;
