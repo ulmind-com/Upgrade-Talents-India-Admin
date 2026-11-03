@@ -15,6 +15,7 @@ export type FieldSpec = {
   type?: "text" | "textarea" | "number" | "date" | "datetime" | "select" | "toggle" | "email" | "url" | "custom";
   hint?: string;
   required?: boolean;
+  disabled?: boolean | ((editing: any) => boolean);
   options?: { value: string; label: string }[];
   placeholder?: string;
   /** Narrow the field to half a row on wider screens. */
@@ -29,6 +30,8 @@ export type CrudConfig<T = any> = {
   create?: (body: any) => Promise<any>;
   update?: (id: string, body: any) => Promise<any>;
   remove?: (id: string) => Promise<any>;
+  deleteTitle?: (row: T) => string;
+  deleteBody?: (row: T) => string;
   columns: Column<T>[];
   fields?: FieldSpec[];
   searchKeys?: string[];
@@ -139,8 +142,8 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
   const onDelete = async (row: T) => {
     if (!remove) return;
     const ok = await confirm(
-      `Delete this ${singular.toLowerCase()}?`,
-      "This cannot be undone from here. Make sure nothing on the live site depends on it."
+      config.deleteTitle ? config.deleteTitle(row) : `Delete this ${singular.toLowerCase()}?`,
+      config.deleteBody ? config.deleteBody(row) : "This cannot be undone from here. Make sure nothing on the live site depends on it."
     );
     if (!ok) return;
     try {
@@ -165,6 +168,7 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
                 <button
                   onClick={() => openEdit(row)}
                   aria-label={`Edit ${singular.toLowerCase()}`}
+                  title={`Edit ${singular.toLowerCase()}`}
                   className="grid size-9 cursor-pointer place-items-center rounded-lg text-[var(--fg-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--brand)]"
                 >
                   <Pencil className="size-4" aria-hidden />
@@ -174,6 +178,7 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
                 <button
                   onClick={() => onDelete(row)}
                   aria-label={`Delete ${singular.toLowerCase()}`}
+                  title={`Delete ${singular.toLowerCase()}`}
                   className="grid size-9 cursor-pointer place-items-center rounded-lg text-[var(--fg-muted)] transition-colors hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                 >
                   <Trash2 className="size-4" aria-hidden />
@@ -236,16 +241,20 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
         }
       >
         <form id="crud-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-          {fields.map((f) => (
-            <div key={f.name} className={f.half ? "sm:col-span-1" : "sm:col-span-2"}>
-              <FormField
-                spec={f}
-                value={values[f.name]}
-                error={errors[f.name]}
-                onChange={(v) => setValues((p) => ({ ...p, [f.name]: v }))}
-              />
-            </div>
-          ))}
+          {fields.map((f) => {
+            const isDisabled = typeof f.disabled === "function" ? f.disabled(editing) : !!f.disabled;
+            return (
+              <div key={f.name} className={f.half ? "sm:col-span-1" : "sm:col-span-2"}>
+                <FormField
+                  spec={f}
+                  value={values[f.name]}
+                  error={errors[f.name]}
+                  disabled={isDisabled}
+                  onChange={(v) => setValues((p) => ({ ...p, [f.name]: v }))}
+                />
+              </div>
+            );
+          })}
         </form>
       </Modal>
 
@@ -255,9 +264,9 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
 }
 
 function FormField({
-  spec, value, error, onChange,
+  spec, value, error, onChange, disabled,
 }: {
-  spec: FieldSpec; value: any; error?: string; onChange: (v: any) => void;
+  spec: FieldSpec; value: any; error?: string; onChange: (v: any) => void; disabled?: boolean;
 }) {
   if (spec.render) {
     return (
@@ -268,13 +277,13 @@ function FormField({
   }
 
   if (spec.type === "toggle") {
-    return <Toggle checked={!!value} onChange={onChange} label={spec.label} />;
+    return <Toggle checked={!!value} onChange={onChange} label={spec.label} disabled={disabled} />;
   }
 
   return (
     <Field label={spec.label} hint={spec.hint} error={error} required={spec.required}>
       {({ id, describedBy, invalid }) => {
-        const common = { id, "aria-describedby": describedBy, invalid, value: value ?? "" };
+        const common = { id, "aria-describedby": describedBy, invalid, value: value ?? "", disabled };
         if (spec.type === "textarea")
           return <Textarea {...common} onChange={(e) => onChange(e.target.value)} placeholder={spec.placeholder} />;
         if (spec.type === "select")

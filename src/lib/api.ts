@@ -268,6 +268,12 @@ export const competitionsApi = {
 export const judgesApi = {
   list: (q?: any) => api<any>("/api/admin/judges/", { query: q }),
   create: (body: any) => api<any>("/api/admin/judges/", { method: "POST", body }),
+  get: (identifier: string) =>
+    api<any>(`/api/admin/judges/${encodeURIComponent(identifier)}`),
+  update: (identifier: string, body: any) =>
+    api<any>(`/api/admin/judges/${encodeURIComponent(identifier)}`, { method: "PATCH", body }),
+  remove: (identifier: string) =>
+    api<any>(`/api/admin/judges/${encodeURIComponent(identifier)}`, { method: "DELETE" }),
   sendInvitation: (email: string) =>
     api<any>(`/api/admin/judges/${encodeURIComponent(email)}/send-invitation`, { method: "POST" }),
   assignments: (email: string) =>

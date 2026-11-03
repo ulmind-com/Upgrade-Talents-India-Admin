@@ -32,7 +32,12 @@ export default function JudgesPage() {
         emptyBody: "Add a judge and send them an invitation to get access.",
         load: () => judgesApi.list({ limit: 200 }),
         create: (b) => judgesApi.create(b),
-        searchKeys: ["full_name", "email"],
+        update: (id, b) => judgesApi.update(id, b),
+        remove: (id) => judgesApi.remove(id),
+        deleteTitle: (r: any) => `Delete Judge "${r.full_name || r.name || r.email}"?`,
+        deleteBody: (r: any) =>
+          `Are you sure you want to permanently delete judge account (${r.email})? This will automatically remove all competition assignments and clear any unsubmitted draft scores. This action cannot be undone.`,
+        searchKeys: ["full_name", "email", "designation"],
         columns: [
           {
             key: "full_name",
@@ -89,13 +94,29 @@ export default function JudgesPage() {
         },
         fields: [
           { name: "full_name", label: "Full name", required: true, half: true },
-          { name: "email", label: "Email", type: "email", required: true, half: true },
+          {
+            name: "email",
+            label: "Email",
+            type: "email",
+            required: true,
+            half: true,
+            disabled: (editing: any) => !!editing,
+            hint: "Used for official judging portal access.",
+          },
           { name: "phone_number", label: "Phone", half: true },
           { name: "designation", label: "Expertise", half: true, placeholder: "Hip hop, Contemporary" },
           { name: "biography", label: "Short bio", type: "textarea" },
         ],
-        toBody: (v) => ({
-          full_name: v.full_name, email: v.email,
+        toForm: (r: any) => ({
+          full_name: r.full_name || r.name || "",
+          email: r.email || "",
+          phone_number: r.phone_number || "",
+          designation: r.designation || r.expertise || "",
+          biography: r.biography || "",
+        }),
+        toBody: (v, editing) => ({
+          full_name: v.full_name,
+          ...(editing ? {} : { email: v.email }),
           phone_number: v.phone_number || null,
           designation: v.designation || null,
           biography: v.biography || null,
