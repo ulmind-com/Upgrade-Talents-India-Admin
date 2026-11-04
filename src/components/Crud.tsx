@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, Eye, Edit3, Sparkles } from "lucide-react";
 import {
   Button, Column, DataTable, Field, Input, Modal, Panel, Select, Textarea, Toggle, useConfirm, useResource,
 } from "./Kit";
@@ -284,8 +284,19 @@ function FormField({
     <Field label={spec.label} hint={spec.hint} error={error} required={spec.required}>
       {({ id, describedBy, invalid }) => {
         const common = { id, "aria-describedby": describedBy, invalid, value: value ?? "", disabled };
-        if (spec.type === "textarea")
-          return <Textarea {...common} onChange={(e) => onChange(e.target.value)} placeholder={spec.placeholder} />;
+        if (spec.type === "textarea") {
+          return (
+            <AdminRichTextarea
+              id={id}
+              value={value ?? ""}
+              onChange={onChange}
+              placeholder={spec.placeholder}
+              invalid={invalid}
+              describedBy={describedBy}
+              disabled={disabled}
+            />
+          );
+        }
         if (spec.type === "select")
           return <Select {...common} options={spec.options || []} onChange={(e) => onChange(e.target.value)} />;
         return (
@@ -306,5 +317,136 @@ function FormField({
         );
       }}
     </Field>
+  );
+}
+
+function AdminRichTextarea({
+  id,
+  value,
+  onChange,
+  placeholder,
+  invalid,
+  describedBy,
+  disabled,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  invalid?: boolean;
+  describedBy?: string;
+  disabled?: boolean;
+}) {
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+
+  const insertSnippet = (snippet: string) => {
+    const current = value || "";
+    onChange(current ? `${current}\n${snippet}` : snippet);
+  };
+
+  const lineCount = (value || "").split("\n").length;
+  const charCount = (value || "").length;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+      {/* Top Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-2.5">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setMode("edit")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+              mode === "edit"
+                ? "bg-[var(--brand)] text-[var(--on-brand)]"
+                : "text-[var(--fg-muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)]"
+            }`}
+          >
+            <Edit3 className="size-3.5" /> Editor
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("preview")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+              mode === "preview"
+                ? "bg-[var(--brand)] text-[var(--on-brand)]"
+                : "text-[var(--fg-muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)]"
+            }`}
+          >
+            <Eye className="size-3.5" /> Website Live Preview
+          </button>
+        </div>
+
+        {mode === "edit" && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-[var(--fg-subtle)] hidden sm:inline">Templates:</span>
+            <button
+              type="button"
+              onClick={() => insertSnippet("*BOLD HEADING*")}
+              className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 font-bold hover:border-[var(--brand)] cursor-pointer text-[var(--fg)]"
+              title="Insert bold heading"
+            >
+              *Bold*
+            </button>
+            <button
+              type="button"
+              onClick={() => insertSnippet("🔹 Point: Details")}
+              className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 hover:border-[var(--brand)] cursor-pointer text-[var(--fg)]"
+              title="Insert bullet point"
+            >
+              🔹 Bullet
+            </button>
+            <button
+              type="button"
+              onClick={() => insertSnippet("💰 *TOTAL CASH PRIZE: ₹50,000* 💰")}
+              className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-300 hover:bg-amber-500/20 cursor-pointer"
+              title="Insert prize banner"
+            >
+              🏆 Prize
+            </button>
+            <button
+              type="button"
+              onClick={() => insertSnippet("🗓️ *EVENT DATES:* DD Month YYYY\n📍 *VENUE:* Auditorium\n💳 *REGISTRATION FEE:* ₹0")}
+              className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 hover:border-[var(--brand)] cursor-pointer text-[var(--fg)]"
+              title="Insert dates & venue"
+            >
+              📅 Dates
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Editor Mode */}
+      {mode === "edit" ? (
+        <div className="flex flex-col gap-1.5">
+          <Textarea
+            id={id}
+            aria-describedby={describedBy}
+            invalid={invalid}
+            value={value}
+            disabled={disabled}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value)}
+            className="min-h-48 border-0 bg-transparent text-[13.5px] leading-relaxed resize-y focus:border-0 p-1"
+          />
+          <div className="flex items-center justify-between px-1 text-[11px] text-[var(--fg-subtle)]">
+            <span>💡 Supports *bold*, emojis, bullet points, and clean paragraphs</span>
+            <span>{charCount} chars • {lineCount} lines</span>
+          </div>
+        </div>
+      ) : (
+        /* Preview Mode */
+        <div className="min-h-48 max-h-96 overflow-y-auto rounded-xl border border-white/10 bg-black/40 p-4 text-xs sm:text-[13px] leading-relaxed text-neutral-200">
+          {value ? (
+            <div className="whitespace-pre-line space-y-2">
+              {value}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-[var(--fg-subtle)] text-xs">
+              No description text entered yet. Switch to Editor to write.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
