@@ -1,39 +1,40 @@
 /**
  * Frontend-only passkey (fingerprint / Face ID / platform biometric) sign-in for the
- * Upgrade Talents India admin panel.
+ * Upgrade Talents India admin panel — built on @simplewebauthn/browser.
  *
  * The backend contract is never altered (see api.ts). The admin API only speaks
- * email + password + JWT, so we cannot run a real server-side WebAuthn ceremony.
- * Instead this module uses the platform authenticator purely on the device:
+ * email + password + JWT, so there is no server-side WebAuthn ceremony. Instead the
+ * platform authenticator is used purely on the device as an unlock gate, exactly
+ * like a phone unlocking a saved session:
  *
- *   1. After a successful password login we create a platform credential
- *      (userVerification "required" → fingerprint / Face ID) and wrap the freshly
- *      issued JWT with an AES-GCM key.
- *   2. When the WebAuthn PRF extension is available, the AES key is DERIVED from the
- *      authenticator's PRF secret, which is only released after a successful
- *      biometric check — so the stored token is cryptographically bound to the
- *      fingerprint and cannot be decrypted without it.
- *   3. When PRF is not available, we fall back to a "gate" model: the token is still
- *      encrypted, but decryption only runs after a successful biometric assertion.
- *      The binding is weaker (the key material lives on the device) but the
- *      fingerprint is still required to proceed — same UX as a phone unlock.
+ *   1. After a successful password login we register a platform credential
+ *      (userVerification "required" → fingerprint / Face ID) and store the freshly
+ *      issued JWT AES-GCM-encrypted in this browser.
+ *   2. On the next visit, a successful biometric assertion for that credential is
+ *      required before the stored token is decrypted and used. The token is
+ *      encrypted at rest and never leaves the device.
  *
  * The stored JWT may expire; if a fingerprint login yields an invalid token the
- * caller falls back to the password form, exactly like a mobile app re-prompting.
+ * caller falls back to the password form, like a mobile app re-prompting.
  */
+
+import {
+  startRegistration,
+  startAuthentication,
+  browserSupportsWebAuthn,
+  platformAuthenticatorIsAvailable,
+} from "@simplewebauthn/browser";
 
 const STORE_KEY = "uti_admin_passkey";
 
 type PasskeyRecord = {
-  v: 1;
+  v: 2;
   email: string;
   rpId: string;
-  credentialId: string; // base64url
-  prf: boolean;
-  salt: string; // base64url (PRF eval input)
-  iv: string; // base64url (AES-GCM nonce)
+  credentialId: string; // base64url (as returned by the browser)
+  key: string; // base64url — AES-GCM wrap key (device-local gate)
+  iv: string; // base64url
   data: string; // base64url (encrypted JWT)
-  rawKey?: string; // base64url — fallback (gate) mode only
 };
 
 /* ───────── base64url helpers ───────── */
@@ -50,24 +51,21 @@ function b64urlToBuf(s: string): Uint8Array {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
+function randB64url(n: number): string {
+  return bufToB64url(crypto.getRandomValues(new Uint8Array(n)));
+}
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 /* ───────── capability checks ───────── */
 export function isSupported(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.PublicKeyCredential !== "undefined" &&
-    !!navigator.credentials?.create &&
-    !!navigator.credentials?.get &&
-    !!crypto?.subtle
-  );
+  return typeof window !== "undefined" && browserSupportsWebAuthn() && !!crypto?.subtle;
 }
 
 export async function isPlatformAvailable(): Promise<boolean> {
   if (!isSupported()) return false;
   try {
-    return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    return await platformAuthenticatorIsAvailable();
   } catch {
     return false;
   }
@@ -79,37 +77,32 @@ export function getRecord(): PasskeyRecord | null {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return null;
     const r = JSON.parse(raw) as PasskeyRecord;
-    return r?.v === 1 && r.credentialId ? r : null;
+    return r?.v === 2 && r.credentialId ? r : null;
   } catch {
     return null;
   }
 }
-
 export function registeredEmail(): string | null {
   return getRecord()?.email ?? null;
 }
-
 export function hasPasskey(): boolean {
   return getRecord() !== null;
 }
-
 export function removePasskey(): void {
   try {
     localStorage.removeItem(STORE_KEY);
   } catch {}
 }
 
-/* ───────── crypto ───────── */
-async function aesKeyFromRaw(raw: Uint8Array): Promise<CryptoKey> {
-  // PRF output / fallback key material is 32 bytes → import directly as AES-GCM-256.
-  const bytes =
-    raw.byteLength === 32
-      ? raw
-      : new Uint8Array(await crypto.subtle.digest("SHA-256", raw as BufferSource));
-  return crypto.subtle.importKey("raw", bytes as BufferSource, "AES-GCM", false, ["encrypt", "decrypt"]);
+/* ───────── crypto (device-local token wrap) ───────── */
+async function importKey(rawB64: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", b64urlToBuf(rawB64) as BufferSource, "AES-GCM", false, [
+    "encrypt",
+    "decrypt",
+  ]);
 }
-
-async function encryptToken(key: CryptoKey, token: string): Promise<{ iv: string; data: string }> {
+async function encryptToken(keyB64: string, token: string): Promise<{ iv: string; data: string }> {
+  const key = await importKey(keyB64);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv: iv as BufferSource },
@@ -118,8 +111,8 @@ async function encryptToken(key: CryptoKey, token: string): Promise<{ iv: string
   );
   return { iv: bufToB64url(iv), data: bufToB64url(ct) };
 }
-
-async function decryptToken(key: CryptoKey, ivB64: string, dataB64: string): Promise<string> {
+async function decryptToken(keyB64: string, ivB64: string, dataB64: string): Promise<string> {
+  const key = await importKey(keyB64);
   const pt = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: b64urlToBuf(ivB64) as BufferSource },
     key,
@@ -128,24 +121,19 @@ async function decryptToken(key: CryptoKey, ivB64: string, dataB64: string): Pro
   return dec.decode(pt);
 }
 
-/* ───────── register (set up fingerprint after password login) ───────── */
+/* ───────── register (set up fingerprint after a password login) ───────── */
 export async function register(email: string, token: string): Promise<void> {
   if (!isSupported()) throw new Error("This browser does not support passkeys.");
-
   const rpId = location.hostname;
-  const salt = crypto.getRandomValues(new Uint8Array(32));
-  const challenge = crypto.getRandomValues(new Uint8Array(32));
-  const userId = crypto.getRandomValues(new Uint8Array(16));
 
-  const cred = (await navigator.credentials.create({
-    publicKey: {
-      challenge,
+  const reg = await startRegistration({
+    optionsJSON: {
       rp: { id: rpId, name: "Upgrade Talents India Admin" },
-      user: { id: userId, name: email, displayName: email },
-      // ES256 + RS256 so every platform authenticator is covered.
+      user: { id: randB64url(16), name: email, displayName: email },
+      challenge: randB64url(32),
       pubKeyCredParams: [
-        { type: "public-key", alg: -7 },
-        { type: "public-key", alg: -257 },
+        { type: "public-key", alg: -7 }, // ES256
+        { type: "public-key", alg: -257 }, // RS256
       ],
       authenticatorSelection: {
         authenticatorAttachment: "platform",
@@ -153,52 +141,21 @@ export async function register(email: string, token: string): Promise<void> {
         residentKey: "preferred",
       },
       timeout: 60000,
-      extensions: { prf: {} } as AuthenticationExtensionsClientInputs,
+      attestation: "none",
     },
-  })) as PublicKeyCredential | null;
+  });
 
-  if (!cred) throw new Error("Fingerprint setup was cancelled.");
-
-  const credentialId = bufToB64url(cred.rawId);
-
-  // Obtain the PRF secret the same way we will at login time: one assertion with
-  // prf.eval. This both confirms the fingerprint works and derives the wrap key.
-  let prfBytes: Uint8Array | null = null;
-  try {
-    const assertion = (await navigator.credentials.get({
-      publicKey: {
-        challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rpId,
-        allowCredentials: [{ type: "public-key", id: b64urlToBuf(credentialId) as BufferSource }],
-        userVerification: "required",
-        timeout: 60000,
-        extensions: { prf: { eval: { first: salt } } } as AuthenticationExtensionsClientInputs,
-      },
-    })) as PublicKeyCredential | null;
-
-    const res = assertion?.getClientExtensionResults?.() as any;
-    const first = res?.prf?.results?.first;
-    if (first) prfBytes = new Uint8Array(first);
-  } catch {
-    // ignore — treated as "no PRF" below
-  }
-
-  let record: PasskeyRecord;
-  if (prfBytes) {
-    const key = await aesKeyFromRaw(prfBytes);
-    const { iv, data } = await encryptToken(key, token);
-    record = { v: 1, email, rpId, credentialId, prf: true, salt: bufToB64url(salt), iv, data };
-  } else {
-    // Fallback gate mode: random key kept on device, biometric still required to use it.
-    const rawKey = crypto.getRandomValues(new Uint8Array(32));
-    const key = await aesKeyFromRaw(rawKey);
-    const { iv, data } = await encryptToken(key, token);
-    record = {
-      v: 1, email, rpId, credentialId, prf: false,
-      salt: bufToB64url(salt), iv, data, rawKey: bufToB64url(rawKey),
-    };
-  }
-
+  const keyB64 = randB64url(32);
+  const { iv, data } = await encryptToken(keyB64, token);
+  const record: PasskeyRecord = {
+    v: 2,
+    email,
+    rpId,
+    credentialId: reg.id,
+    key: keyB64,
+    iv,
+    data,
+  };
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(record));
   } catch {
@@ -212,35 +169,20 @@ export async function authenticate(): Promise<{ token: string; email: string }> 
   const rec = getRecord();
   if (!rec) throw new Error("No fingerprint is set up on this device.");
 
-  const assertion = (await navigator.credentials.get({
-    publicKey: {
-      challenge: crypto.getRandomValues(new Uint8Array(32)),
+  // A successful assertion = the biometric was verified by the platform authenticator.
+  await startAuthentication({
+    optionsJSON: {
+      challenge: randB64url(32),
       rpId: rec.rpId,
-      allowCredentials: [{ type: "public-key", id: b64urlToBuf(rec.credentialId) as BufferSource }],
+      allowCredentials: [{ id: rec.credentialId, type: "public-key" }],
       userVerification: "required",
       timeout: 60000,
-      extensions: rec.prf
-        ? ({ prf: { eval: { first: b64urlToBuf(rec.salt) } } } as AuthenticationExtensionsClientInputs)
-        : undefined,
     },
-  })) as PublicKeyCredential | null;
-
-  if (!assertion) throw new Error("Fingerprint sign-in was cancelled.");
-
-  let key: CryptoKey;
-  if (rec.prf) {
-    const res = assertion.getClientExtensionResults?.() as any;
-    const first = res?.prf?.results?.first;
-    if (!first) throw new Error("Fingerprint could not be verified. Use your password.");
-    key = await aesKeyFromRaw(new Uint8Array(first));
-  } else {
-    if (!rec.rawKey) throw new Error("Fingerprint data is corrupted. Set it up again.");
-    key = await aesKeyFromRaw(b64urlToBuf(rec.rawKey));
-  }
+  });
 
   let token: string;
   try {
-    token = await decryptToken(key, rec.iv, rec.data);
+    token = await decryptToken(rec.key, rec.iv, rec.data);
   } catch {
     throw new Error("Fingerprint could not unlock this session. Use your password.");
   }
