@@ -129,8 +129,11 @@ export default function AdminLogin() {
     router.replace("/");
   };
 
-  const showFingerprint = platformOk; // device has a biometric sensor
   const pkReady = !!pkEmail; // a passkey is set up on this device
+  // Only show the fingerprint button once a passkey is actually set up on this
+  // device. Setup happens via the post-login offer below or in Settings, so the
+  // button never appears as a dead end.
+  const showFingerprint = platformOk && pkReady;
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center bg-black p-4 sm:p-6 md:p-8 lg:p-12 overflow-hidden selection:bg-[#fca34d]/30 selection:text-white">
