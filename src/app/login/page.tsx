@@ -2,10 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
-import { motion } from "framer-motion";
-import { Eye, EyeOff, ShieldCheck, Sparkles } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Eye, EyeOff, Fingerprint, ScanFace, X } from "lucide-react";
 import { authApi, adminToken } from "@/lib/api";
 import { useAdmin } from "@/components/Providers";
+import * as passkey from "@/lib/passkey";
 
 const BG_CLIPS = ["/assets/dance1.mp4", "/assets/dance2.mp4", "/assets/dance3.mp4"];
 
@@ -22,11 +23,25 @@ export default function AdminLogin() {
   const [clipIdx, setClipIdx] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // ── Fingerprint / passkey state ──
+  const [pkEmail, setPkEmail] = useState<string | null>(null); // device has a passkey
+  const [platformOk, setPlatformOk] = useState(false); // device biometric available
+  const [pkBusy, setPkBusy] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false); // post-login "set up fingerprint" offer
+  const [setupBusy, setSetupBusy] = useState(false);
+  const pendingToken = useRef<string | null>(null); // token held while offering setup
+
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     v.play().catch(() => {});
   }, [clipIdx]);
+
+  // Detect existing passkey + platform support on mount.
+  useEffect(() => {
+    setPkEmail(passkey.registeredEmail());
+    passkey.isPlatformAvailable().then(setPlatformOk).catch(() => setPlatformOk(false));
+  }, []);
 
   useEffect(() => {
     if (!loading && admin) router.replace("/");
@@ -47,6 +62,13 @@ export default function AdminLogin() {
       const res = await authApi.login(email.trim(), password);
       adminToken.set(res.access_token);
       await refresh();
+      // Offer fingerprint setup once, if the device supports it and none is set yet.
+      if (platformOk && !passkey.hasPasskey()) {
+        pendingToken.current = res.access_token;
+        setSetupOpen(true);
+        setBusy(false);
+        return;
+      }
       router.replace("/");
     } catch (err: any) {
       setFormError(err?.message || "Sign-in failed. Check your credentials.");
@@ -54,6 +76,56 @@ export default function AdminLogin() {
       setBusy(false);
     }
   };
+
+  // ── Fingerprint login (passwordless re-entry) ──
+  const fingerprintLogin = async () => {
+    setFormError(null);
+    setPkBusy(true);
+    try {
+      const { token } = await passkey.authenticate();
+      adminToken.set(token);
+      try {
+        await authApi.me(); // validate the stored JWT is still live
+      } catch {
+        adminToken.clear();
+        throw new Error("Your fingerprint session expired. Sign in with your password.");
+      }
+      await refresh();
+      router.replace("/");
+    } catch (err: any) {
+      setFormError(err?.message || "Fingerprint sign-in failed. Use your password.");
+    } finally {
+      setPkBusy(false);
+    }
+  };
+
+  // ── Set up fingerprint after a password login ──
+  const confirmSetup = async () => {
+    const token = pendingToken.current;
+    if (!token) return;
+    setSetupBusy(true);
+    try {
+      await passkey.register(email.trim(), token);
+      setPkEmail(email.trim());
+      setSetupOpen(false);
+      router.replace("/");
+    } catch (err: any) {
+      setFormError(err?.message || "Could not set up fingerprint.");
+      setSetupOpen(false);
+      router.replace("/");
+    } finally {
+      setSetupBusy(false);
+      pendingToken.current = null;
+    }
+  };
+
+  const skipSetup = () => {
+    setSetupOpen(false);
+    pendingToken.current = null;
+    router.replace("/");
+  };
+
+  const showFingerprint = platformOk && !!pkEmail;
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center bg-black p-4 sm:p-6 md:p-8 lg:p-12 overflow-hidden selection:bg-[#fca34d]/30 selection:text-white">
@@ -208,7 +280,7 @@ export default function AdminLogin() {
                 </div>
 
                 {/* Sunrise Gradient Login Button */}
-                <div className="mt-1">
+                <div className="mt-1 flex items-center gap-2.5">
                   <button
                     type="submit"
                     disabled={busy}
@@ -223,7 +295,30 @@ export default function AdminLogin() {
                       <span>LOGIN</span>
                     )}
                   </button>
+
+                  {showFingerprint && (
+                    <button
+                      type="button"
+                      onClick={fingerprintLogin}
+                      disabled={pkBusy || busy}
+                      title={`Sign in as ${pkEmail} with your fingerprint`}
+                      aria-label="Sign in with fingerprint"
+                      className="group relative grid size-10 shrink-0 place-items-center rounded-full border border-[#fca34d]/40 bg-white text-[#f1872f] shadow-[0_4px_14px_rgba(250,163,77,0.25)] transition-all duration-200 hover:border-[#fca34d] hover:shadow-[0_6px_18px_rgba(250,163,77,0.4)] active:scale-95 disabled:opacity-60 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <span className="pointer-events-none absolute inset-0 rounded-full bg-[#fca34d]/15 opacity-0 group-hover:opacity-100 group-hover:animate-ping" />
+                      {pkBusy ? (
+                        <span className="size-4 animate-spin rounded-full border-2 border-[#f1872f] border-t-transparent" />
+                      ) : (
+                        <Fingerprint className="size-5" aria-hidden />
+                      )}
+                    </button>
+                  )}
                 </div>
+                {showFingerprint && (
+                  <p className="-mt-1.5 text-[10.5px] font-medium text-slate-400">
+                    Tap the fingerprint to sign in instantly.
+                  </p>
+                )}
               </form>
             </div>
 
@@ -364,20 +459,123 @@ export default function AdminLogin() {
                   )}
                 </div>
 
-                <div className="mt-2">
+                <div className="mt-2 flex items-center gap-3">
                   <button
                     type="submit"
                     disabled={busy}
-                    className="w-full sm:w-auto inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#fca34d] via-[#f7ad4f] to-[#f5b85a] px-10 py-3 text-[13px] font-bold tracking-[0.14em] uppercase text-white shadow-[0_8px_20px_rgba(250,163,77,0.4)] transition-all hover:brightness-105 active:scale-95 disabled:opacity-75 cursor-pointer"
+                    className="flex-1 sm:flex-none sm:w-auto inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#fca34d] via-[#f7ad4f] to-[#f5b85a] px-10 py-3 text-[13px] font-bold tracking-[0.14em] uppercase text-white shadow-[0_8px_20px_rgba(250,163,77,0.4)] transition-all hover:brightness-105 active:scale-95 disabled:opacity-75 cursor-pointer"
                   >
                     {busy ? "LOGGING IN…" : "LOGIN"}
                   </button>
+
+                  {showFingerprint && (
+                    <button
+                      type="button"
+                      onClick={fingerprintLogin}
+                      disabled={pkBusy || busy}
+                      aria-label="Sign in with fingerprint"
+                      className="relative grid size-12 shrink-0 place-items-center rounded-full border border-[#fca34d]/40 bg-white text-[#f1872f] shadow-[0_4px_14px_rgba(250,163,77,0.25)] transition-all active:scale-95 disabled:opacity-60 cursor-pointer"
+                    >
+                      {pkBusy ? (
+                        <span className="size-5 animate-spin rounded-full border-2 border-[#f1872f] border-t-transparent" />
+                      ) : (
+                        <Fingerprint className="size-6" aria-hidden />
+                      )}
+                    </button>
+                  )}
                 </div>
+                {showFingerprint && (
+                  <p className="-mt-2 text-[11px] font-medium text-slate-400">
+                    Tap the fingerprint to sign in as {pkEmail}.
+                  </p>
+                )}
               </form>
             </div>
           </div>
         </div>
       </motion.div>
+
+      {/* ── FINGERPRINT SETUP OFFER (after a password login) ── */}
+      <AnimatePresence>
+        {setupOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Set up fingerprint sign-in"
+              className="relative w-full max-w-[380px] overflow-hidden rounded-3xl border border-white/15 bg-white text-slate-900 shadow-[0_30px_80px_rgba(0,0,0,0.6)]"
+            >
+              <button
+                type="button"
+                onClick={skipSetup}
+                aria-label="Not now"
+                className="absolute right-4 top-4 grid size-7 place-items-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+
+              <div className="flex flex-col items-center px-7 pt-9 pb-7 text-center">
+                <div className="relative grid size-20 place-items-center rounded-full bg-gradient-to-br from-[#fca34d] via-[#f7ad4f] to-[#f5b85a] text-white shadow-[0_10px_30px_rgba(250,163,77,0.5)]">
+                  <span className="absolute inset-0 rounded-full bg-[#fca34d]/40 animate-ping" />
+                  <ScanFace className="relative size-10" aria-hidden />
+                </div>
+
+                <h3 className="mt-5 text-[19px] font-extrabold tracking-tight text-[#0f172a]">
+                  Set up fingerprint sign-in
+                </h3>
+                <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
+                  Skip the password next time. Unlock this admin panel on
+                  <span className="font-semibold text-slate-700"> this device</span> with your
+                  fingerprint or Face ID — just like your phone.
+                </p>
+
+                <div className="mt-6 flex w-full flex-col gap-2.5">
+                  <button
+                    type="button"
+                    onClick={confirmSetup}
+                    disabled={setupBusy}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#fca34d] via-[#f7ad4f] to-[#f5b85a] px-6 py-3 text-[13px] font-bold tracking-wide uppercase text-white shadow-[0_8px_20px_rgba(250,163,77,0.45)] transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-75 disabled:pointer-events-none cursor-pointer"
+                  >
+                    {setupBusy ? (
+                      <>
+                        <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        <span>Setting up…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Fingerprint className="size-4" aria-hidden />
+                        <span>Enable fingerprint</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={skipSetup}
+                    disabled={setupBusy}
+                    className="w-full rounded-full px-6 py-2.5 text-[12.5px] font-semibold text-slate-500 transition-colors hover:text-slate-800 disabled:pointer-events-none cursor-pointer"
+                  >
+                    Not now
+                  </button>
+                </div>
+
+                <p className="mt-4 flex items-center gap-1.5 text-[10.5px] font-medium text-slate-400">
+                  <span className="inline-block size-1.5 rounded-full bg-emerald-400" />
+                  Stored encrypted on this device only. Never leaves your browser.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
