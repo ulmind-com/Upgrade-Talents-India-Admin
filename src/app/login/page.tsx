@@ -24,12 +24,10 @@ export default function AdminLogin() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // ── Fingerprint / passkey state ──
-  const [pkEmail, setPkEmail] = useState<string | null>(null); // device has a passkey
   const [platformOk, setPlatformOk] = useState(false); // device biometric available
   const [pkBusy, setPkBusy] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false); // post-login "set up fingerprint" offer
   const [setupBusy, setSetupBusy] = useState(false);
-  const pendingToken = useRef<string | null>(null); // token held while offering setup
 
   useEffect(() => {
     const v = videoRef.current;
@@ -37,15 +35,14 @@ export default function AdminLogin() {
     v.play().catch(() => {});
   }, [clipIdx]);
 
-  // Detect existing passkey + platform support on mount.
+  // Detect platform biometric support on mount.
   useEffect(() => {
-    setPkEmail(passkey.registeredEmail());
     passkey.isPlatformAvailable().then(setPlatformOk).catch(() => setPlatformOk(false));
   }, []);
 
   useEffect(() => {
-    if (!loading && admin) router.replace("/");
-  }, [loading, admin, router]);
+    if (!loading && admin && !setupOpen) router.replace("/");
+  }, [loading, admin, router, setupOpen]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,12 +59,19 @@ export default function AdminLogin() {
       const res = await authApi.login(email.trim(), password);
       adminToken.set(res.access_token);
       await refresh();
-      // Offer fingerprint setup once, if the device supports it and none is set yet.
-      if (platformOk && !passkey.hasPasskey()) {
-        pendingToken.current = res.access_token;
-        setSetupOpen(true);
-        setBusy(false);
-        return;
+      // Offer to add a passkey if the device supports biometrics and the admin
+      // has none registered yet.
+      if (platformOk) {
+        try {
+          const { count } = await passkey.listCredentials();
+          if (count === 0) {
+            setSetupOpen(true);
+            setBusy(false);
+            return;
+          }
+        } catch {
+          /* ignore — just proceed to the dashboard */
+        }
       }
       router.replace("/");
     } catch (err: any) {
@@ -77,40 +81,32 @@ export default function AdminLogin() {
     }
   };
 
-  // ── Fingerprint login (passwordless re-entry) ──
+  // ── Fingerprint login (usernameless, server-verified) ──
   const fingerprintLogin = async () => {
     setFormError(null);
-    if (!passkey.hasPasskey()) {
-      setFormError("Sign in with your email and password once — then you can enable fingerprint for next time.");
-      return;
-    }
     setPkBusy(true);
     try {
-      const { token } = await passkey.authenticate();
-      adminToken.set(token);
-      try {
-        await authApi.me(); // validate the stored JWT is still live
-      } catch {
-        adminToken.clear();
-        throw new Error("Your fingerprint session expired. Sign in with your password.");
-      }
+      const { access_token } = await passkey.authenticate();
+      adminToken.set(access_token);
       await refresh();
       router.replace("/");
     } catch (err: any) {
-      setFormError(err?.message || "Fingerprint sign-in failed. Use your password.");
+      const msg = err?.message || "";
+      setFormError(
+        /not registered|no (pass)?key|not allowed|NotAllowed/i.test(msg)
+          ? "No passkey found on this device. Sign in with your password, then add a passkey."
+          : msg || "Fingerprint sign-in failed. Use your password."
+      );
     } finally {
       setPkBusy(false);
     }
   };
 
-  // ── Set up fingerprint after a password login ──
+  // ── Add a passkey right after a password login ──
   const confirmSetup = async () => {
-    const token = pendingToken.current;
-    if (!token) return;
     setSetupBusy(true);
     try {
-      await passkey.register(email.trim(), token);
-      setPkEmail(email.trim());
+      await passkey.register();
       setSetupOpen(false);
       router.replace("/");
     } catch (err: any) {
@@ -119,21 +115,15 @@ export default function AdminLogin() {
       router.replace("/");
     } finally {
       setSetupBusy(false);
-      pendingToken.current = null;
     }
   };
 
   const skipSetup = () => {
     setSetupOpen(false);
-    pendingToken.current = null;
     router.replace("/");
   };
 
-  const pkReady = !!pkEmail; // a passkey is set up on this device
-  // Only show the fingerprint button once a passkey is actually set up on this
-  // device. Setup happens via the post-login offer below or in Settings, so the
-  // button never appears as a dead end.
-  const showFingerprint = platformOk && pkReady;
+  const showFingerprint = platformOk; // device has a biometric sensor
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center bg-black p-4 sm:p-6 md:p-8 lg:p-12 overflow-hidden selection:bg-[#fca34d]/30 selection:text-white">
@@ -309,7 +299,7 @@ export default function AdminLogin() {
                       type="button"
                       onClick={fingerprintLogin}
                       disabled={pkBusy || busy}
-                      title={pkReady ? `Sign in as ${pkEmail} with your fingerprint` : "Enable fingerprint after a password login"}
+                      title="Sign in with your fingerprint / passkey"
                       aria-label="Sign in with fingerprint"
                       className="group relative grid size-10 shrink-0 place-items-center rounded-full border border-[#fca34d]/40 bg-white text-[#f1872f] shadow-[0_4px_14px_rgba(250,163,77,0.25)] transition-all duration-200 hover:border-[#fca34d] hover:shadow-[0_6px_18px_rgba(250,163,77,0.4)] active:scale-95 disabled:opacity-60 disabled:pointer-events-none cursor-pointer"
                     >
@@ -324,7 +314,7 @@ export default function AdminLogin() {
                 </div>
                 {showFingerprint && (
                   <p className="-mt-1.5 text-[10.5px] font-medium text-slate-400">
-                    {pkReady ? "Tap the fingerprint to sign in instantly." : "Set up fingerprint after your first password login."}
+                    Tap the fingerprint to sign in with your passkey.
                   </p>
                 )}
               </form>
@@ -494,7 +484,7 @@ export default function AdminLogin() {
                 </div>
                 {showFingerprint && (
                   <p className="-mt-2 text-[11px] font-medium text-slate-400">
-                    {pkReady ? `Tap the fingerprint to sign in as ${pkEmail}.` : "Set up fingerprint after your first password login."}
+                    Tap the fingerprint to sign in with your passkey.
                   </p>
                 )}
               </form>
@@ -541,9 +531,9 @@ export default function AdminLogin() {
                   Set up fingerprint sign-in
                 </h3>
                 <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
-                  Skip the password next time. Unlock this admin panel on
-                  <span className="font-semibold text-slate-700"> this device</span> with your
-                  fingerprint or Face ID — just like your phone.
+                  Skip the password next time. Unlock this admin panel with your
+                  fingerprint or Face ID — just like your phone. A synced passkey
+                  works on your other devices too.
                 </p>
 
                 <div className="mt-6 flex w-full flex-col gap-2.5">
@@ -577,7 +567,7 @@ export default function AdminLogin() {
 
                 <p className="mt-4 flex items-center gap-1.5 text-[10.5px] font-medium text-slate-400">
                   <span className="inline-block size-1.5 rounded-full bg-emerald-400" />
-                  Stored encrypted on this device only. Never leaves your browser.
+                  Your fingerprint never leaves your device — only a public key is stored.
                 </p>
               </div>
             </motion.div>
