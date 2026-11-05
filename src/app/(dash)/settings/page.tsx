@@ -46,29 +46,38 @@ export default function SettingsPage() {
     finally { setEmBusy(false); }
   };
 
-  // Credentials — fingerprint / passkey
-  const [pkEmail, setPkEmail] = useState<string | null>(null);
+  // Credentials — fingerprint / passkey (server-backed, cross-device)
+  type PkCred = { id: string; label: string; created_at: string; last_used_at: string };
+  const [pkCreds, setPkCreds] = useState<PkCred[]>([]);
   const [platformOk, setPlatformOk] = useState(false);
   const [pkBusy, setPkBusy] = useState(false);
+  const [pkLoading, setPkLoading] = useState(true);
+  const loadCreds = async () => {
+    try {
+      const res = await passkey.listCredentials();
+      setPkCreds(res.credentials || []);
+    } catch { setPkCreds([]); }
+    finally { setPkLoading(false); }
+  };
   useEffect(() => {
-    setPkEmail(passkey.registeredEmail());
     passkey.isPlatformAvailable().then(setPlatformOk).catch(() => setPlatformOk(false));
+    loadCreds();
   }, []);
   const setupFingerprint = async () => {
-    const token = adminToken.get();
-    if (!token || !admin?.email) return push("error", "Session not ready. Re-login and try again.");
     setPkBusy(true);
     try {
-      await passkey.register(admin.email, token);
-      setPkEmail(admin.email);
-      push("success", "Fingerprint sign-in enabled on this device.");
+      await passkey.register();
+      await loadCreds();
+      push("success", "Passkey added. You can now sign in with your fingerprint.");
     } catch (e: any) { push("error", e?.message || "Could not set up fingerprint."); }
     finally { setPkBusy(false); }
   };
-  const removeFingerprint = () => {
-    passkey.removePasskey();
-    setPkEmail(null);
-    push("success", "Fingerprint removed from this device.");
+  const removeFingerprint = async (id: string) => {
+    try {
+      await passkey.removeCredential(id);
+      await loadCreds();
+      push("success", "Passkey removed.");
+    } catch (e: any) { push("error", e?.message || "Could not remove passkey."); }
   };
 
   const v = (k: string, fb = 0) => draft[k] ?? (data as any)?.[k] ?? fb;
@@ -214,49 +223,64 @@ export default function SettingsPage() {
 
       <Panel
         title="Fingerprint sign-in"
-        subtitle="Unlock this admin panel with your fingerprint or Face ID on this device — just like your phone. No password needed after setup."
+        subtitle="Add a passkey and sign in with your fingerprint or Face ID — no password. A passkey your device syncs (same Google / Apple account) works on your other devices too."
         className="lg:col-span-2"
-      >
-        {!platformOk ? (
-          <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[12.5px] text-[var(--fg-muted)]">
-            This device or browser has no fingerprint / Face ID authenticator available, so
-            fingerprint sign-in cannot be enabled here. Open the panel on a device with a
-            biometric sensor (phone, laptop with Touch ID / Windows Hello).
-          </p>
-        ) : pkEmail ? (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--success-soft)] text-[var(--success)]">
-                <ShieldCheck className="size-5" aria-hidden />
-              </span>
-              <div>
-                <p className="text-[13px] font-semibold">Fingerprint is active on this device</p>
-                <p className="mt-0.5 text-[12px] text-[var(--fg-muted)]">
-                  Signs in as <span className="font-medium text-[var(--fg)]">{pkEmail}</span>. The
-                  session token is stored encrypted and never leaves this browser.
-                </p>
-              </div>
-            </div>
-            <Button size="sm" variant="danger" onClick={removeFingerprint}>
-              <Trash2 className="size-3.5" aria-hidden /> Remove
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--brand-soft,rgba(250,163,77,0.15))] text-[var(--brand)]">
-                <Fingerprint className="size-5" aria-hidden />
-              </span>
-              <div>
-                <p className="text-[13px] font-semibold">Not set up on this device yet</p>
-                <p className="mt-0.5 text-[12px] text-[var(--fg-muted)]">
-                  Enable it once and sign in instantly next time with a single touch.
-                </p>
-              </div>
-            </div>
+        action={
+          platformOk ? (
             <Button size="sm" onClick={setupFingerprint} loading={pkBusy}>
-              <Fingerprint className="size-3.5" aria-hidden /> Enable fingerprint
+              <Fingerprint className="size-3.5" aria-hidden /> Add this device
             </Button>
+          ) : undefined
+        }
+      >
+        {pkLoading ? (
+          <div className="skeleton h-16 w-full" />
+        ) : (
+          <div className="flex flex-col gap-4">
+            {!platformOk && (
+              <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[12.5px] text-[var(--fg-muted)]">
+                This device has no fingerprint / Face ID sensor, so you cannot add one here.
+                Passkeys you already added still work; open this page on a device with a
+                biometric sensor to add it.
+              </p>
+            )}
+
+            {pkCreds.length === 0 ? (
+              <div className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--brand-soft,rgba(250,163,77,0.15))] text-[var(--brand)]">
+                  <Fingerprint className="size-5" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-[13px] font-semibold">No passkey yet</p>
+                  <p className="mt-0.5 text-[12px] text-[var(--fg-muted)]">
+                    {platformOk
+                      ? 'Tap "Add this device" above, confirm with your fingerprint, and you are set.'
+                      : "Add one from a device that has a fingerprint or Face ID sensor."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <ul className="flex flex-col divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+                {pkCreds.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="flex items-start gap-3">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--success-soft)] text-[var(--success)]">
+                        <ShieldCheck className="size-5" aria-hidden />
+                      </span>
+                      <div>
+                        <p className="text-[13px] font-semibold">{c.label}</p>
+                        <p className="mt-0.5 text-[12px] text-[var(--fg-muted)]">
+                          Added {c.created_at ? new Date(c.created_at).toLocaleDateString() : "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="danger" onClick={() => removeFingerprint(c.id)}>
+                      <Trash2 className="size-3.5" aria-hidden /> Remove
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </Panel>

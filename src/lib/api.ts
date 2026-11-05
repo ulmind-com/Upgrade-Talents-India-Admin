@@ -117,6 +117,18 @@ export const authApi = {
     }),
 };
 
+/* ═══════════════ WEBAUTHN (fingerprint / passkey) ═══════════════ */
+const wa = "/api/admin/webauthn";
+export const webauthnApi = {
+  registerOptions: () => api<any>(`${wa}/register/options`, { method: "POST" }),
+  registerVerify: (body: any) => api<{ message: string; credential_id: string; label: string }>(`${wa}/register/verify`, { method: "POST", body }),
+  loginOptions: () => api<{ challenge_id: string; options: any }>(`${wa}/login/options`, { method: "POST", auth: false }),
+  loginVerify: (body: { challenge_id: string; response: any }) =>
+    api<{ access_token: string; token_type?: string }>(`${wa}/login/verify`, { method: "POST", body, auth: false }),
+  listCredentials: () => api<{ credentials: { id: string; label: string; created_at: string; last_used_at: string }[]; count: number }>(`${wa}/credentials`),
+  deleteCredential: (id: string) => api<{ message: string }>(`${wa}/credentials/${encodeURIComponent(id)}`, { method: "DELETE" }),
+};
+
 /* ═══════════════ CMS (website control room) ═══════════════ */
 const cms = "/api/admin";
 export const cmsApi = {
