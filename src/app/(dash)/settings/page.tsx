@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Save, Vote, Monitor, Smartphone, Coins, KeyRound, Mail } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Save, Vote, Monitor, Smartphone, Coins, KeyRound, Mail, Fingerprint, ShieldCheck, Trash2 } from "lucide-react";
 import { Button, Field, Input, Panel, useResource } from "@/components/Kit";
 import { KeyValues } from "@/components/Dash";
 import { useAdmin, useToast } from "@/components/Providers";
 import { cmsApi, authApi, adminToken, safe, API_BASE } from "@/lib/api";
+import * as passkey from "@/lib/passkey";
 
 export default function SettingsPage() {
   const { push } = useToast();
@@ -43,6 +44,31 @@ export default function SettingsPage() {
       setEm({ current: "", next: "" });
     } catch (e: any) { push("error", e?.message || "Could not change email."); }
     finally { setEmBusy(false); }
+  };
+
+  // Credentials — fingerprint / passkey
+  const [pkEmail, setPkEmail] = useState<string | null>(null);
+  const [platformOk, setPlatformOk] = useState(false);
+  const [pkBusy, setPkBusy] = useState(false);
+  useEffect(() => {
+    setPkEmail(passkey.registeredEmail());
+    passkey.isPlatformAvailable().then(setPlatformOk).catch(() => setPlatformOk(false));
+  }, []);
+  const setupFingerprint = async () => {
+    const token = adminToken.get();
+    if (!token || !admin?.email) return push("error", "Session not ready. Re-login and try again.");
+    setPkBusy(true);
+    try {
+      await passkey.register(admin.email, token);
+      setPkEmail(admin.email);
+      push("success", "Fingerprint sign-in enabled on this device.");
+    } catch (e: any) { push("error", e?.message || "Could not set up fingerprint."); }
+    finally { setPkBusy(false); }
+  };
+  const removeFingerprint = () => {
+    passkey.removePasskey();
+    setPkEmail(null);
+    push("success", "Fingerprint removed from this device.");
   };
 
   const v = (k: string, fb = 0) => draft[k] ?? (data as any)?.[k] ?? fb;
@@ -184,6 +210,55 @@ export default function SettingsPage() {
             </Button>
           </form>
         </div>
+      </Panel>
+
+      <Panel
+        title="Fingerprint sign-in"
+        subtitle="Unlock this admin panel with your fingerprint or Face ID on this device — just like your phone. No password needed after setup."
+        className="lg:col-span-2"
+      >
+        {!platformOk ? (
+          <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[12.5px] text-[var(--fg-muted)]">
+            This device or browser has no fingerprint / Face ID authenticator available, so
+            fingerprint sign-in cannot be enabled here. Open the panel on a device with a
+            biometric sensor (phone, laptop with Touch ID / Windows Hello).
+          </p>
+        ) : pkEmail ? (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--success-soft)] text-[var(--success)]">
+                <ShieldCheck className="size-5" aria-hidden />
+              </span>
+              <div>
+                <p className="text-[13px] font-semibold">Fingerprint is active on this device</p>
+                <p className="mt-0.5 text-[12px] text-[var(--fg-muted)]">
+                  Signs in as <span className="font-medium text-[var(--fg)]">{pkEmail}</span>. The
+                  session token is stored encrypted and never leaves this browser.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" variant="danger" onClick={removeFingerprint}>
+              <Trash2 className="size-3.5" aria-hidden /> Remove
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--brand-soft,rgba(250,163,77,0.15))] text-[var(--brand)]">
+                <Fingerprint className="size-5" aria-hidden />
+              </span>
+              <div>
+                <p className="text-[13px] font-semibold">Not set up on this device yet</p>
+                <p className="mt-0.5 text-[12px] text-[var(--fg-muted)]">
+                  Enable it once and sign in instantly next time with a single touch.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" onClick={setupFingerprint} loading={pkBusy}>
+              <Fingerprint className="size-3.5" aria-hidden /> Enable fingerprint
+            </Button>
+          </div>
+        )}
       </Panel>
     </div>
   );
