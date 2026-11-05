@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^14.0.0",
     "clsx": "2.1.1",
     "framer-motion": "12.23.12",
     "lucide-react": "0.544.0",

@@ -80,6 +80,10 @@ export default function AdminLogin() {
   // ── Fingerprint login (passwordless re-entry) ──
   const fingerprintLogin = async () => {
     setFormError(null);
+    if (!passkey.hasPasskey()) {
+      setFormError("Sign in with your email and password once — then you can enable fingerprint for next time.");
+      return;
+    }
     setPkBusy(true);
     try {
       const { token } = await passkey.authenticate();
@@ -125,7 +129,8 @@ export default function AdminLogin() {
     router.replace("/");
   };
 
-  const showFingerprint = platformOk && !!pkEmail;
+  const showFingerprint = platformOk; // device has a biometric sensor
+  const pkReady = !!pkEmail; // a passkey is set up on this device
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center bg-black p-4 sm:p-6 md:p-8 lg:p-12 overflow-hidden selection:bg-[#fca34d]/30 selection:text-white">
@@ -301,7 +306,7 @@ export default function AdminLogin() {
                       type="button"
                       onClick={fingerprintLogin}
                       disabled={pkBusy || busy}
-                      title={`Sign in as ${pkEmail} with your fingerprint`}
+                      title={pkReady ? `Sign in as ${pkEmail} with your fingerprint` : "Enable fingerprint after a password login"}
                       aria-label="Sign in with fingerprint"
                       className="group relative grid size-10 shrink-0 place-items-center rounded-full border border-[#fca34d]/40 bg-white text-[#f1872f] shadow-[0_4px_14px_rgba(250,163,77,0.25)] transition-all duration-200 hover:border-[#fca34d] hover:shadow-[0_6px_18px_rgba(250,163,77,0.4)] active:scale-95 disabled:opacity-60 disabled:pointer-events-none cursor-pointer"
                     >
@@ -316,7 +321,7 @@ export default function AdminLogin() {
                 </div>
                 {showFingerprint && (
                   <p className="-mt-1.5 text-[10.5px] font-medium text-slate-400">
-                    Tap the fingerprint to sign in instantly.
+                    {pkReady ? "Tap the fingerprint to sign in instantly." : "Set up fingerprint after your first password login."}
                   </p>
                 )}
               </form>
@@ -486,7 +491,7 @@ export default function AdminLogin() {
                 </div>
                 {showFingerprint && (
                   <p className="-mt-2 text-[11px] font-medium text-slate-400">
-                    Tap the fingerprint to sign in as {pkEmail}.
+                    {pkReady ? `Tap the fingerprint to sign in as ${pkEmail}.` : "Set up fingerprint after your first password login."}
                   </p>
                 )}
               </form>
