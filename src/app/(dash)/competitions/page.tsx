@@ -229,6 +229,198 @@ function JudgingCriteriaBuilder({
   );
 }
 
+interface CompCategoryItem {
+  name: string;
+  min_age?: number | null;
+  max_age?: number | null;
+  age_limit?: string;
+  description?: string;
+}
+
+function CompetitionCategoriesBuilder({
+  value,
+  onChange,
+}: {
+  value: CompCategoryItem[] | undefined;
+  onChange: (v: CompCategoryItem[]) => void;
+}) {
+  const categories: CompCategoryItem[] = Array.isArray(value) ? value : [];
+
+  const updateItem = (idx: number, patch: Partial<CompCategoryItem>) => {
+    const next = [...categories];
+    const updated = { ...next[idx], ...patch };
+    if (updated.min_age != null && updated.max_age != null) {
+      updated.age_limit = `${updated.min_age}-${updated.max_age} years`;
+    } else if (updated.min_age != null) {
+      updated.age_limit = `${updated.min_age}+ years`;
+    } else if (updated.max_age != null) {
+      updated.age_limit = `Up to ${updated.max_age} years`;
+    } else {
+      updated.age_limit = "Open for all ages";
+    }
+    next[idx] = updated;
+    onChange(next);
+  };
+
+  const removeItem = (idx: number) => {
+    onChange(categories.filter((_, i) => i !== idx));
+  };
+
+  const addItem = (cat: CompCategoryItem = { name: "", min_age: 8, max_age: 14, description: "" }) => {
+    onChange([...categories, cat]);
+  };
+
+  const applyPreset = (preset: CompCategoryItem[]) => {
+    onChange(preset);
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3">
+        <div>
+          <div className="flex items-center gap-1.5 font-semibold text-xs text-[var(--fg)]">
+            <Trophy className="size-4 text-[var(--brand)]" />
+            Competition Categories &amp; Age Divisions
+          </div>
+          <p className="text-[11px] text-[var(--fg-muted)]">
+            Define divisions (e.g. Sub-Junior: 3-7, Junior: 8-14, Senior: 15-28). Contestants select their division during registration.
+          </p>
+        </div>
+
+        {/* Quick Presets */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-mono text-[var(--fg-muted)] uppercase">Presets:</span>
+          <button
+            type="button"
+            onClick={() =>
+              applyPreset([
+                { name: "Sub-Junior", min_age: 3, max_age: 7, age_limit: "3-7 years", description: "Ages 3 to 7 years" },
+                { name: "Junior", min_age: 8, max_age: 14, age_limit: "8-14 years", description: "Ages 8 to 14 years" },
+                { name: "Senior", min_age: 15, max_age: 28, age_limit: "15-28 years", description: "Ages 15 to 28 years" },
+              ])
+            }
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
+          >
+            Sub-Jr / Jr / Sr
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              applyPreset([
+                { name: "Junior", min_age: 6, max_age: 14, age_limit: "6-14 years", description: "Junior division (6-14 years)" },
+                { name: "Senior", min_age: 15, max_age: 30, age_limit: "15-30 years", description: "Senior division (15-30 years)" },
+              ])
+            }
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
+          >
+            Junior &amp; Senior
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              applyPreset([
+                { name: "Solo", min_age: null, max_age: null, age_limit: "Open for all ages", description: "Solo performers" },
+                { name: "Duet", min_age: null, max_age: null, age_limit: "Open for all ages", description: "Duet performers" },
+                { name: "Group", min_age: null, max_age: null, age_limit: "Open for all ages", description: "Group performers" },
+              ])
+            }
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
+          >
+            Solo/Duet/Group
+          </button>
+          <button
+            type="button"
+            onClick={() => addItem()}
+            className="inline-flex items-center gap-1 rounded-lg bg-[var(--brand)] px-2.5 py-1 text-[11px] font-bold text-[var(--on-brand)] shadow-sm hover:opacity-90"
+          >
+            <Plus className="size-3" /> Add Category
+          </button>
+        </div>
+      </div>
+
+      {categories.length === 0 ? (
+        <div className="py-6 text-center text-xs text-[var(--fg-muted)] border border-dashed border-[var(--border)] rounded-xl">
+          <p>No separate categories defined yet.</p>
+          <p className="mt-1 text-[11px]">
+            Click <strong>Sub-Jr / Jr / Sr</strong> above to automatically configure age-based categories, or add custom ones.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {categories.map((c, idx) => (
+            <div
+              key={idx}
+              className="relative flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-xs"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="grid size-6 place-items-center rounded-md bg-[var(--surface-2)] text-[10.5px] font-mono font-bold text-[var(--fg-muted)]">
+                  #{idx + 1}
+                </span>
+
+                {/* Category Name */}
+                <div className="flex-1 min-w-[140px]">
+                  <input
+                    type="text"
+                    value={c.name}
+                    onChange={(e) => updateItem(idx, { name: e.target.value })}
+                    placeholder="Category Name (e.g. Sub-Junior, Junior, Senior)"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold text-[var(--fg)] outline-none focus:border-[var(--brand)]"
+                  />
+                </div>
+
+                {/* Min Age */}
+                <div className="w-24">
+                  <input
+                    type="number"
+                    value={c.min_age ?? ""}
+                    onChange={(e) => updateItem(idx, { min_age: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="Min Age"
+                    title="Minimum Age for this category"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-mono text-[var(--fg)] outline-none focus:border-[var(--brand)]"
+                  />
+                </div>
+
+                {/* Max Age */}
+                <div className="w-24">
+                  <input
+                    type="number"
+                    value={c.max_age ?? ""}
+                    onChange={(e) => updateItem(idx, { max_age: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="Max Age"
+                    title="Maximum Age for this category"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-mono text-[var(--fg)] outline-none focus:border-[var(--brand)]"
+                  />
+                </div>
+
+                {/* Delete button */}
+                <button
+                  type="button"
+                  onClick={() => removeItem(idx)}
+                  className="grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                  title="Remove this category"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+
+              {/* Description */}
+              <div>
+                <input
+                  type="text"
+                  value={c.description || ""}
+                  onChange={(e) => updateItem(idx, { description: e.target.value })}
+                  placeholder="Optional division description / rules (e.g. Kids aged 3 to 7 years)"
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11.5px] text-[var(--fg-muted)] outline-none focus:border-[var(--brand)]"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SUBMISSION_PRESETS = [
   {
     id: "link_only",
@@ -523,7 +715,18 @@ export default function CompetitionsPage() {
             { key: "title", header: "Competition", render: (r: any) => (
               <div className="min-w-0">
                 <p className="truncate font-semibold">{r.title || r.name || "Untitled"}</p>
-                <p className="truncate text-[11.5px] text-[var(--fg-muted)]">{r.category || r.type || "General"}</p>
+                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                  <span className="truncate text-[11.5px] text-[var(--fg-muted)]">{r.category || r.type || "General"}</span>
+                  {Array.isArray(r.categories) && r.categories.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {r.categories.map((c: any, i: number) => (
+                        <span key={i} className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20">
+                          {c.name} {c.age_limit ? `(${c.age_limit})` : (c.min_age != null || c.max_age != null ? `(${c.min_age ?? 0}-${c.max_age ?? "+"}y)` : "")}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ) },
             { key: "status", header: "Status", render: (r: any) => <StatusBadge value={r.status || r.state} /> },
@@ -601,8 +804,20 @@ export default function CompetitionsPage() {
           ),
           fields: [
             { name: "title", label: "Title", required: true, placeholder: "e.g. Big Classic Dance Competition" },
-            { name: "category", label: "Category", half: true, placeholder: "Solo / Group / Freestyle" },
+            { name: "category", label: "Primary Genre / Domain", half: true, placeholder: "e.g. Dance, Singing, Acting" },
             { name: "max_participants", label: "Max participants", type: "number", half: true, placeholder: "e.g. 150" },
+            {
+              name: "categories",
+              label: "Age Divisions & Categories",
+              defaultValue: [
+                { name: "Sub-Junior", min_age: 3, max_age: 7, age_limit: "3-7 years", description: "Ages 3 to 7 years" },
+                { name: "Junior", min_age: 8, max_age: 14, age_limit: "8-14 years", description: "Ages 8 to 14 years" },
+                { name: "Senior", min_age: 15, max_age: 28, age_limit: "15-28 years", description: "Ages 15 to 28 years" },
+              ],
+              render: ({ value, onChange }) => (
+                <CompetitionCategoriesBuilder value={value} onChange={onChange} />
+              ),
+            },
             {
               name: "card_image_url",
               label: "16:9 Desktop Image / Card",
@@ -680,6 +895,7 @@ export default function CompetitionsPage() {
             title: r.title || r.name || "",
             description: r.description || "",
             category: r.category || "",
+            categories: Array.isArray(r.categories) ? r.categories : [],
             card_image_url: r.card_image_url || r.image_url || "",
             banner_image_url: r.banner_image_url || r.banner_url || "",
             max_participants: r.max_participants ?? "",
@@ -693,6 +909,8 @@ export default function CompetitionsPage() {
             max_age: r.max_age ?? "",
             audience_voting_enabled: r.audience_voting_enabled ?? r.voting_enabled ?? true,
             judge_scoring_enabled: r.judge_scoring_enabled ?? true,
+            total_rounds: r.total_rounds ?? (Array.isArray(r.rounds) ? r.rounds.length : 3),
+            score_visible_for_public: !!(r.score_visible_for_public || r.results_published),
             dynamic_submission_fields: Array.isArray(r.dynamic_submission_fields) && r.dynamic_submission_fields.length
               ? r.dynamic_submission_fields
               : (r.allow_audio_upload && !r.allow_video_link)
@@ -779,11 +997,22 @@ export default function CompetitionsPage() {
               description: `Allowed submission formats: ${allowedFormats.join(", ")}`,
             };
 
+            const cleanCategories = Array.isArray(v.categories) && v.categories.length > 0
+              ? v.categories.filter((c: any) => c && String(c.name || "").trim()).map((c: any) => ({
+                  name: String(c.name).trim(),
+                  min_age: c.min_age != null && c.min_age !== "" ? Number(c.min_age) : null,
+                  max_age: c.max_age != null && c.max_age !== "" ? Number(c.max_age) : null,
+                  age_limit: c.age_limit || (c.min_age != null && c.max_age != null ? `${c.min_age}-${c.max_age} years` : undefined),
+                  description: c.description ? String(c.description).trim() : null,
+                }))
+              : [];
+
             if (editing) {
               return {
                 title: v.title ? String(v.title).trim() : undefined,
                 description: v.description !== undefined ? String(v.description || "").trim() : undefined,
-                category: v.category ? String(v.category).trim() : undefined,
+                category: v.category ? String(v.category).trim() : (cleanCategories[0]?.name || undefined),
+                categories: cleanCategories.length > 0 ? cleanCategories : undefined,
                 card_image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
                 image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
                 banner_image_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
@@ -800,6 +1029,8 @@ export default function CompetitionsPage() {
                 is_published: !!v.is_published,
                 audience_voting_enabled: voteEnabled,
                 judge_scoring_enabled: judgeEnabled,
+                total_rounds: v.total_rounds ? Number(v.total_rounds) : undefined,
+                score_visible_for_public: v.score_visible_for_public !== undefined ? !!v.score_visible_for_public : undefined,
                 judging_criteria: cleanCriteria,
                 allow_file_upload: hasFile,
                 allow_video_link: hasLink,
@@ -822,7 +1053,8 @@ export default function CompetitionsPage() {
             return {
               title: String(v.title || "").trim(),
               description: String(v.description || v.title || "").trim(),
-              category: String(v.category || "General").trim() || "General",
+              category: String(v.category || cleanCategories[0]?.name || "General").trim() || "General",
+              categories: cleanCategories.length > 0 ? cleanCategories : undefined,
               type: "General",
               card_image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
               image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
@@ -841,6 +1073,8 @@ export default function CompetitionsPage() {
               is_published: !!v.is_published,
               audience_voting_enabled: voteEnabled,
               judge_scoring_enabled: judgeEnabled,
+              total_rounds: v.total_rounds ? Number(v.total_rounds) : 3,
+              score_visible_for_public: !!v.score_visible_for_public,
               audience_vote_weight: audienceWeight,
               judge_score_weight: judgeWeight,
               judging_criteria: cleanCriteria,
@@ -1134,6 +1368,7 @@ function JudgesPanel({
   const { push } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [directEmail, setDirectEmail] = useState("");
 
   const details: any[] = progress?.judge_details || progress?.judges || [];
   const assignedMap = new Map<string, any>();
@@ -1147,7 +1382,7 @@ function JudgesPanel({
     const em = String(j.email || "").trim().toLowerCase();
     if (assignedMap.has(em)) return true;
     if (Array.isArray(j.assigned_competitions)) {
-      return j.assigned_competitions.some((c: any) => String(c) === String(compId));
+      return j.assigned_competitions.some((c: any) => String(c).trim().toLowerCase() === String(compId).trim().toLowerCase());
     }
     return false;
   };
@@ -1192,6 +1427,26 @@ function JudgesPanel({
     }
   };
 
+  const handleDirectAssign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = directEmail.trim().toLowerCase();
+    if (!clean || !clean.includes("@")) {
+      push("error", "Please enter a valid judge email address.");
+      return;
+    }
+    setBusy(clean);
+    try {
+      await judgesApi.assign({ judge_email: clean, competition_id: compId });
+      push("success", `Judge ${clean} assigned to competition & official appointment email sent!`);
+      setDirectEmail("");
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to assign judge.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <Panel
       title={`Judges on this competition (${totalAssigned} assigned)`}
@@ -1199,8 +1454,8 @@ function JudgesPanel({
       className="shadow-none"
       bodyClassName="p-0"
     >
-      <div className="border-b border-[var(--border)] p-3">
-        <div className="relative">
+      <div className="border-b border-[var(--border)] p-3 flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-subtle)]" />
           <input
             type="text"
@@ -1210,6 +1465,18 @@ function JudgesPanel({
             className="h-8.5 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)] transition-colors"
           />
         </div>
+        <form onSubmit={handleDirectAssign} className="flex gap-1.5 shrink-0">
+          <input
+            type="email"
+            value={directEmail}
+            onChange={(e) => setDirectEmail(e.target.value)}
+            placeholder="judge@example.com"
+            className="h-8.5 w-48 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-xs outline-none focus:border-[var(--brand)]"
+          />
+          <Button size="sm" type="submit" loading={busy === directEmail.trim().toLowerCase()} disabled={!directEmail.trim()}>
+            <Plus className="size-3" /> Assign
+          </Button>
+        </form>
       </div>
       {rows.length === 0 ? (
         <p className="px-4 py-6 text-center text-[13px] text-[var(--fg-muted)]">
