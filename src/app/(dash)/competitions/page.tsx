@@ -7,7 +7,7 @@ import {
   Upload, Loader2, Plus, Trash2, Image as ImageIcon,
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
   ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square,
-  Link2, Music, FileUp, Sparkles, UserCheck, XCircle
+  Link2, Music, FileUp, Sparkles, UserCheck, XCircle, Layers, ArrowRight, Settings, CheckSquare
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
@@ -870,10 +870,10 @@ function CompetitionControls({
   comp: any | null;
   onClose: () => void;
   onAction: (label: string, fn: () => Promise<any>, reload: () => void, confirmText?: string) => void;
-  initialTab?: "participants" | "workflow" | "stage";
+  initialTab?: "participants" | "workflow" | "stage" | "rounds";
 }) {
   const id = comp ? rowId(comp) : "";
-  const [activeTab, setActiveTab] = useState<"participants" | "workflow" | "stage">(initialTab);
+  const [activeTab, setActiveTab] = useState<"participants" | "workflow" | "stage" | "rounds">(initialTab);
 
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
@@ -908,6 +908,8 @@ function CompetitionControls({
       subtitle={
         activeTab === "stage"
           ? "Live stage sequence, performer on stage, and real-time lineup"
+          : activeTab === "rounds"
+          ? "Multi-round knockout lifecycle: Prelims, Semi-Finals, and Grand Finale"
           : activeTab === "participants"
           ? "Registered participants, verified payments, and submitted media"
           : "Judging session, voting and ranking controls"
@@ -926,6 +928,17 @@ function CompetitionControls({
           }`}
         >
           <Radio className="size-3.5 text-rose-400 animate-pulse" /> Live Stage Performance
+        </button>
+        <button
+          onClick={() => setActiveTab("rounds")}
+          aria-pressed={activeTab === "rounds"}
+          className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+            activeTab === "rounds"
+              ? "bg-amber-600 text-white shadow-md shadow-amber-600/30 font-bold"
+              : "border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+          }`}
+        >
+          <Layers className="size-3.5 text-amber-400" /> Stages &amp; Knockout Rounds
         </button>
         <button
           onClick={() => setActiveTab("participants")}
@@ -953,6 +966,8 @@ function CompetitionControls({
 
       {activeTab === "stage" ? (
         <CompetitionStagePanel compId={id} compTitle={comp?.title || comp?.name} />
+      ) : activeTab === "rounds" ? (
+        <CompetitionRoundsPanel compId={id} compTitle={comp?.title || comp?.name} />
       ) : activeTab === "participants" ? (
         <CompetitionParticipantsPanel compId={id} compTitle={comp?.title || comp?.name} />
       ) : loading ? (
@@ -2576,6 +2591,676 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                   { k: "Payment Status", v: <StatusBadge value={selectedParticipant.payment_status} /> },
                 ]}
               />
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTitle?: string }) {
+  const { push } = useToast();
+  const [selectedRound, setSelectedRound] = useState<number>(1);
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [advancingCount, setAdvancingCount] = useState<number>(20);
+  const [advanceNotes, setAdvanceNotes] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [configureModalOpen, setConfigureModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const { data: roundsData, loading: roundsLoading, reload: reloadRounds } = useResource(
+    () => (!compId ? Promise.resolve(null) : competitionsApi.rounds(compId)),
+    [compId]
+  );
+
+  const roundsList: any[] = useMemo(() => {
+    return Array.isArray(roundsData?.rounds) && roundsData.rounds.length > 0
+      ? roundsData.rounds
+      : [
+          { round_number: 1, name: "Round 1 - Preliminary Auditions", status: "ACTIVE", advancing_count: 20, is_final_round: false },
+          { round_number: 2, name: "Round 2 - Semi-Finals", status: "UPCOMING", advancing_count: 5, is_final_round: false },
+          { round_number: 3, name: "Round 3 - Grand Finale", status: "UPCOMING", advancing_count: null, is_final_round: true },
+        ];
+  }, [roundsData]);
+
+  const [configRounds, setConfigRounds] = useState<any[]>(roundsList);
+
+  useEffect(() => {
+    if (roundsData?.current_round) {
+      setSelectedRound(roundsData.current_round);
+    }
+  }, [roundsData?.current_round]);
+
+  useEffect(() => {
+    if (Array.isArray(roundsData?.rounds) && roundsData.rounds.length > 0) {
+      setConfigRounds(roundsData.rounds);
+    }
+  }, [roundsData?.rounds]);
+
+  const { data: lbData, loading: lbLoading, reload: reloadLb } = useResource(
+    () =>
+      !compId
+        ? Promise.resolve(null)
+        : competitionsApi.roundLeaderboard(
+            compId,
+            selectedRound,
+            selectedCategory === "ALL" ? undefined : selectedCategory
+          ),
+    [compId, selectedRound, selectedCategory]
+  );
+
+  const participantsList = Array.isArray(lbData?.leaderboard) ? lbData.leaderboard : [];
+  const activeRoundConfig = roundsList.find((r) => r.round_number === selectedRound) || roundsList[0];
+  const nextRoundNumber = selectedRound + 1;
+  const nextRoundConfig = roundsList.find((r) => r.round_number === nextRoundNumber);
+  const isFinalRound = !!activeRoundConfig?.is_final_round;
+
+  const categories: string[] = useMemo(() => {
+    const set = new Set<string>();
+    if (Array.isArray(lbData?.categories)) {
+      lbData.categories.forEach((c: any) => c && set.add(String(c)));
+    }
+    participantsList.forEach((p: any) => {
+      if (p.category) set.add(String(p.category));
+    });
+    return Array.from(set);
+  }, [lbData?.categories, participantsList]);
+
+  const filteredParticipants = useMemo(() => {
+    if (!search.trim()) return participantsList;
+    const q = search.toLowerCase();
+    return participantsList.filter(
+      (p: any) =>
+        (p.name || "").toLowerCase().includes(q) ||
+        (p.email || p.user_email || "").toLowerCase().includes(q) ||
+        (p.registration_reference || "").toLowerCase().includes(q)
+    );
+  }, [participantsList, search]);
+
+  const handleSelectTopN = (count: number) => {
+    const newSet = new Set<string>();
+    filteredParticipants.slice(0, count).forEach((p: any) => {
+      const id = p.registration_id || p.email || p.user_email;
+      if (id) newSet.add(id);
+    });
+    setSelectedIds(newSet);
+    push("info", `Selected top ${newSet.size} contestants for qualification.`);
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const copy = new Set(prev);
+      if (copy.has(id)) copy.delete(id);
+      else copy.add(id);
+      return copy;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredParticipants.length) {
+      setSelectedIds(new Set());
+    } else {
+      const newSet = new Set<string>();
+      filteredParticipants.forEach((p: any) => {
+        const id = p.registration_id || p.email || p.user_email;
+        if (id) newSet.add(id);
+      });
+      setSelectedIds(newSet);
+    }
+  };
+
+  const handleSetActiveRound = async (rNum: number) => {
+    setActionLoading(`set-${rNum}`);
+    try {
+      await competitionsApi.setActiveRound(compId, rNum);
+      push("success", `Stage ${rNum} is now the ACTIVE competition round.`);
+      reloadRounds();
+      reloadLb();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to set active round.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleAdvance = async () => {
+    setActionLoading("advance");
+    try {
+      const payload: any = {
+        notes: advanceNotes.trim() || undefined,
+      };
+
+      if (selectedIds.size > 0) {
+        payload.contestant_ids = Array.from(selectedIds);
+      } else {
+        payload.advancing_count = Number(advancingCount) || 10;
+      }
+
+      const res = await competitionsApi.advanceRound(compId, selectedRound, payload);
+      push(
+        "success",
+        `🎉 Successfully advanced ${res?.advanced_count ?? selectedIds.size ?? advancingCount} contestants to Round ${res?.next_round ?? nextRoundNumber}!`
+      );
+      setSelectedIds(new Set());
+      reloadRounds();
+      reloadLb();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to advance contestants.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    setActionLoading("save-config");
+    try {
+      await competitionsApi.configureRounds(compId, configRounds);
+      push("success", "Knockout stages and round configuration saved successfully!");
+      setConfigureModalOpen(false);
+      reloadRounds();
+      reloadLb();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to save rounds configuration.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* ── Top Knockout Pipeline Banner ── */}
+      <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface-2)] via-[var(--surface)] to-[var(--surface-2)] p-5 shadow-sm flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-xl bg-amber-500/15 text-amber-400">
+              <Layers className="size-5" />
+            </span>
+            <div>
+              <h3 className="font-display text-base font-bold text-[var(--fg)] flex items-center gap-2">
+                <span>Knockout Stages &amp; Progression</span>
+                <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-black text-amber-300">
+                  Current: Round {roundsData?.current_round ?? 1}
+                </span>
+              </h3>
+              <p className="text-xs text-[var(--fg-muted)]">
+                Manage preliminary auditions, advance top performers into semi-finals, and crown the final champions.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setConfigRounds(roundsList);
+                setConfigureModalOpen(true);
+              }}
+              className="text-xs border-[var(--border)]"
+            >
+              <Settings className="size-3.5 mr-1.5" /> Configure Stages
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                reloadRounds();
+                reloadLb();
+              }}
+              loading={roundsLoading || lbLoading}
+              className="text-xs border-[var(--border)]"
+            >
+              <RotateCcw className="size-3.5 mr-1.5" /> Refresh
+            </Button>
+          </div>
+        </div>
+
+        {/* Stages Pipeline Visualizer */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          {roundsList.map((rd: any) => {
+            const isCurrentActive = rd.round_number === (roundsData?.current_round ?? 1);
+            const isSelected = rd.round_number === selectedRound;
+            const isCompleted = rd.status === "COMPLETED";
+
+            return (
+              <div
+                key={rd.round_number}
+                onClick={() => setSelectedRound(rd.round_number)}
+                className={cn(
+                  "cursor-pointer rounded-xl p-3.5 border transition-all relative flex flex-col justify-between gap-2.5",
+                  isSelected
+                    ? "border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/30 shadow-md"
+                    : "border-[var(--border)] bg-[var(--surface-2)]/60 hover:border-[var(--border-strong)]"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-[var(--fg)]">
+                    {rd.name || `Round ${rd.round_number}`}
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase",
+                      isCurrentActive
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse"
+                        : isCompleted
+                        ? "bg-slate-500/20 text-slate-300 border border-slate-500/30"
+                        : "bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                    )}
+                  >
+                    {isCurrentActive ? "Active Stage" : isCompleted ? "Completed" : "Upcoming"}
+                  </span>
+                </div>
+
+                {rd.description && (
+                  <p className="line-clamp-1 text-[11.5px] text-[var(--fg-muted)]">{rd.description}</p>
+                )}
+
+                <div className="flex items-center justify-between text-[11px] font-medium pt-1 border-t border-[var(--border)]/60">
+                  <span className="text-amber-400 font-bold">
+                    {rd.is_final_round
+                      ? "👑 Championship Final"
+                      : rd.advancing_count
+                      ? `Top ${rd.advancing_count} Advance`
+                      : "Qualifying Stage"}
+                  </span>
+
+                  {!isCurrentActive && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSetActiveRound(rd.round_number);
+                      }}
+                      disabled={!!actionLoading}
+                      className="cursor-pointer text-[10.5px] font-bold text-amber-300 hover:text-white underline decoration-amber-400/50"
+                    >
+                      Set Active
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Round Advancing Action Box (Only if not final round) ── */}
+      {!isFinalRound && (
+        <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-[var(--surface-2)] to-amber-500/10 p-5 shadow-sm flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h4 className="font-display text-sm font-bold text-amber-300 flex items-center gap-2">
+                <Sparkles className="size-4 text-amber-400" />
+                <span>Advance Qualifiers to Round {nextRoundNumber} {nextRoundConfig?.name ? `(${nextRoundConfig.name})` : ""}</span>
+              </h4>
+              <p className="text-xs text-[var(--fg-muted)] mt-0.5">
+                Eligible qualifiers advance to the next round with their status set to <strong className="text-emerald-400">QUALIFIED</strong>. 
+                Non-qualifiers will be permanently marked <strong className="text-rose-400">ELIMINATED</strong>.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--fg-muted)]">Quick select:</span>
+              <button
+                type="button"
+                onClick={() => handleSelectTopN(5)}
+                className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-bold hover:border-amber-400 text-amber-300"
+              >
+                Top 5
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectTopN(10)}
+                className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-bold hover:border-amber-400 text-amber-300"
+              >
+                Top 10
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectTopN(20)}
+                className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-bold hover:border-amber-400 text-amber-300"
+              >
+                Top 20
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
+                Advancing Quota (Top N Cutoff)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={participantsList.length || 100}
+                value={advancingCount}
+                onChange={(e) => setAdvancingCount(Math.max(1, parseInt(e.target.value) || 1))}
+                className="mt-1.5 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs font-bold text-[var(--fg)] outline-none focus:border-amber-400"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
+                Progression Notes (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Top performers advanced from prelims"
+                value={advanceNotes}
+                onChange={(e) => setAdvanceNotes(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs text-[var(--fg)] outline-none focus:border-amber-400"
+              />
+            </div>
+
+            <div>
+              <Button
+                onClick={handleAdvance}
+                loading={actionLoading === "advance"}
+                disabled={participantsList.length === 0}
+                className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs py-2 shadow-lg shadow-amber-500/25"
+              >
+                <ArrowRight className="size-4 mr-1.5" />
+                {selectedIds.size > 0
+                  ? `Advance ${selectedIds.size} Selected Contestants ➔`
+                  : `Advance Top ${advancingCount} Contestants ➔`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Round Leaderboard & Standings Table ── */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-black uppercase tracking-wider text-[var(--fg)] flex items-center gap-1.5">
+              <Trophy className="size-3.5 text-amber-400" />
+              <span>Round {selectedRound} Standings &amp; Shortlist</span>
+            </span>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 ml-2">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory("ALL")}
+                className={cn(
+                  "cursor-pointer rounded-full px-3 py-1 text-[11px] font-bold transition-all",
+                  selectedCategory === "ALL"
+                    ? "bg-amber-500 text-slate-950 font-black shadow-sm"
+                    : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
+                )}
+              >
+                All Categories
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={cn(
+                    "cursor-pointer rounded-full px-3 py-1 text-[11px] font-bold transition-all",
+                    selectedCategory === cat
+                      ? "bg-amber-500 text-slate-950 font-black shadow-sm"
+                      : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative w-48">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-muted)]" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search contestant…"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-1.5 pl-8 pr-3 text-xs outline-none focus:border-amber-400"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="cursor-pointer rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-semibold text-[var(--fg-muted)] hover:text-white"
+            >
+              {selectedIds.size === filteredParticipants.length ? "Deselect All" : "Select All"}
+            </button>
+          </div>
+        </div>
+
+        {/* Table */}
+        {lbLoading ? (
+          <Loading rows={4} />
+        ) : filteredParticipants.length === 0 ? (
+          <div className="p-8 text-center text-xs text-[var(--fg-muted)]">
+            No contestants or scores recorded for Round {selectedRound} yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] text-left text-xs">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
+                  <th className="py-2.5 px-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size > 0 && selectedIds.size === filteredParticipants.length}
+                      onChange={handleSelectAll}
+                      className="rounded accent-amber-500"
+                    />
+                  </th>
+                  <th className="py-2.5 px-3">Rank</th>
+                  <th className="py-2.5 px-3">Contestant</th>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3 text-right">Judge Score</th>
+                  <th className="py-2.5 px-3 text-right">Audience Votes</th>
+                  <th className="py-2.5 px-3 text-right">Points</th>
+                  <th className="py-2.5 px-3 text-center">Round Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredParticipants.map((p: any, idx: number) => {
+                  const id = p.registration_id || p.email || p.user_email;
+                  const isChecked = selectedIds.has(id);
+                  const isAdvancingZone = idx < advancingCount;
+
+                  return (
+                    <tr
+                      key={id || idx}
+                      className={cn(
+                        "border-b border-[var(--border)]/60 hover:bg-[var(--surface-2)]/60 transition-colors",
+                        isChecked ? "bg-amber-500/10" : isAdvancingZone ? "bg-emerald-500/[0.04]" : ""
+                      )}
+                    >
+                      <td className="py-2.5 px-3">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleSelect(id)}
+                          className="rounded accent-amber-500"
+                        />
+                      </td>
+                      <td className="py-2.5 px-3 font-bold">
+                        {p.rank === 1 ? (
+                          <span className="grid size-6 place-items-center rounded-full bg-amber-400 text-slate-950 font-black text-[11px]">1</span>
+                        ) : p.rank === 2 ? (
+                          <span className="grid size-6 place-items-center rounded-full bg-slate-300 text-slate-900 font-bold text-[11px]">2</span>
+                        ) : p.rank === 3 ? (
+                          <span className="grid size-6 place-items-center rounded-full bg-amber-700 text-amber-50 font-bold text-[11px]">3</span>
+                        ) : (
+                          <span className="text-[var(--fg-muted)] pl-2">{p.rank ?? (idx + 1)}</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-[var(--fg)] flex items-center gap-1">
+                              <span>{p.name || p.user_name || "Contestant"}</span>
+                              {p.is_verified && <VerifiedBadge size="xs" />}
+                            </p>
+                            <p className="text-[10.5px] text-[var(--fg-muted)] truncate max-w-[200px]">
+                              {p.email || p.user_email}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10.5px] font-bold text-violet-300">
+                          {p.category || "General"}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums text-[var(--fg-muted)] font-medium">
+                        {p.judge_score != null ? p.judge_score : "—"}
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums text-[var(--fg-muted)] font-medium">
+                        {p.audience_votes != null ? formatNumber(p.audience_votes) : "—"}
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums font-bold text-amber-400 font-display">
+                        {p.points ?? p.final_score ?? p.audience_votes ?? "—"}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        {p.round_status === "ELIMINATED" ? (
+                          <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-bold text-rose-400">
+                            Eliminated
+                          </span>
+                        ) : p.is_advancing || isAdvancingZone ? (
+                          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-400 flex items-center justify-center gap-1">
+                            <Sparkles className="size-2.5" /> Advancing
+                          </span>
+                        ) : (
+                          <span className="rounded-full border border-slate-500/30 bg-slate-500/10 px-2.5 py-0.5 text-[10px] font-bold text-slate-300">
+                            Qualified
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Configure Rounds Modal ── */}
+      {configureModalOpen && (
+        <Modal
+          open={configureModalOpen}
+          onClose={() => setConfigureModalOpen(false)}
+          title="Configure Knockout Stages (Prelims → Semifinal → Final)"
+          subtitle="Customize the competition stages, advancing quotas, and championship round."
+          size="2xl"
+        >
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-[var(--fg-muted)]">
+              Specify the progression lifecycle. Contestants will battle round-by-round until the Grand Finale champion is crowned!
+            </p>
+
+            <div className="flex flex-col gap-3">
+              {configRounds.map((r: any, idx: number) => (
+                <div key={idx} className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-400 uppercase tracking-wide">
+                      Stage {idx + 1}
+                    </span>
+                    {configRounds.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setConfigRounds(configRounds.filter((_, i) => i !== idx))}
+                        className="text-xs font-semibold text-rose-400 hover:text-rose-300"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Stage Name">
+                      {(p) => (
+                        <Input
+                          {...p}
+                          value={r.name || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setConfigRounds(configRounds.map((item, i) => i === idx ? { ...item, name: val } : item));
+                          }}
+                        />
+                      )}
+                    </Field>
+
+                    <Field label="Advancing Cutoff (Top N to Advance)">
+                      {(p) => (
+                        <Input
+                          {...p}
+                          type="number"
+                          placeholder={idx === configRounds.length - 1 ? "None (Final Round)" : "e.g. 20"}
+                          value={r.advancing_count ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value ? parseInt(e.target.value) : null;
+                            setConfigRounds(configRounds.map((item, i) => i === idx ? { ...item, advancing_count: val } : item));
+                          }}
+                        />
+                      )}
+                    </Field>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id={`is_final_${idx}`}
+                      checked={!!r.is_final_round}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setConfigRounds(configRounds.map((item, i) => i === idx ? { ...item, is_final_round: checked } : item));
+                      }}
+                      className="rounded accent-amber-500"
+                    />
+                    <label htmlFor={`is_final_${idx}`} className="text-xs font-medium text-[var(--fg-muted)]">
+                      Is Grand Finale (Final Championship Round)
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                const nextNum = configRounds.length + 1;
+                setConfigRounds([
+                  ...configRounds,
+                  {
+                    round_number: nextNum,
+                    name: `Round ${nextNum}`,
+                    status: "UPCOMING",
+                    advancing_count: null,
+                    is_final_round: true,
+                  },
+                ]);
+              }}
+              className="text-xs border-dashed"
+            >
+              <Plus className="size-3.5 mr-1.5" /> Add Another Stage
+            </Button>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border)]">
+              <Button size="sm" variant="secondary" onClick={() => setConfigureModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveConfig}
+                loading={actionLoading === "save-config"}
+                className="bg-amber-600 hover:bg-amber-500 text-white font-bold"
+              >
+                Save Stages Configuration
+              </Button>
             </div>
           </div>
         </Modal>

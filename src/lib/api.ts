@@ -286,6 +286,17 @@ export const competitionsApi = {
     fd.append("file", file);
     return api<any>(`${comp}/upload-banner`, { method: "POST", form: fd });
   },
+  rounds: (compId: string) => api<any>(`${comp}/${compId}/rounds`),
+  configureRounds: (compId: string, rounds: any[]) =>
+    api<any>(`${comp}/${compId}/rounds`, { method: "POST", body: { rounds } }),
+  setActiveRound: (compId: string, roundNumber: number) =>
+    api<any>(`${comp}/${compId}/rounds/${roundNumber}/set-active`, { method: "POST" }),
+  advanceRound: (compId: string, roundNumber: number, body: { advancing_count?: number; contestant_ids?: string[]; notes?: string }) =>
+    api<any>(`${comp}/${compId}/rounds/${roundNumber}/advance`, { method: "POST", body }),
+  roundLeaderboard: (compId: string, roundNumber: number, category?: string) =>
+    api<any>(`${comp}/${compId}/rounds/${roundNumber}/leaderboard`, { query: category ? { category } : undefined }),
+  roundContestants: (compId: string, roundNumber: number, category?: string) =>
+    api<any>(`${comp}/${compId}/rounds/${roundNumber}/contestants`, { query: category ? { category } : undefined }),
 };
 
 /* ═══════════════ JUDGES / VOLUNTEERS ═══════════════ */
