@@ -251,6 +251,13 @@ export const competitionsApi = {
   participants: (id: string, q?: any) => api<any>(`${comp}/${id}/participants`, { query: q }),
   confirmCashPayment: (compId: string, regId: string) =>
     api<any>(`${comp}/${compId}/participants/${regId}/confirm-cash`, { method: "PATCH" }),
+  confirmParticipantPayment: (compId: string, regId: string) =>
+    api<any>(`${comp}/${compId}/participants/${regId}/confirm-payment`, { method: "PATCH" }),
+  togglePublicScores: (compId: string, enabled?: boolean) =>
+    api<any>(`${comp}/${compId}/toggle-public-scores`, {
+      method: "PATCH",
+      query: enabled !== undefined ? { enabled } : undefined,
+    }),
   revertCashPayment: (compId: string, regId: string) =>
     api<any>(`${comp}/${compId}/participants/${regId}/revert-cash`, { method: "PATCH" }),
   verifyParticipantGovtId: (compId: string, regId: string, body?: any) =>

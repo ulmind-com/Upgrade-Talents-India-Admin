@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import {
-  Gavel, Lock, Trophy, Send, RefreshCw, Eye, UserPlus, UserMinus,
+  Gavel, Lock, Trophy, Send, RefreshCw, Eye, EyeOff, UserPlus, UserMinus,
   Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
   Upload, Loader2, Plus, Trash2, Image as ImageIcon,
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
@@ -644,6 +644,8 @@ export default function CompetitionsPage() {
             { name: "max_age", label: "Max age", type: "number", half: true, placeholder: "Optional" },
             { name: "audience_voting_enabled", label: "Audience voting enabled", type: "toggle", half: true, defaultValue: true },
             { name: "judge_scoring_enabled", label: "Judge scoring enabled", type: "toggle", half: true, defaultValue: true },
+            { name: "total_rounds", label: "Total competition rounds", type: "number", half: true, defaultValue: 3, placeholder: "e.g. 1, 2, or 3 rounds" },
+            { name: "score_visible_for_public", label: "Score visible for public", type: "toggle", half: true, defaultValue: false, hint: "When OFF, public scores are private; contestants only see their own score." },
             { name: "is_published", label: "Published", type: "toggle", half: true, defaultValue: false },
             {
               name: "dynamic_submission_fields",
@@ -889,6 +891,32 @@ function CompetitionControls({
   );
 
   const [pin, setPin] = useState("");
+  const [isScoresPublic, setIsScoresPublic] = useState<boolean>(
+    Boolean(comp?.score_visible_for_public || comp?.results_published || comp?.result_status === "PUBLISHED")
+  );
+  const [scoreToggleBusy, setScoreToggleBusy] = useState(false);
+  const { push } = useToast();
+
+  useEffect(() => {
+    if (comp) {
+      setIsScoresPublic(Boolean(comp.score_visible_for_public || comp.results_published || comp.result_status === "PUBLISHED"));
+    }
+  }, [comp]);
+
+  const handleTogglePublicScores = async () => {
+    setScoreToggleBusy(true);
+    const nextVal = !isScoresPublic;
+    try {
+      await competitionsApi.togglePublicScores(id, nextVal);
+      setIsScoresPublic(nextVal);
+      push("success", `Score visibility for public is now ${nextVal ? "ON (Public Leaderboard Unlocked)" : "OFF (Scores Private to Contestants)"}`);
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to update score visibility.");
+    } finally {
+      setScoreToggleBusy(false);
+    }
+  };
 
   const actions = [
     { label: "Close judging session", Icon: Gavel, fn: () => competitionsApi.closeSession(id) },
@@ -984,6 +1012,52 @@ function CompetitionControls({
               { k: "Judging progress", v: data?.progress?.completion_percentage != null ? `${data.progress.completion_percentage}%` : "—" },
             ]}
           />
+
+          {/* ── Public Score Visibility Switch (Client Requirement) ── */}
+          <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface-2)] via-[var(--surface)] to-[var(--surface-2)] p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+                isScoresPublic ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
+              }`}>
+                {isScoresPublic ? <Eye className="size-5" /> : <EyeOff className="size-5" />}
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-[var(--fg)]">Score visible for public</h4>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider ${
+                    isScoresPublic
+                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                      : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                  }`}>
+                    {isScoresPublic ? "ON • Public" : "OFF • Private"}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-[var(--fg-muted)]">
+                  {isScoresPublic
+                    ? "Full scores and podium rankings are visible to everyone on the public leaderboard."
+                    : "Scores are hidden from the public leaderboard. Contestants can only view their own score in their account."}
+                </p>
+              </div>
+            </div>
+
+            <Button
+              variant={isScoresPublic ? "secondary" : "primary"}
+              size="sm"
+              loading={scoreToggleBusy}
+              onClick={handleTogglePublicScores}
+              className="shrink-0 text-xs font-bold"
+            >
+              {isScoresPublic ? (
+                <>
+                  <EyeOff className="size-3.5 mr-1.5" /> Turn OFF (Private)
+                </>
+              ) : (
+                <>
+                  <Eye className="size-3.5 mr-1.5" /> Turn ON (Public)
+                </>
+              )}
+            </Button>
+          </div>
 
           <Panel title="Workflow controls" className="shadow-none" bodyClassName="p-4">
             <div className="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
@@ -1686,6 +1760,19 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
     }
   };
 
+  const handleConfirmPayment = async (regId: string, name?: string, fee?: number) => {
+    setActionLoading(regId);
+    try {
+      await competitionsApi.confirmParticipantPayment(compId, regId);
+      push("success", `Payment confirmed for ${name || "participant"}! Admitted to official lineup.`);
+      reload();
+    } catch (err: any) {
+      push("error", err?.message || "Failed to confirm participant payment.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleRevertCash = async (regId: string, name: string) => {
     if (!confirm(`Revert cash payment status for ${name || "this participant"} back to pending?`)) return;
     setActionLoading(regId);
@@ -1754,7 +1841,11 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
       const isPaid = p.payment_status === "PAID" || p.cash_status === "COLLECTED" || p.cash_status === "PAID";
 
       let matchFilter = true;
-      if (filterMode === "PRESENT") {
+      if (filterMode === "LINEUP_CONFIRMED") {
+        matchFilter = isPaid || isFree || p.status === "CONFIRMED";
+      } else if (filterMode === "LINEUP_PENDING") {
+        matchFilter = !isPaid && !isFree && p.status !== "CONFIRMED";
+      } else if (filterMode === "PRESENT") {
         matchFilter = Boolean(p.is_present || p.attendance_status === "PRESENT");
       } else if (filterMode === "ABSENT") {
         matchFilter = !Boolean(p.is_present || p.attendance_status === "PRESENT");
@@ -1932,6 +2023,32 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
               )}
             >
               <Users className="size-3.5" /> All ({totalRegistered})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterMode("LINEUP_CONFIRMED")}
+              className={cn(
+                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                filterMode === "LINEUP_CONFIRMED"
+                  ? "bg-emerald-500/25 text-emerald-200 border border-emerald-500/50 shadow-sm font-bold"
+                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-emerald-300"
+              )}
+            >
+              <CheckCircle2 className="size-3.5 text-emerald-400" /> In Lineup ({rawParticipants.filter((p: any) => p.status === "CONFIRMED" || p.payment_status === "PAID" || p.cash_status === "COLLECTED" || p.payment_method === "FREE" || Number(p.fee) === 0).length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterMode("LINEUP_PENDING")}
+              className={cn(
+                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                filterMode === "LINEUP_PENDING"
+                  ? "bg-amber-500/25 text-amber-200 border border-amber-500/50 shadow-sm font-bold"
+                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-amber-300"
+              )}
+            >
+              <Clock className="size-3.5 text-amber-400" /> Awaiting Payment ({rawParticipants.filter((p: any) => p.status !== "CONFIRMED" && p.payment_status !== "PAID" && p.cash_status !== "COLLECTED" && p.payment_method !== "FREE" && Number(p.fee) > 0).length})
             </button>
 
             <button
@@ -2395,9 +2512,25 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                       <span>Payment Failed</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-400 whitespace-nowrap">
-                      <Clock className="size-3.5 shrink-0" />
-                      <span>Online Payment Pending</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 whitespace-nowrap">
+                        <Clock className="size-3.5 shrink-0 animate-pulse" />
+                        <span>Online Pending</span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled={actionLoading === r._id}
+                        onClick={() => handleConfirmPayment(r._id, r.user_name, r.fee)}
+                        className="cursor-pointer inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
+                        title="Confirm participant payment and admit to official performance lineup"
+                      >
+                        {actionLoading === r._id ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Check className="size-3" />
+                        )}
+                        Confirm &amp; Admit
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2406,9 +2539,33 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           },
           {
             key: "status",
-            header: "Registration",
-            width: "120px",
-            render: (r: any) => <StatusBadge value={r.status} />,
+            header: "Lineup Status",
+            width: "160px",
+            render: (r: any) => {
+              const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
+              const isPaid = r.payment_status === "PAID" || r.cash_status === "COLLECTED" || r.cash_status === "PAID";
+              const isConfirmed = r.status === "CONFIRMED" || isPaid || isFree;
+
+              if (isConfirmed && (isPaid || isFree)) {
+                return (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10.5px] font-extrabold text-emerald-400">
+                      <CheckCircle2 className="size-3" /> In Lineup
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">Payment Confirmed</span>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex flex-col gap-0.5">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300">
+                    <Clock className="size-3 animate-pulse" /> Pending
+                  </span>
+                  <span className="text-[10px] text-amber-300/80 font-medium">Awaiting Confirmation</span>
+                </div>
+              );
+            },
           },
           {
             key: "stage",
@@ -2649,6 +2806,37 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
 
   const [configRounds, setConfigRounds] = useState<any[]>(roundsList);
 
+  const applyPreset = async (type: "3_stage" | "2_stage" | "1_stage", semiCutoff = 5, prelimCutoff = 20) => {
+    setActionLoading(`preset-${type}`);
+    try {
+      let presets: any[] = [];
+      if (type === "3_stage") {
+        presets = [
+          { round_number: 1, name: "Round 1 - Preliminary Auditions", status: "ACTIVE", advancing_count: prelimCutoff, is_final_round: false },
+          { round_number: 2, name: "Round 2 - Semi-Finals", status: "UPCOMING", advancing_count: semiCutoff, is_final_round: false },
+          { round_number: 3, name: "Round 3 - Grand Finale", status: "UPCOMING", advancing_count: null, is_final_round: true },
+        ];
+      } else if (type === "2_stage") {
+        presets = [
+          { round_number: 1, name: "Round 1 - Preliminary Auditions", status: "ACTIVE", advancing_count: semiCutoff || 10, is_final_round: false },
+          { round_number: 2, name: "Round 2 - Grand Finale", status: "UPCOMING", advancing_count: null, is_final_round: true },
+        ];
+      } else {
+        presets = [
+          { round_number: 1, name: "Round 1 - Grand Finale (Direct)", status: "ACTIVE", advancing_count: null, is_final_round: true },
+        ];
+      }
+      await competitionsApi.configureRounds(compId, presets);
+      push("success", `Knockout stages configured! (${presets.length} rounds).`);
+      reloadRounds();
+      reloadLb();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to configure preset stages.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   useEffect(() => {
     if (roundsData?.current_round) {
       setSelectedRound(roundsData.current_round);
@@ -2812,7 +3000,38 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 bg-[var(--surface-2)] p-1 rounded-xl border border-[var(--border)]">
+              <span className="text-[10px] font-bold text-[var(--fg-subtle)] px-1.5 uppercase tracking-wider">Presets:</span>
+              <button
+                type="button"
+                disabled={!!actionLoading}
+                onClick={() => applyPreset("3_stage", 5, 20)}
+                className="cursor-pointer text-[11px] font-bold px-2 py-1 rounded-lg bg-[var(--surface)] hover:bg-amber-500/20 text-amber-300 transition-all border border-amber-500/30"
+                title="3 Rounds: Prelims (Top 20) -> Semi-Final (Top 5 to Grand Finale) -> Grand Finale"
+              >
+                3 Rounds (Semi ➔ Top 5 Final)
+              </button>
+              <button
+                type="button"
+                disabled={!!actionLoading}
+                onClick={() => applyPreset("2_stage", 10)}
+                className="cursor-pointer text-[11px] font-bold px-2 py-1 rounded-lg bg-[var(--surface)] hover:bg-sky-500/20 text-sky-300 transition-all border border-sky-500/30"
+                title="2 Rounds: Prelims (Top 10) -> Grand Finale"
+              >
+                2 Rounds (Prelims ➔ Final)
+              </button>
+              <button
+                type="button"
+                disabled={!!actionLoading}
+                onClick={() => applyPreset("1_stage")}
+                className="cursor-pointer text-[11px] font-bold px-2 py-1 rounded-lg bg-[var(--surface)] hover:bg-emerald-500/20 text-emerald-300 transition-all border border-emerald-500/30"
+                title="1 Round: Direct Grand Finale"
+              >
+                1 Round (Direct Final)
+              </button>
+            </div>
+
             <Button
               size="sm"
               variant="secondary"
