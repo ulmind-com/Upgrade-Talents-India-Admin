@@ -1734,6 +1734,19 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
     }
   };
 
+  // Map each confirmed present participant to their chronological on-the-spot venue entry order
+  const entryOrderMap = useMemo(() => {
+    const presentOnly = rawParticipants
+      .filter((p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT") && p.attended_at)
+      .sort((a: any, b: any) => new Date(a.attended_at).getTime() - new Date(b.attended_at).getTime());
+    const map = new Map<string, number>();
+    presentOnly.forEach((p: any, idx: number) => {
+      const id = String(p._id || p.registration_id || "");
+      if (id) map.set(id, idx + 1);
+    });
+    return map;
+  }, [rawParticipants]);
+
   const filtered = useMemo(() => {
     return rawParticipants.filter((p: any) => {
       const isCash = Boolean(p.cash_payment || p.payment_method === "CASH");
@@ -2223,10 +2236,19 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                       {isPresent ? "✓ Present (Checked In)" : "Mark Present"}
                     </button>
                   </div>
-                  {isPresent && r.attended_at && (
-                    <span className="text-[10px] font-mono text-emerald-400/90 flex items-center gap-1">
-                      <Clock className="size-2.5 text-emerald-400" /> {formatDate(r.attended_at, true)}
-                    </span>
+                  {isPresent && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {entryOrderMap.has(String(rId)) && (
+                        <span className="rounded bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 font-mono text-[9.5px] font-black text-emerald-300">
+                          Venue Entry #{entryOrderMap.get(String(rId))}
+                        </span>
+                      )}
+                      {r.attended_at && (
+                        <span className="text-[10px] font-mono text-emerald-400/90 flex items-center gap-1">
+                          <Clock className="size-2.5 text-emerald-400" /> {formatDate(r.attended_at, true)}
+                        </span>
+                      )}
+                    </div>
                   )}
                   {!isPresent && (
                     <span className="text-[10px] text-zinc-500 font-medium">
