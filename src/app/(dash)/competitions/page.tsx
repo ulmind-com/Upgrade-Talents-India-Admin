@@ -7,7 +7,7 @@ import {
   Upload, Loader2, Plus, Trash2, Image as ImageIcon,
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
   ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square,
-  Link2, Music, FileUp, Sparkles
+  Link2, Music, FileUp, Sparkles, UserCheck, XCircle
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
@@ -1044,20 +1044,57 @@ function JudgesPanel({
 }) {
   const { push } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
-  const details: any[] = progress?.judge_details || [];
-  const assigned = new Map<string, any>(details.map((d: any) => [d.judge_email, d]));
-  const rows = [...judges].sort(
-    (a, b) => Number(assigned.has(b.email)) - Number(assigned.has(a.email))
+  const details: any[] = progress?.judge_details || progress?.judges || [];
+  const assignedMap = new Map<string, any>();
+  for (const d of details) {
+    if (d?.judge_email) {
+      assignedMap.set(String(d.judge_email).trim().toLowerCase(), d);
+    }
+  }
+
+  const isAssigned = (j: any) => {
+    const em = String(j.email || "").trim().toLowerCase();
+    if (assignedMap.has(em)) return true;
+    if (Array.isArray(j.assigned_competitions)) {
+      return j.assigned_competitions.some((c: any) => String(c) === String(compId));
+    }
+    return false;
+  };
+
+  const getStat = (j: any) => {
+    const em = String(j.email || "").trim().toLowerCase();
+    return assignedMap.get(em);
+  };
+
+  const filtered = [...judges].filter((j) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      String(j.full_name || j.name || "").toLowerCase().includes(q) ||
+      String(j.email || "").toLowerCase().includes(q)
+    );
+  });
+
+  const rows = filtered.sort(
+    (a, b) => Number(isAssigned(b)) - Number(isAssigned(a))
   );
 
-  const toggle = async (email: string, isAssigned: boolean) => {
-    setBusy(email);
+  const totalAssigned = judges.filter(isAssigned).length;
+
+  const toggle = async (email: string, currentlyAssigned: boolean) => {
+    const cleanEmail = email.trim().toLowerCase();
+    setBusy(cleanEmail);
     try {
-      const body = { judge_email: email, competition_id: compId };
-      if (isAssigned) await judgesApi.unassign(body);
-      else await judgesApi.assign(body);
-      push("success", isAssigned ? `Removed ${email} from this competition.` : `Assigned ${email} to this competition.`);
+      const body = { judge_email: cleanEmail, competition_id: compId };
+      if (currentlyAssigned) {
+        await judgesApi.unassign(body);
+        push("info", `Removed ${cleanEmail} from this competition.`);
+      } else {
+        await judgesApi.assign(body);
+        push("success", `Assigned ${cleanEmail} to this competition & official appointment email sent!`);
+      }
       reload();
     } catch (e: any) {
       push("error", e?.message || "Could not update the assignment.");
@@ -1068,40 +1105,61 @@ function JudgesPanel({
 
   return (
     <Panel
-      title="Judges on this competition"
-      subtitle="Assigned judges see this competition in their scoring portal."
+      title={`Judges on this competition (${totalAssigned} assigned)`}
+      subtitle="Assigned judges see this competition and its live stage contestants in their scoring portal."
       className="shadow-none"
       bodyClassName="p-0"
     >
+      <div className="border-b border-[var(--border)] p-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-subtle)]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search judges by name or email…"
+            className="h-8.5 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)] transition-colors"
+          />
+        </div>
+      </div>
       {rows.length === 0 ? (
         <p className="px-4 py-6 text-center text-[13px] text-[var(--fg-muted)]">
-          No judges yet — add them from the Judges page first.
+          {search ? "No judges match your search." : "No judges yet — add them from the Judges page first."}
         </p>
       ) : (
-        <ul className="divide-y divide-[var(--border)]">
+        <ul className="divide-y divide-[var(--border)] max-h-80 overflow-y-auto">
           {rows.map((j) => {
-            const isAssigned = assigned.has(j.email);
-            const stat = assigned.get(j.email);
+            const assignedStatus = isAssigned(j);
+            const stat = getStat(j);
+            const cleanEm = String(j.email || "").trim().toLowerCase();
             return (
-              <li key={j.email} className="flex items-center gap-3 px-4 py-3">
+              <li key={cleanEm} className="flex items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-semibold">
-                    {j.full_name || j.name || "Unnamed"}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-[13.5px] font-semibold text-white">
+                      {j.full_name || j.name || "Unnamed"}
+                    </p>
+                    {assignedStatus && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10.5px] font-bold text-emerald-400">
+                        <CheckCircle2 className="size-3 text-emerald-400" /> Active Judge
+                      </span>
+                    )}
+                  </div>
                   <p className="truncate text-[11.5px] text-[var(--fg-muted)]">
-                    {j.email}
-                    {isAssigned && stat ? ` · ${stat.scored ?? 0} scored · ${stat.pending ?? 0} pending` : ""}
+                    {cleanEm}
+                    {assignedStatus && stat ? ` · ${stat.scored ?? 0} scored · ${stat.pending ?? 0} pending` : ""}
                   </p>
                 </div>
                 <Button
                   size="sm"
-                  variant={isAssigned ? "ghost" : "secondary"}
-                  loading={busy === j.email}
-                  disabled={!!busy && busy !== j.email}
-                  onClick={() => toggle(j.email, isAssigned)}
+                  variant={assignedStatus ? "ghost" : "secondary"}
+                  loading={busy === cleanEm}
+                  disabled={!!busy && busy !== cleanEm}
+                  onClick={() => toggle(cleanEm, assignedStatus)}
+                  className={assignedStatus ? "text-rose-400 hover:text-rose-300 hover:bg-rose-500/10" : "bg-emerald-600/80 hover:bg-emerald-500 text-white"}
                 >
-                  {isAssigned ? <UserMinus className="size-3.5" aria-hidden /> : <UserPlus className="size-3.5" aria-hidden />}
-                  {isAssigned ? "Remove" : "Assign"}
+                  {assignedStatus ? <UserMinus className="size-3.5" aria-hidden /> : <UserPlus className="size-3.5" aria-hidden />}
+                  {assignedStatus ? "Remove" : "Assign Judge"}
                 </Button>
               </li>
             );
@@ -1574,6 +1632,8 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
   const totalRegistered = data?.total_registered ?? rawParticipants.length;
   const confirmedCount = data?.confirmed_count ?? rawParticipants.filter((p: any) => p.status === "CONFIRMED").length;
   const submissionsCount = data?.submissions_count ?? rawParticipants.filter((p: any) => !!p.submission).length;
+  const presentCount = data?.present_count ?? rawParticipants.filter((p: any) => p.is_present || p.attendance_status === "PRESENT").length;
+  const absentCount = data?.absent_count ?? Math.max(0, totalRegistered - presentCount);
 
   // Online metrics:
   const onlineTotal = data?.online_total ?? rawParticipants.filter((p: any) => p.payment_method === "ONLINE" || (!p.cash_payment && p.payment_method !== "CASH" && p.payment_method !== "FREE")).length;
@@ -1666,7 +1726,11 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
       const isPaid = p.payment_status === "PAID" || p.cash_status === "COLLECTED" || p.cash_status === "PAID";
 
       let matchFilter = true;
-      if (filterMode === "ONLINE_PAID") {
+      if (filterMode === "PRESENT") {
+        matchFilter = Boolean(p.is_present || p.attendance_status === "PRESENT");
+      } else if (filterMode === "ABSENT") {
+        matchFilter = !Boolean(p.is_present || p.attendance_status === "PRESENT");
+      } else if (filterMode === "ONLINE_PAID") {
         matchFilter = !isCash && !isFree && p.payment_status === "PAID";
       } else if (filterMode === "ONLINE_PENDING") {
         matchFilter = !isCash && !isFree && p.payment_status !== "PAID";
@@ -1700,7 +1764,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
   return (
     <div className="flex flex-col gap-5 text-xs">
       {/* ── KPI Metric Strip (Clean, Compact, No Word Breaks) ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {/* Total Registered */}
         <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
           <div className="flex items-center justify-between gap-2">
@@ -1716,6 +1780,29 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-emerald-300/80">
             <span className="size-1.5 rounded-full bg-emerald-400" />
             <span>{confirmedCount} confirmed</span>
+          </div>
+        </div>
+
+        {/* On-The-Spot Attendance */}
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-teal-500/35 bg-gradient-to-br from-teal-500/15 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-300 whitespace-nowrap">Event Attendance</span>
+            <div className="flex size-7 items-center justify-center rounded-lg bg-teal-500/20 text-teal-300 shrink-0">
+              <UserCheck className="size-3.5" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-teal-300 tabular-nums tracking-tight whitespace-nowrap">{presentCount}</span>
+            <span className="text-[11px] font-medium text-teal-400 whitespace-nowrap">Present</span>
+            <span className="text-[10px] text-[var(--fg-muted)] whitespace-nowrap">({absentCount} absent)</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[10.5px]">
+            <span className={absentCount > 0 ? "text-amber-300 font-semibold" : "text-emerald-400 font-medium"}>
+              {absentCount > 0 ? `${absentCount} Absent` : "All Present"}
+            </span>
+            <span className="text-teal-400 font-bold tabular-nums">
+              {totalRegistered > 0 ? Math.round((presentCount / totalRegistered) * 100) : 0}% Turnout
+            </span>
           </div>
         </div>
 
@@ -1818,6 +1905,34 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
             >
               <Users className="size-3.5" /> All ({totalRegistered})
             </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterMode("PRESENT")}
+              className={cn(
+                "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                filterMode === "PRESENT"
+                  ? "bg-teal-500/25 text-teal-200 border border-teal-500/50 shadow-sm"
+                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-teal-300"
+              )}
+            >
+              <UserCheck className="size-3.5 text-teal-400" /> Present ({presentCount})
+            </button>
+
+            {absentCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterMode("ABSENT")}
+                className={cn(
+                  "cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                  filterMode === "ABSENT"
+                    ? "bg-rose-500/25 text-rose-200 border border-rose-500/50 shadow-sm"
+                    : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-rose-300"
+                )}
+              >
+                <XCircle className="size-3.5 text-rose-400" /> Absent ({absentCount})
+              </button>
+            )}
 
             <button
               type="button"
@@ -2042,6 +2157,80 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                 </div>
               );
             },
+          },
+          {
+            key: "attendance",
+            header: "On-The-Spot Attendance",
+            width: "210px",
+            render: (r: any) => {
+              const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
+              const rId = r._id || r.registration_id;
+              const isBusy = actionLoading === `att-${rId}`;
+              return (
+                <div className="flex flex-col gap-1.5 min-w-[170px]">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={async () => {
+                        setActionLoading(`att-${rId}`);
+                        try {
+                          const nextState = !isPresent;
+                          await competitionsApi.markAttendance(compId, rId, nextState);
+                          push(
+                            nextState ? "success" : "info",
+                            nextState
+                              ? `✓ Marked ${r.user_name || "participant"} as PRESENT on venue.`
+                              : `Marked ${r.user_name || "participant"} as ABSENT.`
+                          );
+                          reload();
+                        } catch (e: any) {
+                          push("error", e?.message || "Failed to update attendance.");
+                        } finally {
+                          setActionLoading(null);
+                        }
+                      }}
+                      className={cn(
+                        "cursor-pointer inline-flex items-center gap-1.5 rounded-lg font-bold text-[10.5px] px-2.5 py-1.5 transition-all shadow-sm whitespace-nowrap disabled:opacity-50",
+                        isPresent
+                          ? "bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 shadow-emerald-950/20"
+                          : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 hover:border-zinc-500"
+                      )}
+                      title={isPresent ? "Click to toggle Absent" : "Click to mark Present"}
+                    >
+                      {isBusy ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : isPresent ? (
+                        <CheckCircle2 className="size-3 text-emerald-200" />
+                      ) : (
+                        <XCircle className="size-3 text-zinc-400" />
+                      )}
+                      {isPresent ? "✓ Present (Checked In)" : "Mark Present"}
+                    </button>
+                  </div>
+                  {isPresent && r.attended_at && (
+                    <span className="text-[10px] font-mono text-emerald-400/90 flex items-center gap-1">
+                      <Clock className="size-2.5 text-emerald-400" /> {formatDate(r.attended_at, true)}
+                    </span>
+                  )}
+                  {!isPresent && (
+                    <span className="text-[10px] text-zinc-500 font-medium">
+                      Not checked in at venue
+                    </span>
+                  )}
+                </div>
+              );
+            },
+          },
+          {
+            key: "category",
+            header: "Category",
+            width: "120px",
+            render: (r: any) => (
+              <span className="inline-flex items-center rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10.5px] font-bold text-violet-300 whitespace-nowrap">
+                {r.category || "General"}
+              </span>
+            ),
           },
           {
             key: "registration_reference",

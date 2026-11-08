@@ -255,6 +255,18 @@ export const competitionsApi = {
     api<any>(`${comp}/${compId}/participants/${regId}/revert-cash`, { method: "PATCH" }),
   verifyParticipantGovtId: (compId: string, regId: string, body?: any) =>
     api<any>(`${comp}/${compId}/participants/${regId}/verify-govt-id`, { method: "POST", body }),
+  attendanceDashboard: (compId: string, category?: string) =>
+    api<any>(`${comp}/${compId}/attendance`, { query: category ? { category } : undefined }),
+  markAttendance: (compId: string, regId: string, isPresent: boolean, notes?: string) =>
+    api<any>(`${comp}/${compId}/participants/${regId}/attendance`, {
+      method: "PATCH",
+      body: { is_present: isPresent, attendance_status: isPresent ? "PRESENT" : "ABSENT", notes },
+    }),
+  bulkAttendance: (compId: string, regIds: string[], isPresent: boolean) =>
+    api<any>(`${comp}/${compId}/attendance/bulk`, {
+      method: "POST",
+      body: { registration_ids: regIds, is_present: isPresent, attendance_status: isPresent ? "PRESENT" : "ABSENT" },
+    }),
   stageDashboard: (compId: string) => api<any>(`${comp}/${compId}/stage`),
   setStagePerformer: (compId: string, identifier: string, notes?: string) =>
     api<any>(`${comp}/${compId}/stage/set-performer`, { method: "POST", body: { identifier, notes } }),
