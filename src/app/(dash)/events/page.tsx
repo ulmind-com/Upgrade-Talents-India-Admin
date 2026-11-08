@@ -18,6 +18,10 @@ import {
   X,
   ArrowUpRight,
   Sparkles,
+  Armchair,
+  Plus,
+  Trash2,
+  Layers,
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import {
@@ -164,6 +168,18 @@ export default function EventsPage() {
                     <p className="truncate text-[11.5px] text-[var(--fg-muted)]">
                       {r.venue || "Venue TBA"}
                     </p>
+                    {Array.isArray(r.categories) && r.categories.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {r.categories.map((c: any, i: number) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 rounded bg-[var(--surface-2)] border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--fg-muted)]"
+                          >
+                            {c.name}: {formatINR(c.price)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ),
               },
@@ -347,7 +363,20 @@ export default function EventsPage() {
                 half: true,
                 defaultValue: false,
               },
+              {
+                name: "categories",
+                label: "Seating Categories & Ticket Tiers (BookMyShow Style)",
+                type: "custom",
+                hint: "Configure tiered seating (e.g. Platinum Front Row, Gold Center Arena, Silver Balcony). Ticket tiers automatically sync with matching prices and capacities.",
+                render: ({ value, onChange }) => (
+                  <EventCategoriesEditor value={value} onChange={onChange} />
+                ),
+              },
             ],
+            toForm: (r: any) => ({
+              ...r,
+              categories: Array.isArray(r.categories) ? r.categories : [],
+            }),
             toBody: (v) => ({
               title: v.title,
               description: v.description,
@@ -357,6 +386,16 @@ export default function EventsPage() {
               venue: v.venue,
               capacity: Number(v.capacity) || 0,
               price: Number(v.price) || 0,
+              categories: Array.isArray(v.categories)
+                ? v.categories
+                    .map((c: any) => ({
+                      name: String(c.name || "").trim(),
+                      price: Number(c.price || 0),
+                      capacity: c.capacity ? Number(c.capacity) : null,
+                      description: c.description ? String(c.description).trim() : null,
+                    }))
+                    .filter((c: any) => c.name)
+                : [],
               registration_deadline: v.registration_deadline || null,
               event_status: v.event_status,
               is_published: !!v.is_published,
@@ -1258,5 +1297,179 @@ function exportAttendeesToCsv(eventTitle: string, bookings: any[]) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   3. EVENT CATEGORIES & TICKET TIERS EDITOR (BookMyShow Style)
+   ═══════════════════════════════════════════════════════════════════ */
+
+interface CategoryItem {
+  name: string;
+  price: number;
+  capacity?: number;
+  description?: string;
+}
+
+function EventCategoriesEditor({
+  value,
+  onChange,
+}: {
+  value: CategoryItem[] | undefined;
+  onChange: (v: CategoryItem[]) => void;
+}) {
+  const categories: CategoryItem[] = Array.isArray(value) ? value : [];
+
+  const updateItem = (idx: number, patch: Partial<CategoryItem>) => {
+    const next = [...categories];
+    next[idx] = { ...next[idx], ...patch };
+    onChange(next);
+  };
+
+  const removeItem = (idx: number) => {
+    onChange(categories.filter((_, i) => i !== idx));
+  };
+
+  const addItem = (cat: CategoryItem = { name: "", price: 0, capacity: 50, description: "" }) => {
+    onChange([...categories, cat]);
+  };
+
+  const applyPreset = (preset: CategoryItem[]) => {
+    onChange(preset);
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3">
+        <div>
+          <div className="flex items-center gap-1.5 font-semibold text-xs text-[var(--fg)]">
+            <Armchair className="size-4 text-[var(--brand)]" />
+            BookMyShow Seating Categories &amp; Ticket Tiers
+          </div>
+          <p className="text-[11px] text-[var(--fg-muted)]">
+            Configure tiered seating (e.g. Platinum Front Row, Gold Center Arena, Silver Balcony). Ticket tiers auto-sync with these prices.
+          </p>
+        </div>
+
+        {/* Quick Presets */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-mono text-[var(--fg-muted)] uppercase">Presets:</span>
+          <button
+            type="button"
+            onClick={() =>
+              applyPreset([
+                { name: "Platinum", price: 1500, capacity: 50, description: "Front Row VIP Lounge with refreshments" },
+                { name: "Gold", price: 800, capacity: 150, description: "Center Arena Elevated Eye-Level Seating" },
+                { name: "Silver", price: 400, capacity: 300, description: "Balcony / Standard General Admission" },
+              ])
+            }
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
+          >
+            3-Tier (Plat/Gold/Silv)
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              applyPreset([
+                { name: "VIP Lounge", price: 2000, capacity: 40, description: "VIP Front Stage Recliner Seating" },
+                { name: "General Admission", price: 500, capacity: 400, description: "Standard General Admission" },
+              ])
+            }
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
+          >
+            VIP &amp; General
+          </button>
+          <button
+            type="button"
+            onClick={() => addItem()}
+            className="inline-flex items-center gap-1 rounded-lg bg-[var(--brand)] px-2.5 py-1 text-[11px] font-bold text-[var(--on-brand)] shadow-sm hover:opacity-90"
+          >
+            <Plus className="size-3" /> Add Tier
+          </button>
+        </div>
+      </div>
+
+      {categories.length === 0 ? (
+        <div className="py-6 text-center text-xs text-[var(--fg-muted)] border border-dashed border-[var(--border)] rounded-xl">
+          <p>No custom seating categories configured.</p>
+          <p className="mt-1 text-[11px]">
+            The event will use the single Base Price and Capacity above, or click a preset above to create BookMyShow seating zones.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {categories.map((c, idx) => (
+            <div
+              key={idx}
+              className="relative flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-xs"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="grid size-6 place-items-center rounded-md bg-[var(--surface-2)] text-[10.5px] font-mono font-bold text-[var(--fg-muted)]">
+                  #{idx + 1}
+                </span>
+
+                {/* Name */}
+                <div className="flex-1 min-w-[120px]">
+                  <input
+                    type="text"
+                    value={c.name}
+                    onChange={(e) => updateItem(idx, { name: e.target.value })}
+                    placeholder="Category Name (e.g. Platinum, Gold)"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold text-[var(--fg)] outline-none focus:border-[var(--brand)]"
+                  />
+                </div>
+
+                {/* Price */}
+                <div className="w-28">
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1.5 text-xs text-[var(--fg-muted)] font-mono">₹</span>
+                    <input
+                      type="number"
+                      value={c.price}
+                      onChange={(e) => updateItem(idx, { price: Number(e.target.value) || 0 })}
+                      placeholder="Price"
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-6 pr-2 py-1.5 text-xs font-mono font-bold text-[var(--fg)] outline-none focus:border-[var(--brand)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Capacity */}
+                <div className="w-24">
+                  <input
+                    type="number"
+                    value={c.capacity ?? ""}
+                    onChange={(e) => updateItem(idx, { capacity: e.target.value ? Number(e.target.value) : undefined })}
+                    placeholder="Seats"
+                    title="Capacity / Available seats in this zone"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-mono text-[var(--fg)] outline-none focus:border-[var(--brand)]"
+                  />
+                </div>
+
+                {/* Delete button */}
+                <button
+                  type="button"
+                  onClick={() => removeItem(idx)}
+                  className="grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                  title="Remove this category"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+
+              {/* Description / Seating Zone Perks */}
+              <div>
+                <input
+                  type="text"
+                  value={c.description || ""}
+                  onChange={(e) => updateItem(idx, { description: e.target.value })}
+                  placeholder="Seating zone perks & location (e.g. Front Row VIP, Middle Stalls, Elevated Balcony)"
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11.5px] text-[var(--fg-muted)] outline-none focus:border-[var(--brand)]"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
