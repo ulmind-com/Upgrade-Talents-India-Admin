@@ -178,6 +178,18 @@ export const cmsApi = {
   updateTicket: (id: string, body: any) => api<any>(`${cms}/tickets/${id}`, { method: "PUT", body }),
   deleteTicket: (id: string) => api<any>(`${cms}/tickets/${id}`, { method: "DELETE" }),
   listEventBookings: (eventId: string, q?: any) => api<any>(`${cms}/events/${eventId}/bookings`, { query: q }),
+  getEventAttendance: (eventId: string) => api<any>(`${cms}/events/${eventId}/attendance`),
+  updateEventAttendance: (eventId: string, bookingId: string, isPresent: boolean, notes?: string) =>
+    api<any>(`${cms}/events/${eventId}/attendance/${bookingId}`, {
+      method: "PATCH",
+      body: { is_present: isPresent, attendance_status: isPresent ? "PRESENT" : "ABSENT", notes },
+    }),
+  bulkUpdateEventAttendance: (eventId: string, bookingIds: string[], isPresent: boolean) =>
+    api<any>(`${cms}/events/${eventId}/attendance/bulk`, {
+      method: "POST",
+      body: { registration_ids: bookingIds, is_present: isPresent, attendance_status: isPresent ? "PRESENT" : "ABSENT" },
+    }),
+  getEventTicketSummary: (eventId: string) => api<any>(`/api/admin/analytics/events/${eventId}/ticket-summary`),
   listAllBookings: (q?: any) => api<any>(`${cms}/bookings`, { query: q }),
   getBookingDetail: (bookingId: string) => api<any>(`${cms}/bookings/${bookingId}`),
 

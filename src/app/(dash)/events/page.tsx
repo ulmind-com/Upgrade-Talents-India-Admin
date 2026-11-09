@@ -22,6 +22,15 @@ import {
   Plus,
   Trash2,
   Layers,
+  Share2,
+  Check,
+  Copy,
+  ExternalLink,
+  MessageCircle,
+  Send,
+  Upload,
+  Loader2,
+  ImageIcon,
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import {
@@ -33,10 +42,15 @@ import {
   Select,
   Badge,
   Loading,
+  Input,
 } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
 import { cmsApi, safe, toRows } from "@/lib/api";
-import { formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
+import { cn, formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
+
+/* ═══════════════════════════════════════════════════════════════════
+   1. MAIN EVENTS MANAGEMENT DASHBOARD
+   ═══════════════════════════════════════════════════════════════════ */
 
 export default function EventsPage() {
   const { push } = useToast();
@@ -47,8 +61,9 @@ export default function EventsPage() {
     Record<string, { bookings: number; tickets: number; revenue: number }>
   >({});
 
-  // Modal for quick attendee inspection from table
+  // Modals
   const [modalEvent, setModalEvent] = useState<any | null>(null);
+  const [shareEvent, setShareEvent] = useState<any | null>(null);
 
   // Load all bookings to provide live booking counts in the directory table
   const loadGlobalBookingStats = useCallback(async () => {
@@ -130,7 +145,7 @@ export default function EventsPage() {
             className={`min-h-[38px] cursor-pointer rounded-xl px-4 text-xs font-semibold transition-all ${
               activeTab === "directory"
                 ? "bg-[var(--brand)] text-[var(--on-brand)] shadow-sm"
-                : "border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-[var(--fg)]"
+                : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
             }`}
           >
             All Events Directory
@@ -138,16 +153,14 @@ export default function EventsPage() {
           <button
             onClick={() => setActiveTab("bookings")}
             aria-pressed={activeTab === "bookings"}
-            className={`min-h-[38px] cursor-pointer rounded-xl px-4 text-xs font-semibold transition-all ${
+            className={`min-h-[38px] cursor-pointer rounded-xl px-4 text-xs font-semibold transition-all flex items-center gap-2 ${
               activeTab === "bookings"
                 ? "bg-[var(--brand)] text-[var(--on-brand)] shadow-sm"
-                : "border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-[var(--fg)]"
+                : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
             }`}
           >
-            <span className="flex items-center gap-1.5">
-              <Users className="size-3.5" />
-              Event Bookings & Attendees
-            </span>
+            <Users className="size-3.5" />
+            <span>Event Bookings &amp; Attendees</span>
           </button>
         </div>
       </div>
@@ -169,30 +182,50 @@ export default function EventsPage() {
                 key: "title",
                 header: "Event",
                 render: (r) => (
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate font-semibold">{r.title}</p>
-                      {r.updated_at && (
-                        <span className="shrink-0 rounded bg-emerald-500/15 border border-emerald-500/30 px-1 py-0.2 text-[9.5px] font-mono text-emerald-400">
-                          Updated
-                        </span>
-                      )}
-                    </div>
-                    <p className="truncate text-[11px] text-[var(--fg-muted)]">
-                      {r.venue || "Venue TBA"} · <span className="font-mono text-[10px] text-[var(--fg-subtle)]">ID: {String(rowId(r)).slice(-6)}</span>
-                    </p>
-                    {Array.isArray(r.categories) && r.categories.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {r.categories.map((c: any, i: number) => (
-                          <span
-                            key={i}
-                            className="inline-flex items-center gap-1 rounded bg-[var(--surface-2)] border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--fg)] font-medium"
-                          >
-                            <span className="font-bold text-[var(--brand)]">{c.name}:</span> {formatINR(c.price)} {c.capacity ? `(${c.capacity}s)` : ""}
-                          </span>
-                        ))}
+                  <div className="flex items-center gap-3">
+                    {r.image_url || r.card_image_url ? (
+                      <img
+                        src={r.image_url || r.card_image_url}
+                        alt=""
+                        className="size-11 rounded-xl object-cover border border-[var(--border)] bg-[var(--surface-2)] shrink-0"
+                      />
+                    ) : (
+                      <div className="grid size-11 place-items-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-subtle)] shrink-0">
+                        <Calendar className="size-5" />
                       </div>
                     )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-xs truncate max-w-[260px]">{r.title}</span>
+                        {r.updated_at && (
+                          <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-400 border border-sky-500/20" title={`Last updated: ${new Date(r.updated_at).toLocaleString()}`}>
+                            Updated
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-mono text-[10px] text-[var(--fg-subtle)]">ID: {rowId(r)}</p>
+                      <p className="text-[11px] text-[var(--fg-muted)] truncate max-w-[260px]">
+                        {r.venue || "No venue"}
+                      </p>
+                      {/* Seating Categories pill badges */}
+                      {Array.isArray(r.categories) && r.categories.length > 0 && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          {r.categories.slice(0, 3).map((c: any, i: number) => (
+                            <span
+                              key={i}
+                              className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 text-[9.5px] font-mono text-[var(--brand)] border border-[var(--border)]"
+                            >
+                              {c.name}: {c.price === 0 ? "Free" : `₹${c.price}`}
+                            </span>
+                          ))}
+                          {r.categories.length > 3 && (
+                            <span className="text-[9.5px] font-mono text-[var(--fg-subtle)]">
+                              +{r.categories.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ),
               },
@@ -200,7 +233,7 @@ export default function EventsPage() {
                 key: "date",
                 header: "Date",
                 render: (r) => (
-                  <span className="whitespace-nowrap text-xs">
+                  <span className="text-xs font-medium">
                     {formatDate(r.date)}
                     {r.time ? ` · ${r.time}` : ""}
                   </span>
@@ -209,12 +242,20 @@ export default function EventsPage() {
               {
                 key: "price",
                 header: "Base Price",
-                render: (r) => <span className="text-xs font-mono">{formatINR(r.price)}</span>,
+                render: (r) => (
+                  <span className="font-mono text-xs font-semibold text-white">
+                    {formatINR(r.price)}
+                  </span>
+                ),
               },
               {
                 key: "capacity",
                 header: "Capacity",
-                render: (r) => <span className="text-xs">{r.capacity ?? "—"}</span>,
+                render: (r) => (
+                  <span className="font-mono text-xs text-[var(--fg-muted)]">
+                    {formatNumber(r.capacity || 0)}
+                  </span>
+                ),
               },
               {
                 key: "bookings",
@@ -226,7 +267,7 @@ export default function EventsPage() {
                   return (
                     <button
                       type="button"
-                      onClick={() => openEventBookingsModal(r)}
+                      onClick={() => openEventBookingsTab(r)}
                       className="group inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-left text-[12px] font-semibold text-[var(--fg)] transition-all hover:border-[var(--brand)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]"
                       title="Click to view attendee bookings for this event"
                     >
@@ -267,9 +308,17 @@ export default function EventsPage() {
                 </Button>
                 <Button
                   size="sm"
+                  variant="ghost"
+                  onClick={() => setShareEvent(row)}
+                  title="Share Booking Links (WhatsApp, Telegram, Direct)"
+                >
+                  <Share2 className="size-3.5 text-sky-400" aria-hidden /> Share
+                </Button>
+                <Button
+                  size="sm"
                   variant="secondary"
                   onClick={() => openEventBookingsModal(row)}
-                  title="View attendee bookings and ticket passes"
+                  title="View attendee bookings and live gate attendance"
                 >
                   <Users className="size-3.5 text-[var(--brand)]" aria-hidden /> Bookings
                 </Button>
@@ -307,14 +356,41 @@ export default function EventsPage() {
               </div>
             ),
             fields: [
-              { name: "title", label: "Title", required: true, placeholder: "Neon Nights Battle" },
+              { name: "title", label: "Title", required: true, placeholder: "Grand Gala Festival" },
               { name: "description", label: "Description", type: "textarea", required: true },
               {
                 name: "image_url",
-                label: "Cover image URL",
-                type: "url",
+                label: "16:9 Desktop Image / Card",
+                type: "custom",
                 half: true,
-                hint: "Shown on the website hero and cards.",
+                hint: "Shown on desktop hero and event cards (16:9 aspect ratio).",
+                render: ({ value, onChange }) => (
+                  <ImageUploadField
+                    label="Desktop Card Image"
+                    aspectRatioLabel="16:9 Desktop"
+                    aspectClass="aspect-video w-36"
+                    value={value || ""}
+                    onChange={onChange}
+                    onUpload={(f) => cmsApi.uploadBannerImage(f, "16:9")}
+                  />
+                ),
+              },
+              {
+                name: "banner_url",
+                label: "9:16 Mobile Image / Banner",
+                type: "custom",
+                half: true,
+                hint: "Shown on mobile feeds and stories (9:16 aspect ratio).",
+                render: ({ value, onChange }) => (
+                  <ImageUploadField
+                    label="Mobile Story Banner"
+                    aspectRatioLabel="9:16 Mobile"
+                    aspectClass="aspect-[9/16] w-20"
+                    value={value || ""}
+                    onChange={onChange}
+                    onUpload={(f) => cmsApi.uploadBannerImage(f, "9:16")}
+                  />
+                ),
               },
               { name: "venue", label: "Venue", required: true, half: true },
               { name: "date", label: "Date", type: "date", required: true, half: true },
@@ -397,12 +473,17 @@ export default function EventsPage() {
             ],
             toForm: (r: any) => ({
               ...r,
+              image_url: r.image_url || r.card_image_url || "",
+              banner_url: r.banner_url || r.banner_image_url || "",
               categories: Array.isArray(r.categories) ? r.categories : [],
             }),
             toBody: (v) => ({
               title: v.title,
               description: v.description,
-              image_url: v.image_url || null,
+              image_url: v.image_url ? String(v.image_url).trim() : null,
+              card_image_url: v.image_url ? String(v.image_url).trim() : null,
+              banner_url: v.banner_url ? String(v.banner_url).trim() : null,
+              banner_image_url: v.banner_url ? String(v.banner_url).trim() : null,
               date: v.date,
               time: v.time || null,
               venue: v.venue,
@@ -442,9 +523,19 @@ export default function EventsPage() {
           event={modalEvent}
           onClose={() => setModalEvent(null)}
           onOpenFullTab={() => {
-            openEventBookingsTab(modalEvent);
+            const eid = String(rowId(modalEvent));
             setModalEvent(null);
+            setSelectedEventId(eid);
+            setActiveTab("bookings");
           }}
+        />
+      )}
+
+      {/* ── Smart Share Links Modal ── */}
+      {shareEvent && (
+        <EventShareModal
+          event={shareEvent}
+          onClose={() => setShareEvent(null)}
         />
       )}
     </div>
@@ -452,7 +543,7 @@ export default function EventsPage() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   2. EVENT BOOKINGS INSPECTOR (Embedded inside Events Page)
+   2. EVENT BOOKINGS & ATTENDANCE INSPECTOR (Option B: Live Dashboard)
    ═══════════════════════════════════════════════════════════════════ */
 
 function EventBookingsInspector({
@@ -464,7 +555,9 @@ function EventBookingsInspector({
   selectedEventId: string;
   onSelectEvent: (id: string) => void;
 }) {
+  const { push } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [attendanceFilter, setAttendanceFilter] = useState<"ALL" | "PRESENT" | "ABSENT">("ALL");
   const [search, setSearch] = useState<string>("");
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
@@ -513,20 +606,83 @@ function EventBookingsInspector({
           : 0),
       0
     );
-  const checkedInCount =
-    data?.checked_in_count ??
-    rawBookings.reduce((s: number, b: any) => {
-      const tix = b.tickets || [];
-      return s + tix.filter((t: any) => t.is_checked_in).length;
-    }, 0);
+
+  // Present and Absent calculations
+  const presentCount = rawBookings.filter(
+    (b: any) => Boolean(b.is_present || b.attendance_status === "PRESENT" || (b.tickets || []).some((t: any) => t.is_checked_in))
+  ).length;
+  const absentCount = Math.max(0, totalCount - presentCount);
+  const turnoutPercent = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
 
   const capacity = Number(currentEvent?.capacity || 0);
   const percentFilled = capacity > 0 ? Math.min(100, Math.round((totalTickets / capacity) * 100)) : 0;
+
+  // Single-click manual Tick (✓) attendance handler
+  const handleToggleAttendance = async (booking: any) => {
+    if (!selectedEventId) return;
+    const bid = booking.booking_id || booking.registration_id || rowId(booking);
+    const isCurrentlyPresent = Boolean(
+      booking.is_present || booking.attendance_status === "PRESENT" || (booking.tickets || []).some((t: any) => t.is_checked_in)
+    );
+    const newStatus = !isCurrentlyPresent;
+
+    // Optimistic UI update
+    setData((prev: any) => {
+      if (!prev) return prev;
+      const bList = (prev.bookings || []).map((b: any) => {
+        const itemBid = b.booking_id || b.registration_id || rowId(b);
+        if (itemBid === bid || b.booking_reference === booking.booking_reference) {
+          return {
+            ...b,
+            is_present: newStatus,
+            attendance_status: newStatus ? "PRESENT" : "ABSENT",
+            attended_at: newStatus ? new Date().toISOString() : null,
+            tickets: (b.tickets || []).map((t: any) => ({ ...t, is_checked_in: newStatus })),
+          };
+        }
+        return b;
+      });
+      return { ...prev, bookings: bList };
+    });
+
+    try {
+      await cmsApi.updateEventAttendance(selectedEventId, bid, newStatus);
+      push("success", `${booking.user_name || "Attendee"} marked ${newStatus ? "PRESENT (✓)" : "ABSENT"}.`);
+    } catch (e: any) {
+      push("error", e?.message || "Failed to update attendance.");
+      loadBookings();
+    }
+  };
+
+  // Bulk Check-in handler
+  const handleBulkAttendance = async () => {
+    if (!selectedEventId || filteredBookings.length === 0) return;
+    const ids = filteredBookings
+      .map((b) => b.booking_id || b.registration_id || rowId(b))
+      .filter(Boolean);
+    if (!window.confirm(`Mark all ${ids.length} visible attendee(s) as PRESENT at the venue?`)) return;
+
+    try {
+      await cmsApi.bulkUpdateEventAttendance(selectedEventId, ids, true);
+      push("success", `Marked ${ids.length} attendees PRESENT.`);
+      loadBookings();
+    } catch (e: any) {
+      push("error", e?.message || "Bulk check-in failed.");
+    }
+  };
 
   const filteredBookings = useMemo(() => {
     return rawBookings.filter((b: any) => {
       const matchStatus =
         statusFilter === "ALL" || (b.booking_status || "").toUpperCase() === statusFilter;
+      
+      const isP = Boolean(
+        b.is_present || b.attendance_status === "PRESENT" || (b.tickets || []).some((t: any) => t.is_checked_in)
+      );
+      let matchAtt = true;
+      if (attendanceFilter === "PRESENT") matchAtt = isP;
+      if (attendanceFilter === "ABSENT") matchAtt = !isP;
+
       const s = search.toLowerCase().trim();
       const matchSearch =
         !s ||
@@ -535,9 +691,9 @@ function EventBookingsInspector({
         (b.user_name || "").toLowerCase().includes(s) ||
         (b.user_phone || "").toLowerCase().includes(s) ||
         (b.holder_names || []).some((h: string) => h.toLowerCase().includes(s));
-      return matchStatus && matchSearch;
+      return matchStatus && matchAtt && matchSearch;
     });
-  }, [rawBookings, statusFilter, search]);
+  }, [rawBookings, statusFilter, attendanceFilter, search]);
 
   const eventOptions = [
     { value: "", label: "— Select an Event —" },
@@ -551,6 +707,10 @@ function EventBookingsInspector({
     exportAttendeesToCsv(currentEvent?.title || "event", filteredBookings);
   };
 
+  const handleExportFinalPresent = () => {
+    exportFinalPresentListToCsv(currentEvent?.title || "event", rawBookings);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {/* ── Event Selector & Header ── */}
@@ -559,10 +719,10 @@ function EventBookingsInspector({
         title={
           <div className="flex items-center gap-2">
             <Users className="size-4 text-[var(--brand)]" />
-            <span>Select Event to Inspect Headcount & Attendee Details</span>
+            <span>Select Event for Live Gate Attendance &amp; Headcount</span>
           </div>
         }
-        subtitle="Choose any event to view live ticket sales, buyer contact details, and gate check-in status."
+        subtitle="Live attendee roster with single-click manual tick (✓) presence verification, overbooking locks, and final export."
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-[280px] max-w-md flex-1">
@@ -609,7 +769,7 @@ function EventBookingsInspector({
           <Users className="mx-auto size-10 text-[var(--fg-subtle)]" />
           <h3 className="mt-3 text-sm font-semibold">Please select an event above</h3>
           <p className="mt-1 text-xs text-[var(--fg-muted)]">
-            Pick an event from the dropdown to see who booked tickets, user contact info, and digital check-in passes.
+            Pick an event from the dropdown to see who booked tickets, user contact info, and mark live attendance.
           </p>
         </div>
       ) : (
@@ -617,45 +777,106 @@ function EventBookingsInspector({
           {/* ── Metric Stat Cards ── */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              label="Total Bookings"
+              label="Total Registered"
               value={formatNumber(totalCount)}
-              hint="Individual orders placed"
+              hint={`${totalTickets} passes issued across tiers`}
               Icon={Users}
               accent
               index={0}
             />
             <StatCard
-              label="Tickets Sold"
-              value={formatNumber(totalTickets)}
-              hint={capacity > 0 ? `${percentFilled}% of capacity filled (${capacity} total)` : "Passes issued"}
-              Icon={Ticket}
+              label="Present (Checked-In)"
+              value={formatNumber(presentCount)}
+              hint={`${turnoutPercent}% live turn-out at venue`}
+              Icon={CheckCircle2}
               index={1}
             />
             <StatCard
-              label="Ticket Revenue"
-              value={formatINR(totalRevenue)}
-              hint="Paid & confirmed bookings"
+              label="Absent (Pending Gate)"
+              value={formatNumber(absentCount)}
+              hint="Awaiting arrival at entrance"
               Icon={TrendingUp}
               index={2}
             />
             <StatCard
-              label="Gate Check-ins"
-              value={formatNumber(checkedInCount)}
-              hint={`${totalTickets ? Math.round((checkedInCount / totalTickets) * 100) : 0}% check-in rate`}
-              Icon={CheckCircle2}
+              label="Ticket Collections"
+              value={formatINR(totalRevenue)}
+              hint="Paid & confirmed bookings"
+              Icon={Ticket}
               index={3}
             />
+          </div>
+
+          {/* ── Attendance Filter Tabs ── */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAttendanceFilter("ALL")}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                  attendanceFilter === "ALL"
+                    ? "bg-[var(--brand)] text-[var(--on-brand)]"
+                    : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
+                }`}
+              >
+                All Attendees ({totalCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceFilter("PRESENT")}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  attendanceFilter === "PRESENT"
+                    ? "bg-emerald-500 text-black font-bold shadow-sm"
+                    : "border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                }`}
+              >
+                <Check className="size-3" /> Present ({presentCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceFilter("ABSENT")}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                  attendanceFilter === "ABSENT"
+                    ? "bg-amber-500 text-black font-bold shadow-sm"
+                    : "border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                }`}
+              >
+                Absent ({absentCount})
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleBulkAttendance}
+                disabled={filteredBookings.length === 0}
+                title="Mark all currently listed attendees as PRESENT"
+              >
+                <Check className="size-3.5 text-emerald-400" /> Bulk Check-In
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleExportFinalPresent}
+                disabled={presentCount === 0}
+                title="Export only present attendees for official closing records and certificates"
+                className="border-emerald-500/40 text-emerald-400"
+              >
+                <Download className="size-3.5" /> Final Present List (CSV)
+              </Button>
+            </div>
           </div>
 
           {/* ── Main Bookings Panel ── */}
           <Panel
             title={
               <div className="flex items-center gap-2">
-                <span>Attendee Ticket Bookings</span>
+                <span>Attendee Ticket Roster &amp; Gate Verification</span>
                 <Badge tone="neutral">{filteredBookings.length}</Badge>
               </div>
             }
-            subtitle={`Showing registered attendees and buyers for "${currentEvent?.title || "Selected Event"}"`}
+            subtitle={`Showing registered attendees for "${currentEvent?.title || "Selected Event"}"`}
             action={
               <div className="flex flex-wrap items-center gap-2.5">
                 <Select
@@ -667,7 +888,7 @@ function EventBookingsInspector({
                     { value: "PENDING", label: "Pending Payment" },
                     { value: "CANCELLED", label: "Cancelled" },
                   ]}
-                  className="h-9 w-[140px] text-xs"
+                  className="h-9 w-[130px] text-xs"
                 />
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-subtle)]" />
@@ -675,8 +896,8 @@ function EventBookingsInspector({
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search name, phone, email, ref..."
-                    className="h-9 w-[220px] rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)]"
+                    placeholder="Search name, phone, ref..."
+                    className="h-9 w-[200px] rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)]"
                   />
                 </div>
                 <Button
@@ -684,9 +905,9 @@ function EventBookingsInspector({
                   variant="secondary"
                   onClick={handleExportCsv}
                   disabled={filteredBookings.length === 0}
-                  title="Export attendee list to CSV"
+                  title="Export all attendee rows to CSV"
                 >
-                  <Download className="size-3.5" /> CSV
+                  <Download className="size-3.5" /> All CSV
                 </Button>
                 <Button size="sm" variant="secondary" onClick={loadBookings} title="Refresh live data">
                   <RefreshCw className="size-3.5" />
@@ -700,7 +921,7 @@ function EventBookingsInspector({
               error={error}
               onRetry={loadBookings}
               empty={{
-                title: "No bookings found for this event",
+                title: "No attendees found",
                 body: search
                   ? "No attendees match your current search query."
                   : "No tickets have been booked for this event yet.",
@@ -726,13 +947,13 @@ function EventBookingsInspector({
                   render: (r: any) => (
                     <div className="text-xs">
                       <p className="font-semibold text-white">{r.user_name || "Attendee"}</p>
-                      <p className="font-mono text-[11px] text-[var(--fg-muted)] truncate max-w-[200px]">
+                      <p className="font-mono text-[11px] text-[var(--fg-muted)] truncate max-w-[180px]">
                         {r.user_email}
                       </p>
                       {r.user_phone ? (
                         <p className="text-[11px] text-[var(--fg-subtle)] font-mono">{r.user_phone}</p>
                       ) : (
-                        <span className="text-[10px] text-[var(--fg-subtle)]">Phone not provided</span>
+                        <span className="text-[10px] text-[var(--fg-subtle)]">No phone</span>
                       )}
                     </div>
                   ),
@@ -742,8 +963,8 @@ function EventBookingsInspector({
                   header: "Tier / Pass",
                   render: (r: any) => (
                     <div className="text-xs">
-                      <span className="inline-block rounded bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium capitalize text-[var(--brand)]">
-                        {String(r.ticket_type || "general").replace(/_/g, " ")}
+                      <span className="inline-block rounded bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium capitalize text-[var(--brand)] border border-[var(--border)]">
+                        {String(r.ticket_type || r.category || "general").replace(/_/g, " ")}
                       </span>
                     </div>
                   ),
@@ -771,36 +992,50 @@ function EventBookingsInspector({
                       <span
                         className={`text-[10px] font-bold uppercase ${
                           r.payment_status === "PAID" || r.payment_status === "NOT_REQUIRED"
-                            ? "text-green-400"
+                            ? "text-emerald-400"
+                            : r.payment_method === "CASH"
+                            ? "text-amber-400"
                             : "text-amber-400"
                         }`}
                       >
-                        {r.payment_status}
+                        {r.payment_method === "CASH" ? "CASH PENDING" : r.payment_status}
                       </span>
                     </div>
                   ),
                 },
                 {
-                  key: "check_in",
-                  header: "Gate Check-in",
+                  key: "attendance",
+                  header: "Gate Attendance (✓)",
                   render: (r: any) => {
-                    const tix: any[] = r.tickets || [];
-                    const checkedIn = tix.filter((t) => t.is_checked_in).length;
-                    const total = tix.length || r.quantity || 1;
-                    const isAll = checkedIn === total && total > 0;
+                    const isPresent = Boolean(
+                      r.is_present || r.attendance_status === "PRESENT" || (r.tickets || []).some((t: any) => t.is_checked_in)
+                    );
                     return (
-                      <div className="text-xs">
-                        <span
-                          className={`inline-flex items-center gap-1 font-semibold ${
-                            isAll
-                              ? "text-green-400"
-                              : checkedIn > 0
-                              ? "text-amber-400"
-                              : "text-[var(--fg-subtle)]"
-                          }`}
-                        >
-                          <CheckCircle2 className="size-3" /> {checkedIn} / {total} Checked in
-                        </span>
+                      <div className="flex items-center gap-2">
+                        {isPresent ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                              <Check className="size-3 stroke-[3]" /> PRESENT
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAttendance(r)}
+                              className="text-[10px] text-[var(--fg-subtle)] hover:text-red-400 transition-colors underline"
+                              title="Revert check-in to absent"
+                            >
+                              Untick
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAttendance(r)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all shadow-sm"
+                            title="Mark attendee as PRESENT (✓)"
+                          >
+                            <Check className="size-3.5 stroke-[2.5]" /> Mark Present
+                          </button>
+                        )}
                       </div>
                     );
                   },
@@ -854,6 +1089,7 @@ function EventBookingsModal({
   onClose: () => void;
   onOpenFullTab: () => void;
 }) {
+  const { push } = useToast();
   const eventId = String(rowId(event));
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [search, setSearch] = useState<string>("");
@@ -895,15 +1131,44 @@ function EventBookingsModal({
           : 0),
       0
     );
-  const checkedInCount =
-    data?.checked_in_count ??
-    rawBookings.reduce((s: number, b: any) => {
-      const tix = b.tickets || [];
-      return s + tix.filter((t: any) => t.is_checked_in).length;
-    }, 0);
 
-  const capacity = Number(event?.capacity || 0);
-  const percentFilled = capacity > 0 ? Math.min(100, Math.round((totalTickets / capacity) * 100)) : 0;
+  const presentCount = rawBookings.filter(
+    (b: any) => Boolean(b.is_present || b.attendance_status === "PRESENT" || (b.tickets || []).some((t: any) => t.is_checked_in))
+  ).length;
+
+  const handleToggleAttendance = async (booking: any) => {
+    const bid = booking.booking_id || booking.registration_id || rowId(booking);
+    const isCurrentlyPresent = Boolean(
+      booking.is_present || booking.attendance_status === "PRESENT" || (booking.tickets || []).some((t: any) => t.is_checked_in)
+    );
+    const newStatus = !isCurrentlyPresent;
+
+    setData((prev: any) => {
+      if (!prev) return prev;
+      const bList = (prev.bookings || []).map((b: any) => {
+        const itemBid = b.booking_id || b.registration_id || rowId(b);
+        if (itemBid === bid || b.booking_reference === booking.booking_reference) {
+          return {
+            ...b,
+            is_present: newStatus,
+            attendance_status: newStatus ? "PRESENT" : "ABSENT",
+            attended_at: newStatus ? new Date().toISOString() : null,
+            tickets: (b.tickets || []).map((t: any) => ({ ...t, is_checked_in: newStatus })),
+          };
+        }
+        return b;
+      });
+      return { ...prev, bookings: bList };
+    });
+
+    try {
+      await cmsApi.updateEventAttendance(eventId, bid, newStatus);
+      push("success", `${booking.user_name || "Attendee"} marked ${newStatus ? "PRESENT (✓)" : "ABSENT"}.`);
+    } catch (e: any) {
+      push("error", e?.message || "Failed to update attendance.");
+      loadData();
+    }
+  };
 
   const filteredBookings = useMemo(() => {
     return rawBookings.filter((b: any) => {
@@ -915,186 +1180,172 @@ function EventBookingsModal({
         (b.booking_reference || "").toLowerCase().includes(s) ||
         (b.user_email || "").toLowerCase().includes(s) ||
         (b.user_name || "").toLowerCase().includes(s) ||
-        (b.user_phone || "").toLowerCase().includes(s) ||
-        (b.holder_names || []).some((h: string) => h.toLowerCase().includes(s));
+        (b.user_phone || "").toLowerCase().includes(s);
       return matchStatus && matchSearch;
     });
   }, [rawBookings, statusFilter, search]);
 
   return (
     <Modal
-      open={true}
+      open={!!event}
       onClose={onClose}
       wide
-      title={`Event Attendee Bookings · ${event.title}`}
-      subtitle={`${formatDate(event.date)}${event.venue ? ` · ${event.venue}` : ""} · Capacity: ${capacity || "—"}`}
+      title={`Live Attendance & Bookings: ${event.title}`}
+      subtitle={`Scheduled for ${formatDate(event.date)}${event.time ? ` at ${event.time}` : ""} · ${event.venue || "Venue TBA"}`}
       footer={
-        <div className="flex w-full items-center justify-between gap-3">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onOpenFullTab}
-            title="Open in dedicated full-page inspector"
-          >
-            <ArrowUpRight className="size-3.5" /> Open Full Page View
+        <div className="flex w-full items-center justify-between">
+          <Button size="sm" variant="secondary" onClick={onOpenFullTab}>
+            Open in Full Dedicated Attendance Tab →
           </Button>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => exportAttendeesToCsv(event.title, filteredBookings)}
-              disabled={filteredBookings.length === 0}
-            >
-              <Download className="size-3.5" /> Export CSV
-            </Button>
-            <Button size="sm" variant="primary" onClick={onClose}>
-              Done
-            </Button>
-          </div>
+          <Button size="sm" variant="secondary" onClick={onClose}>
+            Close
+          </Button>
         </div>
       }
     >
-      <div className="flex flex-col gap-5">
-        {/* ── Quick Stats Grid ── */}
+      <div className="flex flex-col gap-5 text-xs">
+        {/* Quick summary stats */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-            <p className="text-[11px] font-medium uppercase text-[var(--fg-muted)]">Bookings</p>
-            <p className="mt-1 text-xl font-bold text-white">{formatNumber(totalCount)}</p>
-            <p className="text-[10.5px] text-[var(--fg-subtle)]">Orders</p>
+            <span className="text-[11px] text-[var(--fg-muted)] uppercase">Registered</span>
+            <p className="mt-1 text-lg font-bold text-white">{totalCount}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
+            <span className="text-[11px] text-emerald-400 uppercase font-semibold">Present (✓)</span>
+            <p className="mt-1 text-lg font-bold text-emerald-400">{presentCount}</p>
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-            <p className="text-[11px] font-medium uppercase text-[var(--fg-muted)]">Tickets Sold</p>
-            <p className="mt-1 text-xl font-bold text-[var(--brand)]">{formatNumber(totalTickets)}</p>
-            <p className="text-[10.5px] text-[var(--fg-subtle)]">
-              {capacity > 0 ? `${percentFilled}% capacity` : "Passes issued"}
-            </p>
+            <span className="text-[11px] text-[var(--fg-muted)] uppercase">Tickets Issued</span>
+            <p className="mt-1 text-lg font-bold text-white">{totalTickets}</p>
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-            <p className="text-[11px] font-medium uppercase text-[var(--fg-muted)]">Revenue</p>
-            <p className="mt-1 text-xl font-bold text-emerald-400">{formatINR(totalRevenue)}</p>
-            <p className="text-[10.5px] text-[var(--fg-subtle)]">Collected</p>
-          </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-            <p className="text-[11px] font-medium uppercase text-[var(--fg-muted)]">Checked-In</p>
-            <p className="mt-1 text-xl font-bold text-amber-400">{formatNumber(checkedInCount)}</p>
-            <p className="text-[10.5px] text-[var(--fg-subtle)]">At gate</p>
+            <span className="text-[11px] text-[var(--fg-muted)] uppercase">Gross Revenue</span>
+            <p className="mt-1 text-lg font-bold font-mono text-emerald-400">{formatINR(totalRevenue)}</p>
           </div>
         </div>
 
-        {/* ── Search Bar & Filter ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="relative min-w-[220px] flex-1">
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-subtle)]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search attendee, phone, email, booking ID..."
-              className="h-9 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)]"
+              placeholder="Search attendee by name, email, phone, ref..."
+              className="h-8 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)]"
             />
           </div>
-          <Select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            options={[
-              { value: "ALL", label: "All Statuses" },
-              { value: "CONFIRMED", label: "Confirmed" },
-              { value: "PENDING", label: "Pending" },
-              { value: "CANCELLED", label: "Cancelled" },
-            ]}
-            className="h-9 w-[130px] text-xs"
-          />
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => exportFinalPresentListToCsv(event?.title || "event", rawBookings)}
+              disabled={presentCount === 0}
+              className="text-emerald-400 border-emerald-500/30"
+            >
+              <Download className="size-3 text-emerald-400" /> Export Present (CSV)
+            </Button>
+            <Button size="sm" variant="secondary" onClick={loadData}>
+              <RefreshCw className="size-3" />
+            </Button>
+          </div>
         </div>
 
-        {/* ── Table of Attendee Bookings ── */}
-        <DataTable
-          rows={filteredBookings}
-          loading={loading}
-          error={error}
-          onRetry={loadData}
-          empty={{
-            title: "No bookings found",
-            body: search
-              ? "No attendees match your search."
-              : "No users have booked tickets for this event yet.",
-          }}
-          columns={[
-            {
-              key: "user",
-              header: "Attendee",
-              render: (r: any) => (
-                <div className="text-xs">
-                  <p className="font-semibold text-white">{r.user_name || "Guest"}</p>
-                  <p className="font-mono text-[11px] text-[var(--fg-muted)] truncate max-w-[170px]">
-                    {r.user_email}
-                  </p>
-                  {r.user_phone && (
-                    <p className="font-mono text-[10.5px] text-[var(--fg-subtle)]">{r.user_phone}</p>
-                  )}
-                </div>
-              ),
-            },
-            {
-              key: "tier",
-              header: "Tier / Quantity",
-              render: (r: any) => (
-                <div className="text-xs">
-                  <span className="font-semibold text-white capitalize">
-                    {String(r.ticket_type || "General").replace(/_/g, " ")}
+        {/* Attendance table */}
+        <div className="max-h-[380px] overflow-y-auto rounded-xl border border-[var(--border)]">
+          <DataTable
+            rows={filteredBookings}
+            loading={loading}
+            error={error}
+            onRetry={loadData}
+            columns={[
+              {
+                key: "booking_reference",
+                header: "Booking Ref",
+                render: (r: any) => (
+                  <div>
+                    <span className="font-mono text-xs font-bold text-[var(--brand)]">
+                      {r.booking_reference || rowId(r)}
+                    </span>
+                    <span className="block text-[10px] text-[var(--fg-subtle)]">
+                      {formatDate(r.booked_at || r.created_at, true)}
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                key: "user",
+                header: "Attendee",
+                render: (r: any) => (
+                  <div className="text-xs">
+                    <p className="font-semibold text-white">{r.user_name || "Attendee"}</p>
+                    <p className="font-mono text-[10.5px] text-[var(--fg-muted)] truncate max-w-[150px]">
+                      {r.user_email}
+                    </p>
+                  </div>
+                ),
+              },
+              {
+                key: "ticket_type",
+                header: "Pass Tier",
+                render: (r: any) => (
+                  <span className="rounded bg-[var(--surface-2)] px-2 py-0.5 text-[10.5px] font-medium capitalize text-[var(--brand)]">
+                    {String(r.ticket_type || r.category || "General").replace(/_/g, " ")}
                   </span>
-                  <span className="block font-mono text-[11px] text-[var(--fg-muted)]">
-                    {r.quantity} ticket{r.quantity > 1 ? "s" : ""} · {formatINR(r.total_amount)}
-                  </span>
-                </div>
-              ),
-            },
-            {
-              key: "status",
-              header: "Status",
-              render: (r: any) => (
-                <div className="flex flex-col gap-1">
-                  <StatusBadge value={r.booking_status} />
-                  <span
-                    className={`text-[9.5px] font-bold uppercase ${
-                      r.payment_status === "PAID" || r.payment_status === "NOT_REQUIRED"
-                        ? "text-green-400"
-                        : "text-amber-400"
-                    }`}
+                ),
+              },
+              {
+                key: "quantity",
+                header: "Qty / Total",
+                render: (r: any) => (
+                  <div className="text-xs">
+                    <span className="font-bold">{r.quantity} tix</span>
+                    <span className="block font-mono text-[10px] text-[var(--fg-muted)]">
+                      {formatINR(r.total_amount)}
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                key: "attendance",
+                header: "Attendance (✓)",
+                render: (r: any) => {
+                  const isPresent = Boolean(
+                    r.is_present || r.attendance_status === "PRESENT" || (r.tickets || []).some((t: any) => t.is_checked_in)
+                  );
+                  return isPresent ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10.5px] font-bold text-emerald-400">
+                      <Check className="size-3 stroke-[3]" /> PRESENT
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAttendance(r)}
+                      className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-bold text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all"
+                    >
+                      <Check className="size-3" /> Mark Present
+                    </button>
+                  );
+                },
+              },
+              {
+                key: "__actions",
+                header: "",
+                render: (r: any) => (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBooking(r)}
+                    className="text-[11px] font-semibold text-[var(--brand)] hover:underline"
                   >
-                    {r.payment_status}
-                  </span>
-                </div>
-              ),
-            },
-            {
-              key: "ref",
-              header: "Ref / Date",
-              render: (r: any) => (
-                <div className="text-xs font-mono">
-                  <p className="font-bold text-[var(--brand)]">{r.booking_reference}</p>
-                  <p className="text-[10px] text-[var(--fg-subtle)]">
-                    {formatDate(r.booked_at || r.created_at, true)}
-                  </p>
-                </div>
-              ),
-            },
-            {
-              key: "action",
-              header: "Pass",
-              className: "text-right",
-              render: (r: any) => (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setSelectedBooking(r)}
-                  title="View digital pass details"
-                >
-                  <Eye className="size-3.5" />
-                </Button>
-              ),
-            },
-          ]}
-        />
+                    Details
+                  </button>
+                ),
+              },
+            ]}
+          />
+        </div>
       </div>
 
       {selectedBooking && (
@@ -1109,7 +1360,226 @@ function EventBookingsModal({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   4. STAT CARD COMPONENT
+   4. SMART SHARE MODAL (WhatsApp, Telegram, Direct Link)
+   ═══════════════════════════════════════════════════════════════════ */
+
+function EventShareModal({
+  event,
+  onClose,
+}: {
+  event: any;
+  onClose: () => void;
+}) {
+  const { push } = useToast();
+  if (!event) return null;
+
+  const eventId = String(rowId(event));
+  const directBookingUrl = `https://upgradetalentsindia.in/events/${eventId}/book`;
+  const shareRedirectUrl = `https://event-management-backend-nijj.onrender.com/api/v1/share/event/${eventId}`;
+  const shareText = `🎟️ Join '${event.title}' at ${event.venue || "Upgrade Talents"}! Book your tickets directly: ${directBookingUrl}`;
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    push("success", `${label} copied to clipboard!`);
+  };
+
+  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+  const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(directBookingUrl)}&text=${encodeURIComponent(shareText)}`;
+
+  return (
+    <Modal
+      open={!!event}
+      onClose={onClose}
+      title="Share Event & Smart Direct Booking Links"
+      subtitle={`Instant booking links for "${event.title}"`}
+      footer={
+        <Button size="sm" variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-4 text-xs">
+        {/* Direct Booking Link */}
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-white">Direct Ticket Booking URL</span>
+            <span className="text-[10px] text-[var(--brand)] font-bold uppercase">Direct Deep Link</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={directBookingUrl}
+              className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--fg-muted)] outline-none"
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => copyToClipboard(directBookingUrl, "Booking Link")}
+            >
+              <Copy className="size-3.5" /> Copy
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              href={directBookingUrl}
+              target="_blank"
+            >
+              <ExternalLink className="size-3.5" />
+            </Button>
+          </div>
+          <p className="mt-1.5 text-[11px] text-[var(--fg-subtle)]">
+            Users clicking this link bypass the overview and land directly on the BookMyShow visual seating arena.
+          </p>
+        </div>
+
+        {/* Social Share Buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs"
+          >
+            <MessageCircle className="size-4" /> Share on WhatsApp
+          </a>
+
+          <a
+            href={telegramUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 font-bold text-sky-400 hover:bg-sky-500/20 transition-all text-xs"
+          >
+            <Send className="size-4" /> Share on Telegram
+          </a>
+        </div>
+
+        {/* Universal Backend Redirect */}
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-medium text-[var(--fg-muted)]">API Universal Redirect</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => copyToClipboard(shareRedirectUrl, "API Redirect URL")}
+            >
+              <Copy className="size-3" /> Copy
+            </Button>
+          </div>
+          <p className="font-mono text-[10.5px] text-[var(--fg-subtle)] truncate">
+            {shareRedirectUrl}
+          </p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   5. IMAGE UPLOAD FIELD COMPONENT (16:9 & 9:16)
+   ═══════════════════════════════════════════════════════════════════ */
+
+function ImageUploadField({
+  label,
+  aspectRatioLabel,
+  aspectClass,
+  value,
+  onChange,
+  onUpload,
+}: {
+  label: string;
+  aspectRatioLabel: string;
+  aspectClass: string;
+  value: string;
+  onChange: (url: string) => void;
+  onUpload: (file: File) => Promise<any>;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const { push } = useToast();
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await onUpload(file);
+      const url = res?.url || res?.card_image_url || res?.banner_image_url || res?.banner_url || res?.image_url;
+      if (url) {
+        onChange(url);
+        push("success", `${label} uploaded successfully.`);
+      } else {
+        push("error", "No URL returned from upload.");
+      }
+    } catch (err: any) {
+      push("error", err?.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-semibold text-[var(--fg)]">
+          {label} <span className="font-bold text-[var(--brand)]">({aspectRatioLabel})</span>
+        </span>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="text-[11px] font-semibold text-red-400 hover:underline"
+          >
+            Clear image
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-start gap-3">
+        {value ? (
+          <div className={cn("relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] shrink-0 shadow-sm", aspectClass)}>
+            <img src={value} alt="" className="size-full object-cover" />
+          </div>
+        ) : (
+          <div className={cn("grid place-items-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] text-[11px] text-[var(--fg-subtle)] shrink-0", aspectClass)}>
+            <ImageIcon className="size-5 opacity-40" />
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 flex-1 min-w-0">
+          <label className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--fg)] hover:bg-[var(--surface-2)] transition-colors shadow-sm">
+            {uploading ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin text-[var(--brand)]" /> Uploading to Cloud…
+              </>
+            ) : (
+              <>
+                <Upload className="size-3.5 text-[var(--brand)]" /> Choose &amp; Upload Image
+              </>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={handleFile}
+            />
+          </label>
+
+          <Input
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Or paste direct image URL (https://…)"
+            className="text-xs"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   6. STAT CARD COMPONENT
    ═══════════════════════════════════════════════════════════════════ */
 
 function StatCard({
@@ -1159,7 +1629,7 @@ function StatCard({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   5. BOOKING DETAIL MODAL
+   7. BOOKING DETAIL MODAL
    ═══════════════════════════════════════════════════════════════════ */
 
 function BookingDetailModal({
@@ -1204,12 +1674,12 @@ function BookingDetailModal({
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
-              Event & Tier
+              Event &amp; Tier
             </h4>
             <p className="mt-2 text-sm font-bold text-white">{booking.event_title || "Event"}</p>
             <div className="mt-1 flex items-center gap-2">
               <span className="rounded bg-[var(--brand-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--brand)]">
-                {String(booking.ticket_type || "General").replace(/_/g, " ")}
+                {String(booking.ticket_type || booking.category || "General").replace(/_/g, " ")}
               </span>
               <span className="font-mono text-[var(--fg-muted)]">
                 {booking.quantity} ticket{booking.quantity > 1 ? "s" : ""}
@@ -1229,7 +1699,7 @@ function BookingDetailModal({
           <div className="mt-3 flex flex-col gap-2.5">
             {tickets.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[var(--border)] p-4 text-center text-[var(--fg-subtle)]">
-                No issued ticket objects generated yet.
+                No individual ticket tokens generated yet.
               </div>
             ) : (
               tickets.map((t: any, idx: number) => (
@@ -1272,7 +1742,7 @@ function BookingDetailModal({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   6. CSV EXPORT UTILITY
+   8. CSV EXPORT UTILITIES
    ═══════════════════════════════════════════════════════════════════ */
 
 function exportAttendeesToCsv(eventTitle: string, bookings: any[]) {
@@ -1295,7 +1765,7 @@ function exportAttendeesToCsv(eventTitle: string, bookings: any[]) {
     `"${(b.user_name || "Attendee").replace(/"/g, '""')}"`,
     `"${(b.user_email || "").replace(/"/g, '""')}"`,
     `"${(b.user_phone || "").replace(/"/g, '""')}"`,
-    `"${(b.ticket_type || "General").replace(/"/g, '""')}"`,
+    `"${(b.ticket_type || b.category || "General").replace(/"/g, '""')}"`,
     b.quantity || 1,
     b.total_amount || 0,
     `"${b.payment_status || ""}"`,
@@ -1314,7 +1784,54 @@ function exportAttendeesToCsv(eventTitle: string, bookings: any[]) {
   link.setAttribute("href", encodedUri);
   link.setAttribute(
     "download",
-    `${(eventTitle || "event").toLowerCase().replace(/[^a-z0-9]/g, "_")}_attendees.csv`
+    `${(eventTitle || "event").toLowerCase().replace(/[^a-z0-9]/g, "_")}_all_attendees.csv`
+  );
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function exportFinalPresentListToCsv(eventTitle: string, attendees: any[]) {
+  const presentOnly = attendees.filter((a) =>
+    Boolean(a.is_present || a.attendance_status === "PRESENT" || (a.tickets || []).some((t: any) => t.is_checked_in))
+  );
+  const headers = [
+    "Booking Reference",
+    "Attendee Name",
+    "Email",
+    "Phone",
+    "Ticket Category / Tier",
+    "Quantity",
+    "Payment Status",
+    "Payment Method",
+    "Attendance Status",
+    "Attended At (Check-in Time)",
+    "Verified By",
+  ];
+
+  const rows = presentOnly.map((a) => [
+    `"${a.booking_reference || rowId(a) || ""}"`,
+    `"${(a.user_name || "Attendee").replace(/"/g, '""')}"`,
+    `"${(a.user_email || "").replace(/"/g, '""')}"`,
+    `"${(a.user_phone || "").replace(/"/g, '""')}"`,
+    `"${(a.ticket_type || a.category || "General").replace(/"/g, '""')}"`,
+    a.quantity || 1,
+    `"${a.payment_status || ""}"`,
+    `"${a.payment_method || "ONLINE"}"`,
+    `"PRESENT"`,
+    `"${a.attended_at ? new Date(a.attended_at).toLocaleString() : new Date().toLocaleString()}"`,
+    `"${(a.attended_by || "admin").replace(/"/g, '""')}"`,
+  ]);
+
+  const csvContent =
+    "data:text/csv;charset=utf-8," +
+    [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute(
+    "download",
+    `${(eventTitle || "event").toLowerCase().replace(/[^a-z0-9]/g, "_")}_final_present_list.csv`
   );
   document.body.appendChild(link);
   link.click();
@@ -1322,7 +1839,7 @@ function exportAttendeesToCsv(eventTitle: string, bookings: any[]) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   3. EVENT CATEGORIES & TICKET TIERS EDITOR (BookMyShow Style)
+   9. EVENT CATEGORIES & TICKET TIERS EDITOR (BookMyShow Style)
    ═══════════════════════════════════════════════════════════════════ */
 
 interface CategoryItem {
@@ -1498,4 +2015,3 @@ function EventCategoriesEditor({
     </div>
   );
 }
-
