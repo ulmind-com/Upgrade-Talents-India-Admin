@@ -3134,6 +3134,12 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
   const nextRoundConfig = roundsList.find((r) => r.round_number === nextRoundNumber);
   const isFinalRound = !!activeRoundConfig?.is_final_round;
 
+  useEffect(() => {
+    if (activeRoundConfig?.advancing_count) {
+      setAdvancingCount(activeRoundConfig.advancing_count);
+    }
+  }, [activeRoundConfig?.advancing_count]);
+
   const categories: string[] = useMemo(() => {
     const set = new Set<string>();
     if (Array.isArray(lbData?.categories)) {
@@ -3273,11 +3279,20 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
               <button
                 type="button"
                 disabled={!!actionLoading}
+                onClick={() => applyPreset("3_stage", 3, 10)}
+                className="cursor-pointer text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[var(--surface)] hover:bg-amber-500/20 text-amber-300 transition-all border border-amber-500/30 font-mono"
+                title="Exact 3 Stages: Prelims (Top 10 Advance) -> Semi-Final (Top 3 Advance) -> Grand Finale"
+              >
+                3 Stages (Top 10 Semi ➔ Top 3 Final)
+              </button>
+              <button
+                type="button"
+                disabled={!!actionLoading}
                 onClick={() => applyPreset("3_stage", 5, 20)}
                 className="cursor-pointer text-[11px] font-bold px-2 py-1 rounded-lg bg-[var(--surface)] hover:bg-amber-500/20 text-amber-300 transition-all border border-amber-500/30"
                 title="3 Rounds: Prelims (Top 20) -> Semi-Final (Top 5 to Grand Finale) -> Grand Finale"
               >
-                3 Rounds (Semi ➔ Top 5 Final)
+                3 Stages (Top 20 ➔ Top 5)
               </button>
               <button
                 type="button"
