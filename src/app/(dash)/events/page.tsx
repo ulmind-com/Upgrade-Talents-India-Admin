@@ -360,15 +360,15 @@ export default function EventsPage() {
               { name: "description", label: "Description", type: "textarea", required: true },
               {
                 name: "image_url",
-                label: "16:9 Desktop Image / Card",
+                label: "Event Poster / Card Image (Floating)",
                 type: "custom",
                 half: true,
-                hint: "Shown on desktop hero and event cards (16:9 aspect ratio).",
+                hint: "Vertical floating poster card shown on the left of the event page.",
                 render: ({ value, onChange }) => (
                   <ImageUploadField
-                    label="Desktop Card Image"
-                    aspectRatioLabel="16:9 Desktop"
-                    aspectClass="aspect-video w-36"
+                    label="Poster / Card Image"
+                    aspectRatioLabel="Poster Card"
+                    aspectClass="aspect-[3/4] w-28"
                     value={value || ""}
                     onChange={onChange}
                     onUpload={(f) => cmsApi.uploadBannerImage(f, "16:9")}
@@ -377,18 +377,18 @@ export default function EventsPage() {
               },
               {
                 name: "banner_url",
-                label: "9:16 Mobile Image / Banner",
+                label: "Hero Backdrop Banner Image (Cinematic)",
                 type: "custom",
                 half: true,
-                hint: "Shown on mobile feeds and stories (9:16 aspect ratio).",
+                hint: "Cinematic full-width background banner shown behind the stage arena.",
                 render: ({ value, onChange }) => (
                   <ImageUploadField
-                    label="Mobile Story Banner"
-                    aspectRatioLabel="9:16 Mobile"
-                    aspectClass="aspect-[9/16] w-20"
+                    label="Hero Backdrop Banner"
+                    aspectRatioLabel="16:9 Backdrop"
+                    aspectClass="aspect-video w-36"
                     value={value || ""}
                     onChange={onChange}
-                    onUpload={(f) => cmsApi.uploadBannerImage(f, "9:16")}
+                    onUpload={(f) => cmsApi.uploadBannerImage(f, "16:9")}
                   />
                 ),
               },
