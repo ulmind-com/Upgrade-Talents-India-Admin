@@ -22,6 +22,8 @@ type BtnProps = {
   disabled?: boolean;
   className?: string;
   title?: string;
+  target?: string;
+  rel?: string;
   "aria-label"?: string;
 };
 

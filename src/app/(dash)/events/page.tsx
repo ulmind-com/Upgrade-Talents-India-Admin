@@ -75,11 +75,17 @@ export default function EventsPage() {
   const fetchEvents = useCallback(async () => {
     const evs = await cmsApi.listEvents({ limit: 200 });
     const rows = toRows(evs);
+    // Sort so most recently updated or created events are guaranteed at the top
+    rows.sort((a: any, b: any) => {
+      const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
+      const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
+      return timeB - timeA;
+    });
     setEventsList(rows);
     if (!selectedEventId && rows.length > 0) {
       setSelectedEventId(String(rowId(rows[0])));
     }
-    return evs;
+    return rows;
   }, [selectedEventId]);
 
   useEffect(() => {
@@ -164,18 +170,25 @@ export default function EventsPage() {
                 header: "Event",
                 render: (r) => (
                   <div className="min-w-0">
-                    <p className="truncate font-semibold">{r.title}</p>
-                    <p className="truncate text-[11.5px] text-[var(--fg-muted)]">
-                      {r.venue || "Venue TBA"}
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate font-semibold">{r.title}</p>
+                      {r.updated_at && (
+                        <span className="shrink-0 rounded bg-emerald-500/15 border border-emerald-500/30 px-1 py-0.2 text-[9.5px] font-mono text-emerald-400">
+                          Updated
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-[11px] text-[var(--fg-muted)]">
+                      {r.venue || "Venue TBA"} · <span className="font-mono text-[10px] text-[var(--fg-subtle)]">ID: {String(rowId(r)).slice(-6)}</span>
                     </p>
                     {Array.isArray(r.categories) && r.categories.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {r.categories.map((c: any, i: number) => (
                           <span
                             key={i}
-                            className="inline-flex items-center gap-1 rounded bg-[var(--surface-2)] border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--fg-muted)]"
+                            className="inline-flex items-center gap-1 rounded bg-[var(--surface-2)] border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--fg)] font-medium"
                           >
-                            {c.name}: {formatINR(c.price)}
+                            <span className="font-bold text-[var(--brand)]">{c.name}:</span> {formatINR(c.price)} {c.capacity ? `(${c.capacity}s)` : ""}
                           </span>
                         ))}
                       </div>
@@ -243,6 +256,15 @@ export default function EventsPage() {
             ],
             rowActions: (row, { reload }) => (
               <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  href={`https://upgradetalentsindia.in/events/${rowId(row)}/book`}
+                  target="_blank"
+                  title="Open live ticket booking on website"
+                >
+                  <ArrowUpRight className="size-3.5 text-sky-400" aria-hidden /> Live
+                </Button>
                 <Button
                   size="sm"
                   variant="secondary"
@@ -1329,7 +1351,7 @@ function EventCategoriesEditor({
     onChange(categories.filter((_, i) => i !== idx));
   };
 
-  const addItem = (cat: CategoryItem = { name: "", price: 0, capacity: 50, description: "" }) => {
+  const addItem = (cat: CategoryItem = { name: "", price: 500, capacity: 100, description: "" }) => {
     onChange([...categories, cat]);
   };
 
@@ -1370,13 +1392,14 @@ function EventCategoriesEditor({
             type="button"
             onClick={() =>
               applyPreset([
-                { name: "VIP Lounge", price: 2000, capacity: 40, description: "VIP Front Stage Recliner Seating" },
-                { name: "General Admission", price: 500, capacity: 400, description: "Standard General Admission" },
+                { name: "VIP Platinum", price: 2500, capacity: 50, description: "VIP Front Stage Recliner Seating" },
+                { name: "Gold Field", price: 800, capacity: 150, description: "Center Arena Seating" },
+                { name: "General Field", price: 300, capacity: 300, description: "Standard General Admission" },
               ])
             }
             className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
           >
-            VIP &amp; General
+            VIP, Gold &amp; General
           </button>
           <button
             type="button"
@@ -1419,7 +1442,7 @@ function EventCategoriesEditor({
                 </div>
 
                 {/* Price */}
-                <div className="w-28">
+                <div className="w-32">
                   <div className="relative">
                     <span className="absolute left-2.5 top-1.5 text-xs text-[var(--fg-muted)] font-mono">₹</span>
                     <input
@@ -1430,6 +1453,9 @@ function EventCategoriesEditor({
                       className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-6 pr-2 py-1.5 text-xs font-mono font-bold text-[var(--fg)] outline-none focus:border-[var(--brand)]"
                     />
                   </div>
+                  {c.price === 0 && (
+                    <span className="mt-0.5 block text-[9.5px] text-amber-400 font-semibold pl-1">Free Entry Pass</span>
+                  )}
                 </div>
 
                 {/* Capacity */}
