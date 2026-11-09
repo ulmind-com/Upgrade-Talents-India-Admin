@@ -493,8 +493,8 @@ export default function EventsPage() {
                 ? v.categories
                     .map((c: any) => ({
                       name: String(c.name || "").trim(),
-                      price: Number(c.price || 0),
-                      capacity: c.capacity ? Number(c.capacity) : null,
+                      price: c.price != null && !isNaN(Number(c.price)) ? Number(c.price) : 0,
+                      capacity: c.capacity != null && c.capacity !== "" && !isNaN(Number(c.capacity)) ? Number(c.capacity) : null,
                       description: c.description ? String(c.description).trim() : null,
                     }))
                     .filter((c: any) => c.name)
@@ -1910,6 +1910,19 @@ function EventCategoriesEditor({
             onClick={() =>
               applyPreset([
                 { name: "VIP Platinum", price: 2500, capacity: 50, description: "VIP Front Stage Recliner Seating" },
+                { name: "Gold Field", price: 500, capacity: 300, description: "Center Arena Seating" },
+                { name: "General", price: 0, capacity: 50, description: "Complimentary Free Entry Pass" },
+              ])
+            }
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
+          >
+            VIP, Gold &amp; Free Pass
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              applyPreset([
+                { name: "VIP Platinum", price: 2500, capacity: 50, description: "VIP Front Stage Recliner Seating" },
                 { name: "Gold Field", price: 800, capacity: 150, description: "Center Arena Seating" },
                 { name: "General Field", price: 300, capacity: 300, description: "Standard General Admission" },
               ])
@@ -1965,7 +1978,7 @@ function EventCategoriesEditor({
                     <input
                       type="number"
                       value={c.price}
-                      onChange={(e) => updateItem(idx, { price: Number(e.target.value) || 0 })}
+                      onChange={(e) => updateItem(idx, { price: e.target.value === "" ? 0 : Number(e.target.value) })}
                       placeholder="Price"
                       className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-6 pr-2 py-1.5 text-xs font-mono font-bold text-[var(--fg)] outline-none focus:border-[var(--brand)]"
                     />
