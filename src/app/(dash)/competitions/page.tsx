@@ -2088,6 +2088,19 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
     }
   };
 
+  // Selected Category filter for registrations
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    rawParticipants.forEach((p: any) => {
+      if (p.category && typeof p.category === "string" && p.category.trim()) {
+        set.add(p.category.trim());
+      }
+    });
+    return Array.from(set);
+  }, [rawParticipants]);
+
   // Map each confirmed present participant to their chronological on-the-spot venue entry order
   const entryOrderMap = useMemo(() => {
     const presentOnly = rawParticipants
@@ -2132,6 +2145,11 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
         matchFilter = p.status === "CONFIRMED";
       } else if (filterMode === "PENDING") {
         matchFilter = p.status === "PENDING";
+      }
+
+      if (selectedCategory !== "ALL") {
+        const cat = (p.category || "General").trim().toLowerCase();
+        if (cat !== selectedCategory.trim().toLowerCase()) return false;
       }
 
       const s = search.toLowerCase().trim();
@@ -2436,6 +2454,45 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
             </Button>
           </div>
         </div>
+
+        {/* Category Division Filter Bar (Junior, Sub-Junior, Senior) */}
+        {availableCategories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2 mt-1">
+            <span className="text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-subtle)] mr-1 shrink-0">Category Division:</span>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory("ALL")}
+              className={cn(
+                "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all",
+                selectedCategory === "ALL"
+                  ? "bg-violet-600 text-white shadow-sm font-black"
+                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
+              )}
+            >
+              All Categories ({rawParticipants.length})
+            </button>
+            {availableCategories.map((cat) => {
+              const count = rawParticipants.filter(
+                (p: any) => (p.category || "General").trim().toLowerCase() === cat.trim().toLowerCase()
+              ).length;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={cn(
+                    "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all",
+                    selectedCategory === cat
+                      ? "bg-violet-600 text-white shadow-sm font-black"
+                      : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-violet-300"
+                  )}
+                >
+                  {cat} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Informative helper banner for cash collection */}
         {cashPending > 0 && (
@@ -3152,15 +3209,21 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
   }, [lbData?.categories, participantsList]);
 
   const filteredParticipants = useMemo(() => {
-    if (!search.trim()) return participantsList;
+    let list = participantsList;
+    if (selectedCategory !== "ALL") {
+      list = list.filter(
+        (p: any) => (p.category || "General").trim().toLowerCase() === selectedCategory.trim().toLowerCase()
+      );
+    }
+    if (!search.trim()) return list;
     const q = search.toLowerCase();
-    return participantsList.filter(
+    return list.filter(
       (p: any) =>
         (p.name || "").toLowerCase().includes(q) ||
         (p.email || p.user_email || "").toLowerCase().includes(q) ||
         (p.registration_reference || "").toLowerCase().includes(q)
     );
-  }, [participantsList, search]);
+  }, [participantsList, search, selectedCategory]);
 
   const handleSelectTopN = (count: number) => {
     const newSet = new Set<string>();
@@ -3591,6 +3654,7 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
                   const id = p.registration_id || p.email || p.user_email;
                   const isChecked = selectedIds.has(id);
                   const isAdvancingZone = idx < advancingCount;
+                  const displayRank = selectedCategory !== "ALL" ? (idx + 1) : (p.rank ?? (idx + 1));
 
                   return (
                     <tr
@@ -3609,14 +3673,14 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
                         />
                       </td>
                       <td className="py-2.5 px-3 font-bold">
-                        {p.rank === 1 ? (
+                        {displayRank === 1 ? (
                           <span className="grid size-6 place-items-center rounded-full bg-amber-400 text-slate-950 font-black text-[11px]">1</span>
-                        ) : p.rank === 2 ? (
+                        ) : displayRank === 2 ? (
                           <span className="grid size-6 place-items-center rounded-full bg-slate-300 text-slate-900 font-bold text-[11px]">2</span>
-                        ) : p.rank === 3 ? (
+                        ) : displayRank === 3 ? (
                           <span className="grid size-6 place-items-center rounded-full bg-amber-700 text-amber-50 font-bold text-[11px]">3</span>
                         ) : (
-                          <span className="text-[var(--fg-muted)] pl-2">{p.rank ?? (idx + 1)}</span>
+                          <span className="text-[var(--fg-muted)] pl-2">{displayRank}</span>
                         )}
                       </td>
                       <td className="py-2.5 px-3">
