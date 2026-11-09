@@ -2094,8 +2094,9 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
     rawParticipants.forEach((p: any) => {
-      if (p.category && typeof p.category === "string" && p.category.trim()) {
-        set.add(p.category.trim());
+      const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "").trim();
+      if (cat) {
+        set.add(cat);
       }
     });
     return Array.from(set);
@@ -2148,7 +2149,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
       }
 
       if (selectedCategory !== "ALL") {
-        const cat = (p.category || "General").trim().toLowerCase();
+        const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "General").trim().toLowerCase();
         if (cat !== selectedCategory.trim().toLowerCase()) return false;
       }
 
@@ -2163,7 +2164,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
       return matchFilter && matchSearch;
     });
-  }, [rawParticipants, filterMode, search]);
+  }, [rawParticipants, filterMode, search, selectedCategory]);
 
   return (
     <div className="flex flex-col gap-5 text-xs">
@@ -2472,9 +2473,11 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
               All Categories ({rawParticipants.length})
             </button>
             {availableCategories.map((cat) => {
-              const count = rawParticipants.filter(
-                (p: any) => (p.category || "General").trim().toLowerCase() === cat.trim().toLowerCase()
-              ).length;
+              const count = rawParticipants.filter((p: any) => {
+                const pCat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "General").trim().toLowerCase();
+                return pCat === cat.trim().toLowerCase();
+              }).length;
+              const isCatActive = selectedCategory.trim().toLowerCase() === cat.trim().toLowerCase();
               return (
                 <button
                   key={cat}
@@ -2482,7 +2485,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                   onClick={() => setSelectedCategory(cat)}
                   className={cn(
                     "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all",
-                    selectedCategory === cat
+                    isCatActive
                       ? "bg-violet-600 text-white shadow-sm font-black"
                       : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-violet-300"
                   )}
