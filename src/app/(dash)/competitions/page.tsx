@@ -8,7 +8,7 @@ import {
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
   ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square,
   Link2, Music, FileUp, Sparkles, UserCheck, XCircle, Layers, ArrowRight, Settings, CheckSquare,
-  Share2, MessageCircle
+  Share2, MessageCircle, Crown, Medal, MessageSquare, Award
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
@@ -687,7 +687,7 @@ export default function CompetitionsPage() {
   const { push } = useToast();
   const { confirm, dialog } = useConfirm();
   const [detail, setDetail] = useState<any | null>(null);
-  const [modalTab, setModalTab] = useState<"participants" | "workflow" | "stage">("participants");
+  const [modalTab, setModalTab] = useState<"participants" | "workflow" | "stage" | "rounds" | "results">("participants");
   const [shareComp, setShareComp] = useState<any | null>(null);
 
   const run = async (label: string, fn: () => Promise<any>, reload: () => void, needsConfirm?: string) => {
@@ -760,6 +760,18 @@ export default function CompetitionsPage() {
           ],
           rowActions: (row, { reload }) => (
             <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setDetail(row);
+                  setModalTab("results");
+                }}
+                className="border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:text-white"
+                title="View Official Results, Category-Wise Winners & Judge Scores"
+              >
+                <Trophy className="size-3.5 text-amber-400" aria-hidden /> Results
+              </Button>
               <Button
                 size="sm"
                 variant="ghost"
@@ -1121,10 +1133,10 @@ function CompetitionControls({
   comp: any | null;
   onClose: () => void;
   onAction: (label: string, fn: () => Promise<any>, reload: () => void, confirmText?: string) => void;
-  initialTab?: "participants" | "workflow" | "stage" | "rounds";
+  initialTab?: "participants" | "workflow" | "stage" | "rounds" | "results";
 }) {
   const id = comp ? rowId(comp) : "";
-  const [activeTab, setActiveTab] = useState<"participants" | "workflow" | "stage" | "rounds">(initialTab);
+  const [activeTab, setActiveTab] = useState<"participants" | "workflow" | "stage" | "rounds" | "results">(initialTab);
 
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
@@ -1187,6 +1199,8 @@ function CompetitionControls({
           ? "Live stage sequence, performer on stage, and real-time lineup"
           : activeTab === "rounds"
           ? "Multi-round knockout lifecycle: Prelims, Semi-Finals, and Grand Finale"
+          : activeTab === "results"
+          ? "Official certified results, category-wise winners podium, and live judges score breakdown"
           : activeTab === "participants"
           ? "Registered participants, verified payments, and submitted media"
           : "Judging session, voting and ranking controls"
@@ -1218,6 +1232,17 @@ function CompetitionControls({
           <Layers className="size-3.5 text-amber-400" /> Stages &amp; Knockout Rounds
         </button>
         <button
+          onClick={() => setActiveTab("results")}
+          aria-pressed={activeTab === "results"}
+          className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+            activeTab === "results"
+              ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/30"
+              : "border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+          }`}
+        >
+          <Trophy className="size-3.5 text-amber-400" /> Official Results &amp; Scores
+        </button>
+        <button
           onClick={() => setActiveTab("participants")}
           aria-pressed={activeTab === "participants"}
           className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
@@ -1245,6 +1270,8 @@ function CompetitionControls({
         <CompetitionStagePanel compId={id} compTitle={comp?.title || comp?.name} />
       ) : activeTab === "rounds" ? (
         <CompetitionRoundsPanel compId={id} compTitle={comp?.title || comp?.name} />
+      ) : activeTab === "results" ? (
+        <CompetitionResultsAdminPanel compId={id} comp={comp} onAction={onAction} />
       ) : activeTab === "participants" ? (
         <CompetitionParticipantsPanel compId={id} compTitle={comp?.title || comp?.name} />
       ) : loading ? (
@@ -3867,6 +3894,672 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
                 Save Stages Configuration
               </Button>
             </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function CompetitionResultsAdminPanel({
+  compId,
+  comp,
+  onAction,
+}: {
+  compId: string;
+  comp: any;
+  onAction: (label: string, fn: () => Promise<any>, reload: () => void, confirmText?: string) => void;
+}) {
+  const { push } = useToast();
+  const [selectedRound, setSelectedRound] = useState<number>(1);
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [search, setSearch] = useState("");
+  const [inspectParticipant, setInspectParticipant] = useState<any | null>(null);
+
+  const [isScoresPublic, setIsScoresPublic] = useState<boolean>(
+    Boolean(comp?.score_visible_for_public || comp?.results_published || comp?.result_status === "PUBLISHED")
+  );
+  const [scoreToggleBusy, setScoreToggleBusy] = useState(false);
+
+  useEffect(() => {
+    if (comp) {
+      setIsScoresPublic(Boolean(comp.score_visible_for_public || comp.results_published || comp.result_status === "PUBLISHED"));
+    }
+  }, [comp]);
+
+  const handleTogglePublicScores = async () => {
+    setScoreToggleBusy(true);
+    const nextVal = !isScoresPublic;
+    try {
+      await competitionsApi.togglePublicScores(compId, nextVal);
+      setIsScoresPublic(nextVal);
+      push("success", `Public scores visibility is now ${nextVal ? "ON (Public Leaderboard Unlocked)" : "OFF (Scores Private to Contestants)"}`);
+    } catch (e: any) {
+      push("error", e?.message || "Failed to update score visibility.");
+    } finally {
+      setScoreToggleBusy(false);
+    }
+  };
+
+  const { data: roundsData, reload: reloadRounds } = useResource(
+    () => (!compId ? Promise.resolve(null) : competitionsApi.rounds(compId)),
+    [compId]
+  );
+
+  const roundsList: any[] = useMemo(() => {
+    return Array.isArray(roundsData?.rounds) && roundsData.rounds.length > 0
+      ? roundsData.rounds
+      : [
+          { round_number: 1, name: "Round 1 - Preliminary Auditions", status: "ACTIVE", is_final_round: false },
+          { round_number: 2, name: "Round 2 - Semi-Finals", status: "UPCOMING", is_final_round: false },
+          { round_number: 3, name: "Round 3 - Grand Finale", status: "UPCOMING", is_final_round: true },
+        ];
+  }, [roundsData]);
+
+  useEffect(() => {
+    if (roundsData?.current_round) {
+      setSelectedRound(roundsData.current_round);
+    }
+  }, [roundsData?.current_round]);
+
+  const { data: lbData, loading: lbLoading, reload: reloadLb } = useResource(
+    () =>
+      !compId
+        ? Promise.resolve(null)
+        : competitionsApi.roundLeaderboard(
+            compId,
+            selectedRound,
+            selectedCategory === "ALL" ? undefined : selectedCategory
+          ),
+    [compId, selectedRound, selectedCategory]
+  );
+
+  const activeRoundConfig = roundsList.find((r) => r.round_number === selectedRound) || roundsList[0];
+  const participantsList: any[] = Array.isArray(lbData?.leaderboard) ? lbData.leaderboard : [];
+
+  const categories: string[] = useMemo(() => {
+    const set = new Set<string>();
+    if (Array.isArray(lbData?.categories)) {
+      lbData.categories.forEach((c: any) => c && set.add(String(c).trim()));
+    }
+    if (Array.isArray(comp?.categories)) {
+      comp.categories.forEach((c: any) => {
+        const name = typeof c === "string" ? c : c?.name;
+        if (name) set.add(String(name).trim());
+      });
+    }
+    participantsList.forEach((p: any) => {
+      if (p.category) set.add(String(p.category).trim());
+    });
+    if (set.size === 0) {
+      set.add("Sub-Junior");
+      set.add("Junior");
+      set.add("Senior");
+    }
+    return Array.from(set);
+  }, [lbData?.categories, comp?.categories, participantsList]);
+
+  const filteredParticipants = useMemo(() => {
+    let list = participantsList;
+    if (selectedCategory !== "ALL") {
+      const cClean = selectedCategory.trim().toLowerCase();
+      const catLbs = lbData?.category_leaderboards || {};
+      const precalcKey = Object.keys(catLbs).find((k) => k.trim().toLowerCase() === cClean);
+      if (precalcKey && Array.isArray(catLbs[precalcKey]) && catLbs[precalcKey].length > 0) {
+        list = catLbs[precalcKey];
+      } else {
+        list = participantsList.filter(
+          (p: any) => (p.category || "General").trim().toLowerCase() === cClean
+        );
+      }
+    }
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (p: any) =>
+          (p.name || "").toLowerCase().includes(q) ||
+          (p.email || p.user_email || "").toLowerCase().includes(q) ||
+          (p.registration_reference || "").toLowerCase().includes(q)
+      );
+    }
+
+    const sorted = [...list].sort((a: any, b: any) => {
+      const aPts = Number(a.final_score ?? a.points ?? a.total_score ?? a.judge_score ?? a.audience_votes ?? 0);
+      const bPts = Number(b.final_score ?? b.points ?? b.total_score ?? b.judge_score ?? b.audience_votes ?? 0);
+      if (bPts !== aPts) return bPts - aPts;
+      return Number(b.judge_score ?? 0) - Number(a.judge_score ?? 0);
+    });
+
+    return sorted.map((p, idx) => ({
+      ...p,
+      displayRank: selectedCategory !== "ALL" ? (idx + 1) : (p.rank ?? (idx + 1)),
+      effectiveScore: p.final_score ?? p.points ?? p.total_score ?? p.score ?? p.judge_score ?? p.audience_votes ?? 0,
+    }));
+  }, [participantsList, search, selectedCategory, lbData?.category_leaderboards]);
+
+  const top3 = filteredParticipants.slice(0, 3);
+  const publicResultsUrl = `https://upgradetalentsindia.in/competitions/${compId}/results`;
+
+  return (
+    <div className="flex flex-col gap-6 text-xs">
+      {/* ── Top Header Controls ── */}
+      <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-[var(--surface-2)] to-amber-500/10 p-5 shadow-sm flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="grid size-11 place-items-center rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-inner">
+              <Trophy className="size-6 text-amber-400" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
+                  <span>Official Results &amp; Certified Leaderboard</span>
+                </h3>
+                <span className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider ${
+                  isScoresPublic
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    : "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                }`}>
+                  {isScoresPublic ? "Live Public Results: ON" : "Public Results: OFF (Private)"}
+                </span>
+                <span className="rounded-full bg-violet-500/15 text-violet-300 border border-violet-500/30 px-2 py-0.5 text-[10.5px] font-semibold">
+                  Stage: {activeRoundConfig?.name || `Round ${selectedRound}`}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--fg-muted)] mt-0.5">
+                Authoritative multi-round scores, judging evaluations, and category-wise champions for &ldquo;{comp?.title || "Competition"}&rdquo;.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant={isScoresPublic ? "secondary" : "primary"}
+              loading={scoreToggleBusy}
+              onClick={handleTogglePublicScores}
+              className="text-xs font-bold"
+              title="Toggle public visibility of scores and winners"
+            >
+              {isScoresPublic ? (
+                <>
+                  <EyeOff className="size-3.5 mr-1" /> Hide From Public
+                </>
+              ) : (
+                <>
+                  <Eye className="size-3.5 mr-1" /> Make Scores Public
+                </>
+              )}
+            </Button>
+
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => onAction(
+                "Publish results",
+                () => competitionsApi.publishResults(compId),
+                () => { reloadLb(); reloadRounds(); },
+                "Are you sure you want to publish official results and notify contestants?"
+              )}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
+              title="Publish official final results"
+            >
+              <Send className="size-3.5 mr-1" /> Publish Final Results
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              href={publicResultsUrl}
+              target="_blank"
+              className="text-sky-400 hover:text-sky-300 text-xs border border-sky-500/20"
+              title="Open public results page in new tab"
+            >
+              <ExternalLink className="size-3.5 mr-1" /> View Public Page
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => { reloadLb(); reloadRounds(); }}
+              className="grid size-8 place-items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-white transition-colors"
+              title="Refresh live scores"
+            >
+              <RefreshCw className="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Round / Tournament Stage Selector ── */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[var(--border)]/60">
+          <span className="text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-subtle)] mr-1 shrink-0">
+            Select Stage:
+          </span>
+          {roundsList.map((rd: any) => {
+            const isSel = selectedRound === rd.round_number;
+            const isLive = rd.round_number === (roundsData?.current_round ?? 1);
+            return (
+              <button
+                key={rd.round_number}
+                type="button"
+                onClick={() => setSelectedRound(rd.round_number)}
+                className={cn(
+                  "cursor-pointer flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all",
+                  isSel
+                    ? "border-amber-400 bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/25 ring-2 ring-amber-400/40"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-white"
+                )}
+              >
+                <span>{rd.name || `Round ${rd.round_number}`}</span>
+                {rd.is_final_round ? (
+                  <span className={cn("rounded-full px-1.5 py-0.2 text-[9px] font-black", isSel ? "bg-slate-950 text-amber-300" : "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30")}>
+                    👑 Final
+                  </span>
+                ) : isLive ? (
+                  <span className={cn("rounded-full px-1.5 py-0.2 text-[9px] font-extrabold", isSel ? "bg-slate-950 text-emerald-300" : "bg-emerald-500/20 text-emerald-300 animate-pulse border border-emerald-500/30")}>
+                    Active Stage
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Category Filter Pills Bar ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)] mr-1.5 flex items-center gap-1">
+            <Filter className="size-3 text-amber-400" /> Category:
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedCategory("ALL")}
+            className={cn(
+              "cursor-pointer rounded-full px-3 py-1 text-xs font-bold transition-all",
+              selectedCategory === "ALL"
+                ? "bg-amber-500 text-slate-950 font-black shadow-sm"
+                : "border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-white"
+            )}
+          >
+            All Categories ({participantsList.length})
+          </button>
+          {categories.map((cat) => {
+            const count = participantsList.filter(
+              (p) => (p.category || "General").trim().toLowerCase() === cat.trim().toLowerCase()
+            ).length;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={cn(
+                  "cursor-pointer rounded-full px-3 py-1 text-xs font-bold transition-all",
+                  selectedCategory === cat
+                    ? "bg-amber-500 text-slate-950 font-black shadow-sm"
+                    : "border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-white"
+                )}
+              >
+                {cat} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative w-48">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-muted)]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search contestant…"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-xs outline-none focus:border-amber-400 text-white"
+          />
+        </div>
+      </div>
+
+      {/* ── Top 3 Winners Podium Cards ── */}
+      {top3.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          {/* 🥈 2nd Place */}
+          {top3[1] && (
+            <div className="rounded-2xl border border-slate-400/40 bg-gradient-to-b from-slate-400/10 via-[var(--surface)] to-[var(--surface)] p-4 text-center shadow-md flex flex-col justify-between h-[230px]">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="grid size-7 place-items-center rounded-full bg-slate-300 text-slate-900 font-display font-black text-xs shadow-sm">
+                    2
+                  </span>
+                  <span className="rounded-full bg-slate-400/15 border border-slate-400/30 px-2 py-0.5 text-[10px] font-bold text-slate-300">
+                    🥈 1st Runner-Up
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-col items-center">
+                  <div className="relative size-14 rounded-full border-2 border-slate-400 overflow-hidden bg-[var(--surface-3)]">
+                    {top3[1].profile_photo || top3[1].avatar ? (
+                      <img src={top3[1].profile_photo || top3[1].avatar} alt="" className="size-full object-cover" />
+                    ) : (
+                      <div className="size-full grid place-items-center text-slate-300 font-bold text-sm">
+                        {(top3[1].name || "U")[0]}
+                      </div>
+                    )}
+                  </div>
+                  <h4 className="mt-2 font-bold text-white text-sm line-clamp-1 flex items-center gap-1">
+                    <span>{top3[1].name || "Contestant"}</span>
+                    {top3[1].is_verified && <VerifiedBadge size="xs" />}
+                  </h4>
+                  <span className="rounded-full bg-violet-500/15 px-2 py-0.2 text-[9.5px] font-semibold text-violet-300 mt-0.5">
+                    {top3[1].category || "General"}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 rounded-xl border border-slate-400/25 bg-slate-500/10 p-2">
+                <p className="font-display text-xl font-bold text-slate-200">{top3[1].effectiveScore}</p>
+                <div className="mt-1 flex justify-around text-[10.5px] text-[var(--fg-muted)]">
+                  <span>Judge: <strong className="text-white">{top3[1].judge_score ?? 0}</strong></span>
+                  <span>Votes: <strong className="text-white">{top3[1].audience_votes ?? 0}</strong></span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 🥇 1st Place (Champion) */}
+          {top3[0] && (
+            <div className="rounded-2xl border-2 border-amber-400 bg-gradient-to-b from-amber-500/20 via-[var(--surface-2)] to-[var(--surface)] p-5 text-center shadow-xl shadow-amber-500/15 flex flex-col justify-between h-[260px] md:-translate-y-2 relative z-10">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="grid size-8 place-items-center rounded-full bg-amber-400 text-slate-950 font-display font-black text-sm shadow-md ring-2 ring-amber-300">
+                    1
+                  </span>
+                  <span className="rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider text-slate-950 shadow-sm flex items-center gap-1">
+                    <Crown className="size-3 fill-current" /> 🥇 Champion
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-col items-center">
+                  <div className="relative size-16 rounded-full border-3 border-amber-400 overflow-hidden bg-amber-500/20 ring-4 ring-amber-400/30 shadow-lg">
+                    {top3[0].profile_photo || top3[0].avatar ? (
+                      <img src={top3[0].profile_photo || top3[0].avatar} alt="" className="size-full object-cover" />
+                    ) : (
+                      <div className="size-full grid place-items-center text-amber-300 font-black text-base">
+                        {(top3[0].name || "U")[0]}
+                      </div>
+                    )}
+                  </div>
+                  <h4 className="mt-2 font-display font-black text-white text-base line-clamp-1 flex items-center gap-1">
+                    <span>{top3[0].name || "Contestant"}</span>
+                    {top3[0].is_verified && <VerifiedBadge size="xs" />}
+                  </h4>
+                  <span className="rounded-full bg-violet-500/20 border border-violet-500/40 px-2.5 py-0.5 text-[10px] font-bold text-violet-300 mt-0.5">
+                    {top3[0].category || "General"}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/15 p-2.5">
+                <p className="font-display text-2xl font-black text-amber-300">{top3[0].effectiveScore}</p>
+                <div className="mt-1 flex justify-around text-[11px] text-[var(--fg-muted)]">
+                  <span>Judge: <strong className="text-amber-200">{top3[0].judge_score ?? 0}</strong></span>
+                  <span>Votes: <strong className="text-amber-200">{top3[0].audience_votes ?? 0}</strong></span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 🥉 3rd Place */}
+          {top3[2] && (
+            <div className="rounded-2xl border border-amber-700/50 bg-gradient-to-b from-amber-700/15 via-[var(--surface)] to-[var(--surface)] p-4 text-center shadow-md flex flex-col justify-between h-[230px]">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="grid size-7 place-items-center rounded-full bg-amber-700 text-amber-100 font-display font-black text-xs shadow-sm">
+                    3
+                  </span>
+                  <span className="rounded-full bg-amber-700/20 border border-amber-700/40 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                    🥉 2nd Runner-Up
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-col items-center">
+                  <div className="relative size-14 rounded-full border-2 border-amber-700 overflow-hidden bg-[var(--surface-3)]">
+                    {top3[2].profile_photo || top3[2].avatar ? (
+                      <img src={top3[2].profile_photo || top3[2].avatar} alt="" className="size-full object-cover" />
+                    ) : (
+                      <div className="size-full grid place-items-center text-amber-200 font-bold text-sm">
+                        {(top3[2].name || "U")[0]}
+                      </div>
+                    )}
+                  </div>
+                  <h4 className="mt-2 font-bold text-white text-sm line-clamp-1 flex items-center gap-1">
+                    <span>{top3[2].name || "Contestant"}</span>
+                    {top3[2].is_verified && <VerifiedBadge size="xs" />}
+                  </h4>
+                  <span className="rounded-full bg-violet-500/15 px-2 py-0.2 text-[9.5px] font-semibold text-violet-300 mt-0.5">
+                    {top3[2].category || "General"}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 rounded-xl border border-amber-700/30 bg-amber-700/10 p-2">
+                <p className="font-display text-xl font-bold text-amber-300">{top3[2].effectiveScore}</p>
+                <div className="mt-1 flex justify-around text-[10.5px] text-[var(--fg-muted)]">
+                  <span>Judge: <strong className="text-white">{top3[2].judge_score ?? 0}</strong></span>
+                  <span>Votes: <strong className="text-white">{top3[2].audience_votes ?? 0}</strong></span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Official Standings & Judges Breakdown Table ── */}
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm flex flex-col gap-4">
+        <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+          <h4 className="font-display font-bold text-sm text-white flex items-center gap-2">
+            <Award className="size-4 text-amber-400" />
+            <span>
+              {selectedCategory === "ALL" ? "Overall Standings" : `${selectedCategory} Division Standings`} • Round {selectedRound}
+            </span>
+          </h4>
+          <span className="text-xs text-[var(--fg-muted)]">
+            Total {filteredParticipants.length} contestants ranked
+          </span>
+        </div>
+
+        {lbLoading ? (
+          <Loading rows={4} />
+        ) : filteredParticipants.length === 0 ? (
+          <div className="py-12 text-center text-xs text-[var(--fg-muted)]">
+            No contestants or judge scores recorded for Stage {selectedRound} in {selectedCategory === "ALL" ? "any category" : `category "${selectedCategory}"`}.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] text-left text-xs">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
+                  <th className="py-3 px-3">Rank</th>
+                  <th className="py-3 px-3">Contestant</th>
+                  <th className="py-3 px-3">Category</th>
+                  <th className="py-3 px-3 text-right">Judge Score</th>
+                  <th className="py-3 px-3 text-right">Audience Votes</th>
+                  <th className="py-3 px-3 text-right">Points / Score</th>
+                  <th className="py-3 px-3 text-center">Status</th>
+                  <th className="py-3 px-3 text-center">Judge Breakdown</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredParticipants.map((p: any, idx: number) => {
+                  const r = p.displayRank;
+                  const is1 = r === 1;
+                  const is2 = r === 2;
+                  const is3 = r === 3;
+                  const hasJudgeDetails = Array.isArray(p.judge_details) && p.judge_details.length > 0;
+
+                  return (
+                    <tr
+                      key={p.registration_id || p.email || p.user_email || idx}
+                      className={cn(
+                        "border-b border-[var(--border)]/60 hover:bg-[var(--surface-2)]/60 transition-colors",
+                        is1 ? "bg-amber-500/[0.04]" : is2 ? "bg-slate-500/[0.03]" : is3 ? "bg-amber-700/[0.03]" : ""
+                      )}
+                    >
+                      <td className="py-3 px-3 font-bold">
+                        {is1 ? (
+                          <span className="grid size-6 place-items-center rounded-full bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm">1</span>
+                        ) : is2 ? (
+                          <span className="grid size-6 place-items-center rounded-full bg-slate-300 text-slate-900 font-bold text-[11px] shadow-sm">2</span>
+                        ) : is3 ? (
+                          <span className="grid size-6 place-items-center rounded-full bg-amber-700 text-amber-50 font-bold text-[11px] shadow-sm">3</span>
+                        ) : (
+                          <span className="text-[var(--fg-muted)] pl-2">{r}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="size-8 rounded-full border border-white/10 overflow-hidden bg-[var(--surface-2)] shrink-0">
+                            {p.profile_photo || p.avatar ? (
+                              <img src={p.profile_photo || p.avatar} alt="" className="size-full object-cover" />
+                            ) : (
+                              <div className="size-full grid place-items-center text-[var(--fg-muted)] font-bold text-xs">
+                                {(p.name || "U")[0]}
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-white flex items-center gap-1">
+                              <span>{p.name || p.user_name || "Contestant"}</span>
+                              {p.is_verified && <VerifiedBadge size="xs" />}
+                            </p>
+                            <p className="text-[10.5px] text-[var(--fg-muted)] truncate max-w-[200px]">
+                              {p.email || p.user_email} • {p.registration_reference || "Reg"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10.5px] font-bold text-violet-300">
+                          {p.category || "General"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums text-white font-medium">
+                        {p.judge_score != null ? p.judge_score : "—"}
+                        {p.judge_score_count ? (
+                          <span className="text-[10px] text-[var(--fg-muted)] block">
+                            ({p.judge_score_count} {p.judge_score_count === 1 ? "judge" : "judges"})
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums text-[var(--fg-muted)] font-medium">
+                        {p.audience_votes != null ? formatNumber(p.audience_votes) : "—"}
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums font-bold text-amber-400 font-display text-sm">
+                        {p.effectiveScore}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {is1 ? (
+                          <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 text-[10px] font-black text-amber-300">
+                            👑 1st Champion
+                          </span>
+                        ) : is2 ? (
+                          <span className="rounded-full bg-slate-400/20 border border-slate-400/40 px-2.5 py-0.5 text-[10px] font-bold text-slate-300">
+                            🥈 2nd Place
+                          </span>
+                        ) : is3 ? (
+                          <span className="rounded-full bg-amber-700/20 border border-amber-700/40 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
+                            🥉 3rd Place
+                          </span>
+                        ) : p.round_status === "ELIMINATED" ? (
+                          <span className="rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-semibold text-rose-400">
+                            Eliminated
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                            Qualified
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {hasJudgeDetails || (p.comments && p.comments.length > 0) ? (
+                          <button
+                            type="button"
+                            onClick={() => setInspectParticipant(p)}
+                            className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/20 hover:border-amber-400 transition-colors"
+                          >
+                            <MessageSquare className="size-3" /> View Feedback
+                          </button>
+                        ) : (
+                          <span className="text-[10.5px] text-[var(--fg-subtle)]">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Judge Feedback Inspection Modal ── */}
+      {inspectParticipant && (
+        <Modal
+          open={!!inspectParticipant}
+          onClose={() => setInspectParticipant(null)}
+          title="Judge Evaluation & Feedback Details"
+          subtitle={`Score breakdown for ${inspectParticipant.name || "Contestant"} (${inspectParticipant.category || "General"})`}
+          footer={
+            <Button size="sm" variant="secondary" onClick={() => setInspectParticipant(null)}>
+              Close
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-4 text-xs">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-white text-sm">{inspectParticipant.name}</h4>
+                <p className="text-[11px] text-[var(--fg-muted)]">{inspectParticipant.email} • {inspectParticipant.category}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-[var(--fg-subtle)] block">Final Total Score</span>
+                <span className="font-display text-xl font-bold text-amber-400">{inspectParticipant.effectiveScore}</span>
+              </div>
+            </div>
+
+            {Array.isArray(inspectParticipant.judge_details) && inspectParticipant.judge_details.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                <h5 className="font-bold uppercase tracking-wider text-[var(--fg-muted)] text-[10.5px]">Individual Judge Scores:</h5>
+                {inspectParticipant.judge_details.map((jd: any, jIdx: number) => (
+                  <div key={jIdx} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 flex flex-col gap-2">
+                    <div className="flex items-center justify-between border-b border-[var(--border)]/60 pb-2">
+                      <span className="font-semibold text-white">Judge: {jd.judge_email}</span>
+                      <span className="font-mono font-bold text-amber-300">Total: {jd.total_score} pts</span>
+                    </div>
+
+                    {jd.scores && Object.keys(jd.scores).length > 0 && (
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        {Object.entries(jd.scores).map(([crit, val]: any) => (
+                          <div key={crit} className="flex justify-between bg-[var(--surface-2)] px-2.5 py-1 rounded-lg">
+                            <span className="text-[var(--fg-muted)]">{crit}:</span>
+                            <span className="font-bold text-white">{val} pts</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {jd.comments && (
+                      <div className="mt-1 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 text-[11px] text-amber-200">
+                        <strong className="block text-[10px] uppercase text-amber-400 font-bold mb-0.5">Judge Comments:</strong>
+                        &ldquo;{jd.comments}&rdquo;
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : inspectParticipant.comments && inspectParticipant.comments.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                <h5 className="font-bold uppercase tracking-wider text-[var(--fg-muted)] text-[10.5px]">Judge Feedback:</h5>
+                {inspectParticipant.comments.map((c: string, cIdx: number) => (
+                  <div key={cIdx} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-amber-200">
+                    &ldquo;{c}&rdquo;
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center py-6 text-xs text-[var(--fg-muted)]">No written judge comments recorded.</p>
+            )}
           </div>
         </Modal>
       )}
