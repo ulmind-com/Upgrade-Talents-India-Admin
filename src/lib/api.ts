@@ -148,6 +148,13 @@ export const cmsApi = {
   updateHomepageStats: (stats: any[]) => api<any>(`${cms}/homepage-stats`, { method: "PUT", body: stats }),
   getGallerySection: () => api<any>(`${cms}/gallery-section`),
   updateGallerySection: (body: any) => api<any>(`${cms}/gallery-section`, { method: "PUT", body }),
+  getStageMoments: () => api<any>(`${cms}/stage-moments`),
+  updateStageMoments: (body: any) => api<any>(`${cms}/stage-moments`, { method: "PUT", body }),
+  uploadStagePhoto: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api<any>(`${cms}/upload-stage-photo`, { method: "POST", form: fd });
+  },
 
   listEvents: (q?: any) => api<any[]>(`${cms}/events`, { query: q }),
   createEvent: (body: any) => api<any>(`${cms}/events`, { method: "POST", body }),

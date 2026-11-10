@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2, Plus, Trash2, RotateCcw, Sparkles } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Panel, StatusBadge, Textarea, Toggle, useResource } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
@@ -10,6 +10,7 @@ import { formatDate, fromDateTimeInput, rowId, cn } from "@/lib/utils";
 
 const TABS = [
   { key: "brand", label: "Brand & Contact" },
+  { key: "stage", label: "Stage Moments (Ring)" },
   { key: "banners", label: "Sponsored Banners" },
   { key: "tiles", label: "Featured 4 Tiles" },
   { key: "gallery", label: "Gallery Section" },
@@ -45,6 +46,7 @@ export default function WebsitePage() {
       </div>
 
       {tab === "brand" && <BrandSection />}
+      {tab === "stage" && <StageMomentsSectionEditor />}
       {tab === "banners" && <BannersSection />}
       {tab === "tiles" && <FeaturedTilesSection />}
       {tab === "gallery" && <GallerySectionEditor />}
@@ -920,6 +922,459 @@ function GallerySectionEditor() {
         <div className="flex justify-end pt-2">
           <Button size="md" onClick={handleSave} loading={busy}>
             <Save className="size-4" aria-hidden /> Save Gallery Section
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+/* ───────── STAGE MOMENTS (THE FLOOR IS BUILT ON MOVEMENT) ───────── */
+
+const DEFAULT_STAGE_PHOTOS = [
+  "https://cdn.21st.dev/assets/mirror/4d/4d1bff4ea8b9f400dff7ae405f92e15bd39ec76e9285c7d96017e64ba1de3ae1.jpg",
+  "https://cdn.21st.dev/assets/mirror/ee/ee36e332fe99d7611c43b90511db08a4f84e4545caa78e7b52e9ccffe273864b.jpg",
+  "https://cdn.21st.dev/assets/mirror/dd/dddeaa4e6132c65bf7ff99d197f792a30937b5cbfe97a2b1ee54a793684df52e.jpg",
+  "https://cdn.21st.dev/assets/mirror/48/487977107b5011b5e1c25289f6e4393ef555e1a92daee554788e9363b233ca14.jpg",
+  "https://cdn.21st.dev/assets/mirror/a1/a12509688be6c9d3b2cb26d2ea1cfce48b8a8dbf2653e17be8a3fc31bd69f162.jpg",
+  "https://cdn.21st.dev/assets/mirror/05/051f9e565b5b0b221384d9c27a0760febc3fb48d190c046adfda579f3614c958.jpg",
+  "https://cdn.21st.dev/assets/mirror/87/87d4f60a4465d19d14b8acefa46275df4ccd767ccea6d7f234ea5bad99cfec56.jpg",
+  "https://cdn.21st.dev/assets/mirror/06/0610989e0675a12c02d35aa5464e2644bf77913214b748b73a894808d2d79877.jpg",
+  "https://cdn.21st.dev/assets/mirror/fe/fe90b90751e671a9526134c4743e2fcbf6c1a24991aba273ad7418c88fc9c701.jpg",
+  "https://cdn.21st.dev/assets/mirror/2e/2e0452c1994fcc2130a1b8ef68e34b5ea52d1b35b80dde09b99349ad1de54598.jpg",
+  "https://cdn.21st.dev/assets/mirror/84/847dc523558808119dc4bbb5218ff862ae5f5b455f33e9a0304f2f5a4b2f0f2c.jpg",
+  "https://cdn.21st.dev/assets/mirror/2f/2f128763d177d6bdda3de9f0a766693406034977082bdb542138b7b74af9697b.jpg",
+  "https://cdn.21st.dev/assets/mirror/30/30f8223f1d1ecc24fc8b7a9995b8ee98449b1e9fc300c14fbccec01b6a83a0ae.jpg",
+  "https://cdn.21st.dev/assets/mirror/b4/b4df0e3e425ffce3b4f62fd7bc717e4dc90b94455f4d65d64fc07fe9721b0519.jpg",
+  "https://cdn.21st.dev/assets/mirror/90/90c625659f072e4a701c2e37fa4ca46f25c7ca8689d723e7802fe84cf17874e9.jpg",
+  "https://cdn.21st.dev/assets/mirror/6a/6aa0befc69cc3db8f3f3558d4b5e1216a5b64ceae1b86f51acf1c3f1432a8cf7.jpg",
+  "https://cdn.21st.dev/assets/mirror/dc/dc126cfd753dc217945d0ea2f915e539dfe4ffb5fdea02245d0f576b25a9c4dd.jpg",
+  "https://cdn.21st.dev/assets/mirror/ab/ab5f167fcb763aee7c3247fb8af97875998a7f519a6119da7dadd9cf73ae1a2c.jpg",
+  "https://cdn.21st.dev/assets/mirror/57/57d6e450f7068e5f3be04907dcc0815343e67df1dc82f2da0ff1c859afc1f700.jpg",
+  "https://cdn.21st.dev/assets/mirror/e4/e491359016d1494074e287dfbb55be068cffc0110017ae2257a5d4cdec193a47.jpg",
+];
+
+function StageMomentsSectionEditor() {
+  const { push } = useToast();
+  const { data, loading, reload } = useResource(() => safe(cmsApi.getStageMoments(), {} as any), []);
+  const [busy, setBusy] = useState(false);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
+
+  const [introTitle, setIntroTitle] = useState("The floor is built on movement.");
+  const [title, setTitle] = useState("Moments from the floor");
+  const [subtitle, setSubtitle] = useState("Stages, crews and performances from across the Upgrade Talents circuit.");
+  const [images, setImages] = useState<Array<{ id: string; image_url: string; caption?: string }>>([]);
+
+  useEffect(() => {
+    if (data) {
+      setIntroTitle(data.intro_title || "The floor is built on movement.");
+      setTitle(data.title || "Moments from the floor");
+      setSubtitle(data.subtitle || "Stages, crews and performances from across the Upgrade Talents circuit.");
+
+      const incoming = Array.isArray(data.images) && data.images.length > 0 ? data.images : [];
+      if (incoming.length > 0) {
+        setImages(
+          incoming.map((im: any, idx: number) => ({
+            id: im.id || `stage-${idx + 1}`,
+            image_url: im.image_url || "",
+            caption: im.caption || "",
+          }))
+        );
+      } else {
+        setImages(
+          DEFAULT_STAGE_PHOTOS.map((url, idx) => ({
+            id: `stage-${idx + 1}`,
+            image_url: url,
+            caption: `Stage Moment #${idx + 1}`,
+          }))
+        );
+      }
+    }
+  }, [data]);
+
+  const updateImage = (index: number, patch: Partial<{ image_url: string; caption: string }>) => {
+    setImages((prev) => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index] = { ...next[index], ...patch };
+      }
+      return next;
+    });
+  };
+
+  const handleFileUpload = async (index: number, file: File) => {
+    setUploadingIdx(index);
+    try {
+      const res = await cmsApi.uploadStagePhoto(file);
+      const url = res?.image_url || res?.url;
+      if (url) {
+        updateImage(index, { image_url: url });
+        push("success", `Stage photo #${index + 1} uploaded successfully.`);
+      } else {
+        push("error", "No URL returned from server.");
+      }
+    } catch (e: any) {
+      push("error", e?.message || "Failed to upload photo.");
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
+
+  const handleBatchUpload = async (fileList: FileList) => {
+    if (!fileList || fileList.length === 0) return;
+    setIsBatchUploading(true);
+    let uploadedCount = 0;
+    try {
+      const files = Array.from(fileList);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          const res = await cmsApi.uploadStagePhoto(file);
+          const url = res?.image_url || res?.url;
+          if (url) {
+            setImages((prev) => {
+              const next = [...prev];
+              const emptyIdx = next.findIndex((item) => !item.image_url);
+              if (emptyIdx !== -1) {
+                next[emptyIdx] = { ...next[emptyIdx], image_url: url };
+              } else if (i < next.length) {
+                next[i] = { ...next[i], image_url: url };
+              } else {
+                next.push({
+                  id: `stage-${next.length + 1}`,
+                  image_url: url,
+                  caption: file.name.replace(/\.[^/.]+$/, ""),
+                });
+              }
+              return next;
+            });
+            uploadedCount++;
+          }
+        } catch (err) {
+          console.error("Batch upload file error:", err);
+        }
+      }
+      push("success", `Successfully uploaded ${uploadedCount} stage photos!`);
+    } catch (e: any) {
+      push("error", e?.message || "Batch upload failed.");
+    } finally {
+      setIsBatchUploading(false);
+    }
+  };
+
+  const addSlot = () => {
+    setImages((prev) => [
+      ...prev,
+      { id: `stage-${prev.length + 1}`, image_url: "", caption: `Stage Moment #${prev.length + 1}` },
+    ]);
+  };
+
+  const removeSlot = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const resetToDefaults = () => {
+    if (!window.confirm("Reset all 20 stage photos to the initial default high-res showcase photos?")) return;
+    setImages(
+      DEFAULT_STAGE_PHOTOS.map((url, idx) => ({
+        id: `stage-${idx + 1}`,
+        image_url: url,
+        caption: `Stage Moment #${idx + 1}`,
+      }))
+    );
+    push("info", "Reset stage photos to initial 20 defaults. Click 'Save Stage Moments' to apply.");
+  };
+
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      const payload = {
+        intro_title: introTitle.trim(),
+        title: title.trim(),
+        subtitle: subtitle.trim(),
+        images: images.filter((img) => img.image_url?.trim()),
+      };
+      await cmsApi.updateStageMoments(payload);
+      push("success", "Stage moments and floor photos updated on the homepage!");
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Could not save stage moments.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading)
+    return (
+      <Panel title="Stage Moments (Ring Circle)">
+        <div className="skeleton h-64 w-full" />
+      </Panel>
+    );
+
+  return (
+    <Panel
+      title="Stage Moments & Floor Photos ('The Floor is Built on Movement')"
+      subtitle="Manage the 20 capsule thumbnails that form the rotating circle ring on the homepage, along with headlines and captions."
+      action={
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={resetToDefaults}>
+            <RotateCcw className="size-3.5" aria-hidden /> Defaults
+          </Button>
+          <Button size="sm" onClick={handleSave} loading={busy}>
+            <Save className="size-3.5" aria-hidden /> Save Stage Moments
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-8">
+        {/* Section Headings */}
+        <div className="grid gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h3 className="text-sm font-bold text-[var(--fg)] flex items-center gap-2">
+            <Sparkles className="size-4 text-[var(--brand)]" />
+            <span>Circle Ring Headlines & Titles</span>
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Intro Circle Center Headline" required hint="Shown in the center of the rotating circle ring">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={introTitle}
+                  placeholder="e.g. The floor is built on movement."
+                  onChange={(e) => setIntroTitle(e.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Section Heading Title" required hint="Shown as user scrolls down">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={title}
+                  placeholder="e.g. Moments from the floor"
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+
+          <Field label="Section Subtitle / Circuit Description">
+            {({ id }) => (
+              <Textarea
+                id={id}
+                rows={2}
+                value={subtitle}
+                placeholder="Stages, crews and performances from across the Upgrade Talents circuit."
+                onChange={(e) => setSubtitle(e.target.value)}
+              />
+            )}
+          </Field>
+        </div>
+
+        {/* Live Mini Circular Visualizer */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[#070b14] p-6 text-center shadow-inner relative overflow-hidden">
+          <div className="pointer-events-none absolute inset-0 bg-radial from-amber-500/10 via-transparent to-transparent opacity-50" />
+          <h4 className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--fg-muted)] mb-1">
+            Live Circle Ring Preview ({images.filter((i) => i.image_url).length} Photos Active)
+          </h4>
+          <p className="text-[11px] text-[var(--fg-subtle)] mb-5">
+            Arranged around the center title on the homepage just as dancers perform on stage
+          </p>
+
+          <div className="relative mx-auto my-3 size-64 sm:size-72 rounded-full border border-dashed border-white/15 flex items-center justify-center">
+            {/* Center text */}
+            <div className="max-w-[140px] text-center z-10 pointer-events-none">
+              <span className="font-serif text-[11px] font-bold tracking-wider text-white uppercase block leading-tight">
+                {introTitle || "The floor is built on movement."}
+              </span>
+              <span className="font-mono text-[8px] uppercase tracking-widest text-neutral-400 mt-1 block">
+                Scroll to explore
+              </span>
+            </div>
+
+            {/* Orbiting Capsule Miniatures */}
+            {images.slice(0, 20).map((img, i, arr) => {
+              const total = Math.min(arr.length, 20);
+              const angle = (i / total) * 2 * Math.PI - Math.PI / 2;
+              const radius = 105; // radius in px inside preview
+              const x = Math.cos(angle) * radius;
+              const y = Math.sin(angle) * radius;
+
+              return (
+                <div
+                  key={img.id || i}
+                  style={{
+                    position: "absolute",
+                    transform: `translate(${x}px, ${y}px) rotate(${angle + Math.PI / 2}rad)`,
+                  }}
+                  className="size-6 sm:size-7 rounded-lg overflow-hidden border border-white/30 bg-neutral-900 shadow-md transition-transform hover:scale-125 hover:z-20 cursor-pointer"
+                  title={`Slot #${i + 1}: ${img.caption || img.image_url}`}
+                >
+                  {img.image_url ? (
+                    <img src={img.image_url} alt="" className="size-full object-cover" />
+                  ) : (
+                    <div className="size-full bg-neutral-800 grid place-items-center text-[7px] font-bold text-neutral-400">
+                      {i + 1}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Upload Controls & 20 Stage Photo Slots Grid */}
+        <div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
+            <div>
+              <h3 className="text-sm font-bold text-[var(--fg)]">
+                Stage Photo Capsule Slots ({images.length} Total)
+              </h3>
+              <p className="text-xs text-[var(--fg-muted)]">
+                Upload photos to show in the 20 capsule positions on the live circle ring.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Batch Upload Button */}
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-semibold text-[var(--fg)] hover:bg-[var(--surface)] transition-all">
+                {isBatchUploading ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin text-[var(--brand)]" /> Uploading Batch...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="size-3.5 text-[var(--brand)]" />
+                    <span>Upload Multiple Photos</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  disabled={isBatchUploading}
+                  onChange={(e) => {
+                    if (e.target.files) handleBatchUpload(e.target.files);
+                  }}
+                />
+              </label>
+
+              <Button size="sm" variant="ghost" onClick={addSlot}>
+                <Plus className="size-3.5" aria-hidden /> Add Slot
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+            {images.map((img, idx) => (
+              <div
+                key={img.id || `stage-slot-${idx}`}
+                className="flex flex-col gap-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3 shadow-sm hover:border-[var(--brand)]/50 transition-colors"
+              >
+                {/* Slot Header */}
+                <div className="flex items-center justify-between border-b border-[var(--border)] pb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="grid size-5 place-items-center rounded-full bg-[var(--brand)] text-[10px] font-bold text-[var(--on-brand)]">
+                      {idx + 1}
+                    </span>
+                    <span className="font-semibold text-xs text-[var(--fg)] truncate max-w-[90px]">
+                      Slot #{idx + 1}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {img.image_url && (
+                      <button
+                        type="button"
+                        onClick={() => updateImage(idx, { image_url: "" })}
+                        className="text-[10px] text-[var(--fg-muted)] hover:text-[var(--danger)]"
+                        title="Clear photo"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    {images.length > 20 && (
+                      <button
+                        type="button"
+                        onClick={() => removeSlot(idx)}
+                        className="text-neutral-400 hover:text-red-400"
+                        title="Delete slot"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Capsule Thumbnail Preview with exact aspect-[60/85] */}
+                <div className="relative mx-auto aspect-[60/85] w-24 overflow-hidden rounded-2xl border-2 border-[var(--border)] bg-black/60 shadow-md group">
+                  {img.image_url ? (
+                    <img
+                      src={img.image_url}
+                      alt={img.caption || `Stage photo ${idx + 1}`}
+                      className="size-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="grid size-full place-items-center text-center p-2 text-[var(--fg-subtle)]">
+                      <div>
+                        <ImageIcon className="mx-auto size-5 opacity-40 mb-1" />
+                        <span className="text-[9.5px]">Empty Slot</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upload Overlay */}
+                  <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 text-center backdrop-blur-xs">
+                    {uploadingIdx === idx ? (
+                      <Loader2 className="size-5 animate-spin text-[var(--brand)]" />
+                    ) : (
+                      <>
+                        <Upload className="size-4 text-[var(--brand)] mb-1" />
+                        <span className="text-[9px] font-bold text-white uppercase tracking-wider">
+                          {img.image_url ? "Replace" : "Upload"}
+                        </span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingIdx === idx}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleFileUpload(idx, f);
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {/* URL and Caption */}
+                <div className="space-y-1.5">
+                  <Input
+                    value={img.image_url || ""}
+                    placeholder="Photo URL..."
+                    className="text-[11px] h-7 px-2 font-mono"
+                    onChange={(e) => updateImage(idx, { image_url: e.target.value })}
+                  />
+                  <Input
+                    value={img.caption || ""}
+                    placeholder="Caption (optional)..."
+                    className="text-[11px] h-7 px-2"
+                    onChange={(e) => updateImage(idx, { caption: e.target.value })}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-[var(--border)] pt-4">
+          <Button size="sm" variant="ghost" onClick={resetToDefaults}>
+            <RotateCcw className="size-3.5" aria-hidden /> Restore 20 Defaults
+          </Button>
+          <Button size="md" onClick={handleSave} loading={busy}>
+            <Save className="size-4" aria-hidden /> Save Stage Moments
           </Button>
         </div>
       </div>
