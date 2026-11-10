@@ -7,7 +7,8 @@ import {
   Upload, Loader2, Plus, Trash2, Image as ImageIcon,
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
   ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square,
-  Link2, Music, FileUp, Sparkles, UserCheck, XCircle, Layers, ArrowRight, Settings, CheckSquare
+  Link2, Music, FileUp, Sparkles, UserCheck, XCircle, Layers, ArrowRight, Settings, CheckSquare,
+  Share2, MessageCircle
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
@@ -687,6 +688,7 @@ export default function CompetitionsPage() {
   const { confirm, dialog } = useConfirm();
   const [detail, setDetail] = useState<any | null>(null);
   const [modalTab, setModalTab] = useState<"participants" | "workflow" | "stage">("participants");
+  const [shareComp, setShareComp] = useState<any | null>(null);
 
   const run = async (label: string, fn: () => Promise<any>, reload: () => void, needsConfirm?: string) => {
     if (needsConfirm) {
@@ -758,6 +760,15 @@ export default function CompetitionsPage() {
           ],
           rowActions: (row, { reload }) => (
             <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShareComp(row)}
+                className="text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 border-sky-500/20"
+                title="Share & Promote Competition (WhatsApp, Direct Links)"
+              >
+                <Share2 className="size-3.5" aria-hidden /> Share
+              </Button>
               <Button
                 size="sm"
                 variant="secondary"
@@ -1094,6 +1105,10 @@ export default function CompetitionsPage() {
         initialTab={modalTab}
         onClose={() => setDetail(null)}
         onAction={run}
+      />
+      <ShareCompetitionAdminModal
+        comp={shareComp}
+        onClose={() => setShareComp(null)}
       />
       {dialog}
     </div>
@@ -3856,6 +3871,232 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
         </Modal>
       )}
     </div>
+  );
+}
+
+function ShareCompetitionAdminModal({
+  comp,
+  onClose,
+}: {
+  comp: any | null;
+  onClose: () => void;
+}) {
+  const { push } = useToast();
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  if (!comp) return null;
+
+  const compId = String(rowId(comp));
+  const publicUrl = `https://upgradetalentsindia.in/competitions/${compId}`;
+  const registerUrl = `https://upgradetalentsindia.in/competitions/${compId}?action=register#register`;
+  const shareRedirectUrl = `https://event-management-backend-nijj.onrender.com/api/v1/share/competition/${compId}`;
+
+  const title = comp.title || comp.name || "Upgrade Talents Competition";
+  const category = comp.category || "Talent Competition";
+  const prizePool = comp.prize_pool || comp.total_prize || 0;
+  const entryFee = comp.entry_fee ?? comp.registration_fee ?? 0;
+  const bannerImg = comp.card_image_url || comp.banner_image_url || comp.banner_url || comp.image_url;
+
+  const promoMessage = `🏆 *${title}*
+🎭 Category: ${category}
+${prizePool ? `💰 Prize Pool: ₹${Number(prizePool).toLocaleString("en-IN")}` : ""}
+${entryFee ? `🎟️ Entry Fee: ₹${entryFee}` : "🎟️ Entry: Free Registration"}
+
+🔥 Show off your talent, compete on the big stage, and get recognized across India!
+👉 View Details & Register: ${publicUrl}`;
+
+  const copyToClipboard = async (text: string, key: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      push("success", `${label} copied to clipboard!`);
+      setTimeout(() => setCopiedKey(null), 2500);
+    } catch {
+      push("error", "Failed to copy to clipboard.");
+    }
+  };
+
+  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(promoMessage)}`;
+  const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(publicUrl)}&text=${encodeURIComponent(promoMessage)}`;
+
+  return (
+    <Modal
+      open={!!comp}
+      onClose={onClose}
+      title="Share & Promote Competition"
+      subtitle={`Social broadcast & direct entry links for "${title}"`}
+      footer={
+        <Button size="sm" variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-4 text-xs">
+        {/* Preview Card */}
+        <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-gradient-to-br from-neutral-900 via-neutral-950 to-neutral-900 p-4 shadow-lg">
+          <div className="flex items-start gap-3.5">
+            {bannerImg ? (
+              <img
+                src={bannerImg}
+                alt={title}
+                className="size-16 rounded-lg object-cover border border-white/10 shrink-0 shadow-md"
+              />
+            ) : (
+              <div className="grid size-16 shrink-0 place-items-center rounded-lg bg-[var(--surface-3)] text-[var(--brand)] border border-white/10">
+                <Trophy className="size-7" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                  {category}
+                </span>
+                {comp.is_published && (
+                  <span className="rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                    Live
+                  </span>
+                )}
+              </div>
+              <h4 className="mt-1 font-bold text-white text-sm truncate">{title}</h4>
+              <p className="text-[11px] text-[var(--fg-muted)] mt-0.5">
+                {prizePool ? `Prize: ₹${Number(prizePool).toLocaleString("en-IN")}` : "Grand Prizes & Certificates"} • {entryFee ? `Fee: ₹${entryFee}` : "Free Entry"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Public Website URL */}
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-white">Public Competition Details Page</span>
+            <span className="text-[10px] text-[var(--brand)] font-bold uppercase">Public Link</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={publicUrl}
+              className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--fg-muted)] outline-none"
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => copyToClipboard(publicUrl, "public", "Details Link")}
+            >
+              {copiedKey === "public" ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+              {copiedKey === "public" ? "Copied" : "Copy"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              href={publicUrl}
+              target="_blank"
+              title="Open public page"
+            >
+              <ExternalLink className="size-3.5" />
+            </Button>
+          </div>
+          <p className="mt-1.5 text-[11px] text-[var(--fg-subtle)]">
+            Official public view with rules, judging criteria, live leaderboard and registration button.
+          </p>
+        </div>
+
+        {/* Direct Registration Link */}
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-white">Direct Fast-Track Registration Link</span>
+            <span className="text-[10px] text-emerald-400 font-bold uppercase">Direct Registration</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={registerUrl}
+              className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--fg-muted)] outline-none"
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => copyToClipboard(registerUrl, "reg", "Registration Link")}
+            >
+              {copiedKey === "reg" ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+              {copiedKey === "reg" ? "Copied" : "Copy"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              href={registerUrl}
+              target="_blank"
+              title="Open direct registration"
+            >
+              <ExternalLink className="size-3.5" />
+            </Button>
+          </div>
+          <p className="mt-1.5 text-[11px] text-[var(--fg-subtle)]">
+            Opens the page with the registration modal or section automatically triggered.
+          </p>
+        </div>
+
+        {/* Social Share Buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs"
+          >
+            <MessageCircle className="size-4" /> Share on WhatsApp
+          </a>
+
+          <a
+            href={telegramUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 font-bold text-sky-400 hover:bg-sky-500/20 transition-all text-xs"
+          >
+            <Send className="size-4" /> Share on Telegram
+          </a>
+        </div>
+
+        {/* WhatsApp Promotion Broadcast Text */}
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-white flex items-center gap-1.5">
+              <Sparkles className="size-3.5 text-amber-400" /> Ready-to-Send WhatsApp Promo Text
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => copyToClipboard(promoMessage, "promo", "WhatsApp Promo Text")}
+            >
+              {copiedKey === "promo" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+              {copiedKey === "promo" ? "Copied Text" : "Copy Promo Text"}
+            </Button>
+          </div>
+          <pre className="whitespace-pre-wrap rounded-lg bg-[var(--surface-2)] p-2.5 font-sans text-[11px] text-[var(--fg-muted)] border border-[var(--border)] max-h-28 overflow-y-auto">
+            {promoMessage}
+          </pre>
+        </div>
+
+        {/* Backend Universal Redirect */}
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2.5">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-[var(--fg-muted)] text-[11px]">Universal API Redirect Link</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => copyToClipboard(shareRedirectUrl, "backend", "Backend Redirect URL")}
+            >
+              {copiedKey === "backend" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+              Copy
+            </Button>
+          </div>
+          <p className="font-mono text-[10px] text-[var(--fg-subtle)] truncate mt-1">
+            {shareRedirectUrl}
+          </p>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
