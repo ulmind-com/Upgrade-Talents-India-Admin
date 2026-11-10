@@ -78,7 +78,7 @@ function BrandSection() {
      "live_stage_label", "live_stage_title"]
       .forEach((k) => { body[k] = v(k) || null; });
 
-    body.social_media = ["facebook", "instagram", "twitter", "youtube", "linkedin"]
+    body.social_media = ["facebook", "instagram", "twitter", "youtube", "linkedin", "whatsapp", "telegram", "threads", "github", "leetcode"]
       .reduce((acc: any, k) => { acc[k] = social(k) || null; return acc; }, {});
 
     try { await cmsApi.updateSettings(body); push("success", "Website brand and contact details saved."); reload(); }
@@ -143,10 +143,10 @@ function BrandSection() {
           </div>
         </Panel>
 
-        <Panel title="Social links">
+        <Panel title="Social links" subtitle="Configure official social profiles (displayed across footer and contact pages)">
           <div className="grid gap-4 sm:grid-cols-2">
-            {["facebook", "instagram", "twitter", "youtube", "linkedin"].map((k) => (
-              <Field key={k} label={k[0].toUpperCase() + k.slice(1)}>
+            {["facebook", "instagram", "twitter", "youtube", "linkedin", "whatsapp", "telegram", "threads", "github", "leetcode"].map((k) => (
+              <Field key={k} label={k === "x" ? "X / Twitter" : k[0].toUpperCase() + k.slice(1)}>
                 {({ id }) => (
                   <Input id={id} type="url" value={social(k)}
                     onChange={(e) => setDraft((p) => ({ ...p, [`social.${k}`]: e.target.value }))} />

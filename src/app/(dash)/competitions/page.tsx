@@ -871,6 +871,21 @@ export default function CompetitionsPage() {
                 />
               ),
             },
+            {
+              name: "share_image_url",
+              label: "Social Share / Open Graph Poster (1200x630)",
+              half: true,
+              render: ({ value, onChange }) => (
+                <ImageUploaderField
+                  label="Social Sharing / OG Poster"
+                  aspectRatioLabel="1.91:1 Landscape Preview (1200x630)"
+                  aspectClass="w-32 aspect-[1.91/1]"
+                  value={value}
+                  onChange={onChange}
+                  onUpload={(f) => competitionsApi.uploadShareImage(f)}
+                />
+              ),
+            },
             { name: "description", label: "Description", type: "textarea", placeholder: "Details about this competition…" },
             { name: "start_date", label: "Competition starts (IST)", type: "datetime", half: true, required: true },
             { name: "end_date", label: "Competition ends (IST)", type: "datetime", half: true, required: true },
@@ -921,6 +936,7 @@ export default function CompetitionsPage() {
             categories: Array.isArray(r.categories) ? r.categories : [],
             card_image_url: r.card_image_url || r.image_url || "",
             banner_image_url: r.banner_image_url || r.banner_url || "",
+            share_image_url: r.share_image_url || "",
             max_participants: r.max_participants ?? "",
             start_date: r.start_date || r.starts_at || "",
             end_date: r.end_date || r.ends_at || "",
@@ -1040,6 +1056,7 @@ export default function CompetitionsPage() {
                 image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
                 banner_image_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
                 banner_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
+                share_image_url: v.share_image_url ? String(v.share_image_url).trim() : null,
                 max_participants: v.max_participants === "" || v.max_participants == null ? null : Number(v.max_participants),
                 participation_fee: v.participation_fee === "" || v.participation_fee == null ? 0 : Number(v.participation_fee),
                 min_age: v.min_age === "" || v.min_age == null ? null : Number(v.min_age),
@@ -1083,6 +1100,7 @@ export default function CompetitionsPage() {
               image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
               banner_image_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
               banner_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
+              share_image_url: v.share_image_url ? String(v.share_image_url).trim() : null,
               max_participants: v.max_participants === "" || v.max_participants == null ? null : Number(v.max_participants),
               participation_fee: v.participation_fee === "" || v.participation_fee == null ? 0 : Number(v.participation_fee),
               currency: "INR",

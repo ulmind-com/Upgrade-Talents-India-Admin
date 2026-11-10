@@ -313,6 +313,11 @@ export const competitionsApi = {
     fd.append("file", file);
     return api<any>(`${comp}/upload-banner`, { method: "POST", form: fd });
   },
+  uploadShareImage: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api<any>(`${comp}/upload-share-image`, { method: "POST", form: fd });
+  },
   rounds: (compId: string) => api<any>(`${comp}/${compId}/rounds`),
   configureRounds: (compId: string, rounds: any[]) =>
     api<any>(`${comp}/${compId}/rounds`, { method: "POST", body: { rounds } }),
