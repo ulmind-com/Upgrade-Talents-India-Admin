@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2, Plus, Trash2, RotateCcw, Sparkles } from "lucide-react";
+import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2, Plus, Trash2, RotateCcw, Sparkles, ExternalLink, Zap, ArrowUp, ArrowDown, Linkedin } from "lucide-react";
+import {
+  SiInstagram,
+  SiYoutube,
+  SiFacebook,
+  SiX,
+} from "react-icons/si";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Panel, StatusBadge, Textarea, Toggle, useResource } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
@@ -11,6 +17,7 @@ import { formatDate, fromDateTimeInput, rowId, cn } from "@/lib/utils";
 const TABS = [
   { key: "brand", label: "Brand & Contact" },
   { key: "stage", label: "Stage Moments (Ring)" },
+  { key: "spotlight", label: "Spotlight Posts & Social" },
   { key: "banners", label: "Sponsored Banners" },
   { key: "tiles", label: "Featured 4 Tiles" },
   { key: "gallery", label: "Gallery Section" },
@@ -47,6 +54,7 @@ export default function WebsitePage() {
 
       {tab === "brand" && <BrandSection />}
       {tab === "stage" && <StageMomentsSectionEditor />}
+      {tab === "spotlight" && <SpotlightSectionEditor />}
       {tab === "banners" && <BannersSection />}
       {tab === "tiles" && <FeaturedTilesSection />}
       {tab === "gallery" && <GallerySectionEditor />}
@@ -1375,6 +1383,653 @@ function StageMomentsSectionEditor() {
           </Button>
           <Button size="md" onClick={handleSave} loading={busy}>
             <Save className="size-4" aria-hidden /> Save Stage Moments
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+/* ───────── SPOTLIGHT SOCIAL MEDIA & PROMO POSTS ───────── */
+
+const DEFAULT_SPOTLIGHT_ITEMS = [
+  {
+    id: "spotlight-1",
+    platform: "instagram",
+    title: "Nrityashastra Arena",
+    category: "Classical & Semi-Classical",
+    tag: "Season 2026",
+    image_url: "https://images.unsplash.com/photo-1547153760-18fc86324498?auto=format&fit=crop&w=1200&q=85",
+    post_url: "https://instagram.com/upgradetalents",
+  },
+  {
+    id: "spotlight-2",
+    platform: "instagram",
+    title: "Street Dance Showdown",
+    category: "Hip-Hop & Krump",
+    tag: "Live Battle",
+    image_url: "https://images.unsplash.com/photo-1535525153412-5a42439a210d?auto=format&fit=crop&w=1200&q=85",
+    post_url: "https://instagram.com/upgradetalents",
+  },
+  {
+    id: "spotlight-3",
+    platform: "instagram",
+    title: "Spotlight Solo Battle",
+    category: "Freestyle All-Styles",
+    tag: "Arena Spotlight",
+    image_url: "https://images.unsplash.com/photo-1518834107812-67b0b7c58434?auto=format&fit=crop&w=1200&q=85",
+    post_url: "https://instagram.com/upgradetalents",
+  },
+  {
+    id: "spotlight-4",
+    platform: "instagram",
+    title: "Grand Championship Stage",
+    category: "Live Trophy Round",
+    tag: "Finals",
+    image_url: "https://images.unsplash.com/photo-1545959570-a94084071b5d?auto=format&fit=crop&w=1200&q=85",
+    post_url: "https://instagram.com/upgradetalents",
+  },
+  {
+    id: "spotlight-5",
+    platform: "instagram",
+    title: "Choreography Masterclass",
+    category: "Artist Workshop",
+    tag: "Live Training",
+    image_url: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=85",
+    post_url: "https://upgradetalentsindia.in/events",
+  },
+  {
+    id: "spotlight-6",
+    platform: "instagram",
+    title: "Electrifying Stage Arena",
+    category: "National Tour 2026",
+    tag: "Main Stage",
+    image_url: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?auto=format&fit=crop&w=1200&q=85",
+    post_url: "https://instagram.com/upgradetalents",
+  },
+  {
+    id: "spotlight-7",
+    platform: "instagram",
+    title: "Rhythm & Sync Showcase",
+    category: "Crew Showdown",
+    tag: "Group Dance",
+    image_url: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=1200&q=85",
+    post_url: "https://instagram.com/upgradetalents",
+  },
+  {
+    id: "spotlight-8",
+    platform: "instagram",
+    title: "Live Audience Spectacle",
+    category: "Live Energy",
+    tag: "Electric Crowd",
+    image_url: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=85",
+    post_url: "https://instagram.com/upgradetalents",
+  },
+];
+
+function getPlatformBrandIcon(platform?: string) {
+  const p = (platform || "instagram").toLowerCase();
+  if (p.includes("youtube")) return SiYoutube;
+  if (p.includes("facebook")) return SiFacebook;
+  if (p.includes("x") || p.includes("twitter")) return SiX;
+  if (p.includes("linkedin")) return Linkedin;
+  return SiInstagram;
+}
+
+function SpotlightSectionEditor() {
+  const { push } = useToast();
+  const { data, loading, reload } = useResource(async () => {
+    return await safe(cmsApi.getSpotlightSection(), null);
+  }, []);
+
+  const [label, setLabel] = useState("Live Stage Moments");
+  const [title, setTitle] = useState("Moments in the Spotlight");
+  const [subtitle, setSubtitle] = useState(
+    "Raw passion, electrifying rhythm, and pure stage energy from our dancers and performers across India."
+  );
+  const [handle, setHandle] = useState("upgradetalents");
+  const [followText, setFollowText] = useState("Follow @upgradetalents on Instagram");
+  const [followUrl, setFollowUrl] = useState("https://instagram.com/upgradetalents");
+  const [items, setItems] = useState<any[]>(DEFAULT_SPOTLIGHT_ITEMS);
+
+  const [busy, setBusy] = useState(false);
+  const [extractingIdx, setExtractingIdx] = useState<number | null>(null);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!data) return;
+    if (data.label) setLabel(data.label);
+    if (data.title) setTitle(data.title);
+    if (data.subtitle) setSubtitle(data.subtitle);
+    if (data.handle) setHandle(data.handle);
+    if (data.follow_text) setFollowText(data.follow_text);
+    if (data.follow_url) setFollowUrl(data.follow_url);
+    if (Array.isArray(data.items) && data.items.length > 0) {
+      setItems(data.items);
+    }
+  }, [data]);
+
+  const updateItem = (index: number, patch: Partial<any>) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...patch };
+      return next;
+    });
+  };
+
+  const addItem = () => {
+    setItems((prev) => [
+      ...prev,
+      {
+        id: `spotlight-${Date.now()}`,
+        platform: "instagram",
+        title: "New Spotlight Moment",
+        category: "Performance Showcase",
+        tag: "Live Stage",
+        image_url: "https://images.unsplash.com/photo-1547153760-18fc86324498?auto=format&fit=crop&w=1200&q=85",
+        post_url: "https://instagram.com/upgradetalents",
+      },
+    ]);
+  };
+
+  const removeItem = (index: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const moveItem = (index: number, direction: "up" | "down") => {
+    setItems((prev) => {
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+      return next;
+    });
+  };
+
+  const resetToDefaults = () => {
+    if (!window.confirm("Reset spotlight section and cards to initial curated 8 moments?")) return;
+    setLabel("Live Stage Moments");
+    setTitle("Moments in the Spotlight");
+    setSubtitle("Raw passion, electrifying rhythm, and pure stage energy from our dancers and performers across India.");
+    setHandle("upgradetalents");
+    setFollowText("Follow @upgradetalents on Instagram");
+    setFollowUrl("https://instagram.com/upgradetalents");
+    setItems(DEFAULT_SPOTLIGHT_ITEMS);
+    push("info", "Reset to defaults. Click 'Save Spotlight Section' to apply.");
+  };
+
+  const handleAutoFetch = async (idx: number) => {
+    const item = items[idx];
+    if (!item?.post_url || !item.post_url.trim()) {
+      push("error", "Please enter a valid post or video URL first.");
+      return;
+    }
+    setExtractingIdx(idx);
+    try {
+      const res = await cmsApi.extractLinkPreview(item.post_url.trim());
+      if (res && res.success) {
+        setItems((prev) => {
+          const next = [...prev];
+          const curr = next[idx];
+          next[idx] = {
+            ...curr,
+            platform: res.platform || curr.platform || "instagram",
+            title: res.title || curr.title,
+            category: res.category || curr.category,
+            tag: res.tag || curr.tag,
+            image_url: res.image_url || curr.image_url,
+          };
+          return next;
+        });
+        if (res.image_url) {
+          push("success", `Poster & metadata extracted for ${res.platform?.toUpperCase() || "post"}!`);
+        } else {
+          push("info", res.note || "Metadata extracted. Please upload a flyer/poster photo.");
+        }
+      } else {
+        push("error", "Could not extract link preview. Please upload image manually.");
+      }
+    } catch (e: any) {
+      push("error", e?.message || "Failed to fetch link preview.");
+    } finally {
+      setExtractingIdx(null);
+    }
+  };
+
+  const handlePhotoUpload = async (idx: number, file: File) => {
+    if (!file) return;
+    setUploadingIdx(idx);
+    try {
+      const res = await cmsApi.uploadSpotlightPhoto(file);
+      if (res?.url) {
+        updateItem(idx, { image_url: res.url });
+        push("success", "Poster uploaded successfully!");
+      }
+    } catch (e: any) {
+      push("error", e?.message || "Failed to upload photo.");
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
+
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      const payload = {
+        label: label.trim(),
+        title: title.trim(),
+        subtitle: subtitle.trim(),
+        handle: handle.trim(),
+        follow_text: followText.trim(),
+        follow_url: followUrl.trim(),
+        items: items.map((it, idx) => ({
+          id: it.id || `spotlight-${idx + 1}`,
+          platform: it.platform || "instagram",
+          title: it.title || "Live Stage Performance",
+          category: it.category || "Social Spotlight",
+          tag: it.tag || "Live Stage",
+          image_url: it.image_url || "",
+          post_url: it.post_url || "",
+        })),
+      };
+      await cmsApi.updateSpotlightSection(payload);
+      push("success", "Spotlight section updated! Live website will refresh.");
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to save spotlight section.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Panel title="Spotlight Section">
+        <div className="skeleton h-64 w-full" />
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel
+      title="Spotlight Section ('Moments in the Spotlight')"
+      subtitle="Manage promotional banners, social media posts (Instagram, YouTube, X, Facebook), and stage flyers shown in the continuous marquee."
+      action={
+        <Button size="sm" onClick={handleSave} loading={busy}>
+          <Save className="size-3.5" aria-hidden /> Save Spotlight Section
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-8">
+        {/* Section Header Configuration */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+          <h3 className="text-sm font-semibold text-[var(--fg)] mb-3 flex items-center gap-2">
+            <Sparkles className="size-4 text-pink-400" /> Section Headings & Follow Button
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Section Eyebrow / Label" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={label}
+                  placeholder="e.g. Live Stage Moments"
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Main Heading Title" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={title}
+                  placeholder="e.g. Moments in the Spotlight"
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+
+          <div className="mt-4">
+            <Field label="Subtitle / Description">
+              {({ id }) => (
+                <Textarea
+                  id={id}
+                  value={subtitle}
+                  rows={2}
+                  placeholder="Short description under the title..."
+                  onChange={(e) => setSubtitle(e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <Field label="Instagram Handle">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={handle}
+                  placeholder="e.g. upgradetalents"
+                  onChange={(e) => setHandle(e.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Bottom Button Text">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={followText}
+                  placeholder="e.g. Follow @upgradetalents on Instagram"
+                  onChange={(e) => setFollowText(e.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Bottom Button Destination URL">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={followUrl}
+                  placeholder="https://instagram.com/upgradetalents"
+                  onChange={(e) => setFollowUrl(e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+        </div>
+
+        {/* Live Visual Marquee Preview */}
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] p-5 text-center">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-left">
+              <h4 className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--fg-muted)]">
+                Live Marquee Preview ({items.length} Cards)
+              </h4>
+              <p className="text-[11px] text-[var(--fg-subtle)]">
+                Cards continuously glide right-to-left. Clicking opens the attached social link.
+              </p>
+            </div>
+            <Button size="sm" variant="secondary" onClick={addItem}>
+              <Plus className="size-3.5" /> Add Spotlight Card
+            </Button>
+          </div>
+
+          <div className="flex gap-4 overflow-x-auto pb-3 pt-2 scrollbar-thin">
+            {items.map((it, idx) => {
+              const BrandIcon = getPlatformBrandIcon(it.platform);
+              return (
+                <div
+                  key={it.id || idx}
+                  className="group relative shrink-0 w-[170px] aspect-[4/5] rounded-2xl overflow-hidden border border-white/10 bg-[var(--surface-2)] shadow-md text-left"
+                >
+                  <img
+                    src={it.image_url || "https://images.unsplash.com/photo-1547153760-18fc86324498?auto=format&fit=crop&w=400&q=80"}
+                    alt={it.title}
+                    className="size-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/10" />
+                  <div className="absolute top-2 inset-x-2 flex items-center justify-between pointer-events-none">
+                    <span className="rounded-full bg-black/70 px-1.5 py-0.5 text-[8.5px] font-mono text-white/90">
+                      {it.tag || "Live"}
+                    </span>
+                    <span className="grid size-5 place-items-center rounded-full bg-black/70 text-white/90">
+                      <BrandIcon className="size-3 text-pink-400" />
+                    </span>
+                  </div>
+                  <div className="absolute bottom-2 inset-x-2 text-left">
+                    <span className="text-[8.5px] font-mono text-cyan-300 truncate block">
+                      {it.category || "Showcase"}
+                    </span>
+                    <h5 className="text-[11px] font-bold text-white truncate block">
+                      {it.title || "Spotlight Moment"}
+                    </h5>
+                    <span className="text-[9px] text-white/70 flex items-center gap-0.5 mt-0.5">
+                      <span>Open link</span>
+                      <ExternalLink className="size-2.5" />
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Card Items Editor List */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-[var(--fg)]">
+                Spotlight Cards List ({items.length})
+              </h3>
+              <p className="text-xs text-[var(--fg-muted)]">
+                Paste any Instagram, YouTube, X, or Facebook URL and hit <strong>⚡ Auto-Fetch</strong> to pull high-res poster & details automatically.
+              </p>
+            </div>
+            <Button size="sm" onClick={addItem}>
+              <Plus className="size-3.5" /> Add Card
+            </Button>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            {items.map((item, idx) => {
+              const BrandIcon = getPlatformBrandIcon(item.platform);
+              const isExtracting = extractingIdx === idx;
+              const isUploading = uploadingIdx === idx;
+
+              return (
+                <div
+                  key={item.id || `card-${idx}`}
+                  className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-sm hover:border-[var(--brand)]/40 transition-colors"
+                >
+                  {/* Card Header & Controls */}
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="grid size-6 place-items-center rounded-lg bg-[var(--surface)] text-[11px] font-mono font-bold text-[var(--fg)] border border-[var(--border)]">
+                        #{idx + 1}
+                      </span>
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--surface)] border border-[var(--border)] text-xs font-semibold text-[var(--fg-muted)]">
+                        <BrandIcon className="size-3.5 text-pink-400" />
+                        <span className="capitalize">{item.platform || "Instagram"}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => moveItem(idx, "up")}
+                        title="Move Up"
+                        className="rounded p-1 text-[var(--fg-muted)] hover:bg-[var(--surface)] disabled:opacity-30"
+                      >
+                        <ArrowUp className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === items.length - 1}
+                        onClick={() => moveItem(idx, "down")}
+                        title="Move Down"
+                        className="rounded p-1 text-[var(--fg-muted)] hover:bg-[var(--surface)] disabled:opacity-30"
+                      >
+                        <ArrowDown className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(idx)}
+                        title="Delete Card"
+                        className="rounded p-1 text-red-400 hover:bg-red-500/10 transition-colors ml-1"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Platform & Social URL with Auto-Fetch */}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="text-[11px] font-medium text-[var(--fg-muted)] mb-1 block">
+                        Platform
+                      </label>
+                      <select
+                        value={item.platform || "instagram"}
+                        onChange={(e) => updateItem(idx, { platform: e.target.value })}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none"
+                      >
+                        <option value="instagram">Instagram</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="x">X / Twitter</option>
+                        <option value="linkedin">LinkedIn</option>
+                        <option value="general">Website / Promo</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-[11px] font-medium text-[var(--fg-muted)] mb-1 block">
+                        Social Post or Video URL
+                      </label>
+                      <div className="flex gap-1.5">
+                        <Input
+                          value={item.post_url || ""}
+                          placeholder="https://instagram.com/p/... or youtube.com/..."
+                          className="text-xs h-8"
+                          onChange={(e) => updateItem(idx, { post_url: e.target.value })}
+                        />
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                          onClick={() => handleAutoFetch(idx)}
+                          disabled={isExtracting}
+                          className="shrink-0 h-8 px-2.5 text-[11px] font-bold text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
+                        >
+                          {isExtracting ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <Zap className="size-3 text-amber-400" /> Fetch
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Title, Category, Tag */}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="sm:col-span-2">
+                      <label className="text-[11px] font-medium text-[var(--fg-muted)] mb-1 block">
+                        Card Title (Short Heading)
+                      </label>
+                      <Input
+                        value={item.title || ""}
+                        placeholder="e.g. Street Dance Showdown"
+                        className="text-xs h-8"
+                        onChange={(e) => updateItem(idx, { title: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-[var(--fg-muted)] mb-1 block">
+                        Badge / Tag
+                      </label>
+                      <Input
+                        value={item.tag || ""}
+                        placeholder="e.g. Live Battle"
+                        className="text-xs h-8"
+                        onChange={(e) => updateItem(idx, { tag: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-medium text-[var(--fg-muted)] mb-1 block">
+                      Category / Subtitle
+                    </label>
+                    <Input
+                      value={item.category || ""}
+                      placeholder="e.g. Hip-Hop & Krump"
+                      className="text-xs h-8"
+                      onChange={(e) => updateItem(idx, { category: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Poster Thumbnail & Upload / Direct Image URL */}
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2.5">
+                    <label className="text-[11px] font-medium text-[var(--fg-muted)] mb-1.5 block">
+                      Poster / Flyer Image
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <div className="relative size-16 shrink-0 rounded-lg overflow-hidden border border-white/10 bg-black/40">
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt={item.title}
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <div className="size-full grid place-items-center text-white/30">
+                            <ImageIcon className="size-6" />
+                          </div>
+                        )}
+                        {isUploading && (
+                          <div className="absolute inset-0 bg-black/70 grid place-items-center">
+                            <Loader2 className="size-4 animate-spin text-white" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+                        <Input
+                          value={item.image_url || ""}
+                          placeholder="Poster image URL..."
+                          className="text-xs h-7"
+                          onChange={(e) => updateItem(idx, { image_url: e.target.value })}
+                        />
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] transition-colors">
+                            <Upload className="size-3 text-cyan-400" />
+                            <span>Upload Flyer/Photo</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handlePhotoUpload(idx, f);
+                              }}
+                            />
+                          </label>
+                          {item.image_url && (
+                            <a
+                              href={item.image_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-[var(--brand)] hover:underline inline-flex items-center gap-1"
+                            >
+                              <span>View</span>
+                              <ExternalLink className="size-2.5" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Bottom Actions */}
+        <div className="flex items-center justify-between border-t border-[var(--border)] pt-4">
+          <Button size="sm" variant="ghost" onClick={resetToDefaults}>
+            <RotateCcw className="size-3.5" aria-hidden /> Restore Curated Defaults
+          </Button>
+          <Button size="md" onClick={handleSave} loading={busy}>
+            <Save className="size-4" aria-hidden /> Save Spotlight Section
           </Button>
         </div>
       </div>

@@ -155,6 +155,14 @@ export const cmsApi = {
     fd.append("file", file);
     return api<any>(`${cms}/upload-stage-photo`, { method: "POST", form: fd });
   },
+  getSpotlightSection: () => api<any>(`${cms}/spotlight-section`),
+  updateSpotlightSection: (body: any) => api<any>(`${cms}/spotlight-section`, { method: "PUT", body }),
+  uploadSpotlightPhoto: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api<any>(`${cms}/upload-spotlight-photo`, { method: "POST", form: fd });
+  },
+  extractLinkPreview: (url: string) => api<any>(`${cms}/extract-link-preview`, { method: "POST", body: { url } }),
 
   listEvents: (q?: any) => api<any[]>(`${cms}/events`, { query: q }),
   createEvent: (body: any) => api<any>(`${cms}/events`, { method: "POST", body }),
