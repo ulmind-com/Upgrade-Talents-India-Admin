@@ -121,7 +121,15 @@ export const authApi = {
 const wa = "/api/admin/webauthn";
 export const webauthnApi = {
   registerOptions: () => api<any>(`${wa}/register/options`, { method: "POST" }),
-  registerVerify: (body: any) => api<{ message: string; credential_id: string; label: string }>(`${wa}/register/verify`, { method: "POST", body }),
+  // The credential goes under `response`: the backend reads body.response, and
+  // a credential posted at the top level would have its own inner `response`
+  // (attestationObject / clientDataJSON) picked up instead — that object has no
+  // `id`, so verification fails with "Credential missing required id".
+  registerVerify: (response: any, label?: string) =>
+    api<{ message: string; credential_id: string; label: string }>(`${wa}/register/verify`, {
+      method: "POST",
+      body: { response, label },
+    }),
   loginOptions: () => api<{ challenge_id: string; options: any }>(`${wa}/login/options`, { method: "POST", auth: false }),
   loginVerify: (body: { challenge_id: string; response: any }) =>
     api<{ access_token: string; token_type?: string }>(`${wa}/login/verify`, { method: "POST", body, auth: false }),

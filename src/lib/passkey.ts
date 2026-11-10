@@ -37,12 +37,24 @@ export async function isPlatformAvailable(): Promise<boolean> {
   }
 }
 
+/** A readable default name for the device the passkey is being added on. */
+export function deviceLabel(): string {
+  if (typeof navigator === "undefined") return "This device";
+  const ua = navigator.userAgent;
+  if (/iPhone/i.test(ua)) return "iPhone";
+  if (/iPad/i.test(ua)) return "iPad";
+  if (/Android/i.test(ua)) return "Android phone";
+  if (/Macintosh/i.test(ua)) return "Mac";
+  if (/Windows/i.test(ua)) return "Windows PC";
+  return "This device";
+}
+
 /** Register a new passkey for the signed-in admin (password session required). */
-export async function register(): Promise<void> {
+export async function register(label?: string): Promise<void> {
   if (!isSupported()) throw new Error("This browser does not support passkeys.");
   const optionsJSON = await webauthnApi.registerOptions();
   const regResp = await startRegistration({ optionsJSON });
-  await webauthnApi.registerVerify(regResp);
+  await webauthnApi.registerVerify(regResp, label || deviceLabel());
 }
 
 /** Usernameless fingerprint login → returns a fresh admin access token. */
