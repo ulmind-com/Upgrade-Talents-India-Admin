@@ -18,6 +18,7 @@ const TABS = [
   { key: "brand", label: "Brand & Contact" },
   { key: "stage", label: "Stage Moments (Ring)" },
   { key: "spotlight", label: "Spotlight Posts & Social" },
+  { key: "partners", label: "Partners & Sponsors" },
   { key: "banners", label: "Sponsored Banners" },
   { key: "tiles", label: "Featured 4 Tiles" },
   { key: "gallery", label: "Gallery Section" },
@@ -55,6 +56,7 @@ export default function WebsitePage() {
       {tab === "brand" && <BrandSection />}
       {tab === "stage" && <StageMomentsSectionEditor />}
       {tab === "spotlight" && <SpotlightSectionEditor />}
+      {tab === "partners" && <PartnersSectionEditor />}
       {tab === "banners" && <BannersSection />}
       {tab === "tiles" && <FeaturedTilesSection />}
       {tab === "gallery" && <GallerySectionEditor />}
@@ -2030,6 +2032,439 @@ function SpotlightSectionEditor() {
           </Button>
           <Button size="md" onClick={handleSave} loading={busy}>
             <Save className="size-4" aria-hidden /> Save Spotlight Section
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+/* ───────── PARTNERS & SPONSORS SECTION ───────── */
+
+const DEFAULT_PARTNERS_LIST = [
+  {
+    id: "partner-1",
+    name: "Red Bull",
+    logo_url: "https://upload.wikimedia.org/wikipedia/en/thumb/f/f5/RedBullEnergyDrink.svg/640px-RedBullEnergyDrink.svg.png",
+    website_url: "https://www.redbull.com",
+    is_active: true,
+  },
+  {
+    id: "partner-2",
+    name: "Puma",
+    logo_url: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Puma-logo-%28text%29.svg/640px-Puma-logo-%28text%29.svg.png",
+    website_url: "https://puma.com",
+    is_active: true,
+  },
+  {
+    id: "partner-3",
+    name: "Sony Music",
+    logo_url: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Sony_Music_logo.svg/640px-Sony_Music_logo.svg.png",
+    website_url: "https://sonymusic.com",
+    is_active: true,
+  },
+  {
+    id: "partner-4",
+    name: "Monster Energy",
+    logo_url: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Monster_Energy_logo.svg/640px-Monster_Energy_logo.svg.png",
+    website_url: "https://www.monsterenergy.com",
+    is_active: true,
+  },
+  {
+    id: "partner-5",
+    name: "JBL",
+    logo_url: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/JBL_logo.svg/640px-JBL_logo.svg.png",
+    website_url: "https://jbl.com",
+    is_active: true,
+  },
+  {
+    id: "partner-6",
+    name: "Spotify",
+    logo_url: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/640px-Spotify_logo_without_text.svg.png",
+    website_url: "https://spotify.com",
+    is_active: true,
+  },
+];
+
+function PartnersSectionEditor() {
+  const { push } = useToast();
+  const { data, loading, reload } = useResource(async () => {
+    return await safe(cmsApi.getPartnersSection(), null);
+  }, []);
+
+  const [label, setLabel] = useState("Powered by our partners");
+  const [title, setTitle] = useState("Official Partners & Sponsors");
+  const [partners, setPartners] = useState<any[]>(DEFAULT_PARTNERS_LIST);
+
+  const [busy, setBusy] = useState(false);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!data) return;
+    if (data.label) setLabel(data.label);
+    if (data.title) setTitle(data.title);
+    if (Array.isArray(data.partners) && data.partners.length > 0) {
+      setPartners(data.partners);
+    }
+  }, [data]);
+
+  const updatePartner = (index: number, patch: Partial<any>) => {
+    setPartners((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...patch };
+      return next;
+    });
+  };
+
+  const addPartner = () => {
+    setPartners((prev) => [
+      ...prev,
+      {
+        id: `partner-${Date.now()}`,
+        name: "New Partner",
+        logo_url: "",
+        website_url: "https://",
+        is_active: true,
+      },
+    ]);
+  };
+
+  const removePartner = (index: number) => {
+    setPartners((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const movePartner = (index: number, direction: "up" | "down") => {
+    setPartners((prev) => {
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+      return next;
+    });
+  };
+
+  const resetToDefaults = () => {
+    if (!window.confirm("Reset partners to initial default brand sponsors?")) return;
+    setLabel("Powered by our partners");
+    setTitle("Official Partners & Sponsors");
+    setPartners(DEFAULT_PARTNERS_LIST);
+    push("info", "Reset to default partners. Click 'Save Partners & Sponsors' to apply.");
+  };
+
+  const handleLogoUpload = async (idx: number, file: File) => {
+    if (!file) return;
+    setUploadingIdx(idx);
+    try {
+      const res = await cmsApi.uploadPartnerLogo(file);
+      if (res?.url) {
+        updatePartner(idx, { logo_url: res.url });
+        push("success", "Partner logo uploaded successfully!");
+      }
+    } catch (e: any) {
+      push("error", e?.message || "Failed to upload logo.");
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
+
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      const payload = {
+        label: label.trim(),
+        title: title.trim(),
+        partners: partners.map((p, idx) => ({
+          id: p.id || `partner-${idx + 1}`,
+          name: (p.name || "").trim(),
+          logo_url: (p.logo_url || "").trim(),
+          website_url: (p.website_url || "").trim(),
+          is_active: p.is_active !== false,
+        })),
+      };
+      await cmsApi.updatePartnersSection(payload);
+      push("success", "Partners section updated! Live homepage will reflect changes.");
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to save partners section.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Panel title="Partners & Sponsors">
+        <div className="skeleton h-64 w-full" />
+      </Panel>
+    );
+  }
+
+  const activePartners = partners.filter((p) => p.is_active !== false && p.logo_url);
+
+  return (
+    <Panel
+      title="Partners & Sponsors ('Powered by our partners')"
+      subtitle="Manage sponsor and partner brand logos shown in the continuous scrolling partners ribbon on the homepage."
+      action={
+        <Button size="sm" onClick={handleSave} loading={busy}>
+          <Save className="size-3.5" aria-hidden /> Save Partners & Sponsors
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-8">
+        {/* Section Headings */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+          <h3 className="text-sm font-semibold text-[var(--fg)] mb-3 flex items-center gap-2">
+            <Sparkles className="size-4 text-cyan-400" /> Section Label & Title
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Section Eyebrow / Label" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={label}
+                  placeholder="e.g. Powered by our partners"
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Section Title">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={title}
+                  placeholder="e.g. Official Partners & Sponsors"
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+        </div>
+
+        {/* Live Ribbon Preview */}
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] p-5 text-center">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-left">
+              <h4 className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--fg-muted)]">
+                Live Ribbon Preview ({activePartners.length} Active Logos)
+              </h4>
+              <p className="text-[11px] text-[var(--fg-subtle)]">
+                Full original logo colors are displayed cleanly without darkening or grayscale.
+              </p>
+            </div>
+            <Button size="sm" variant="secondary" onClick={addPartner}>
+              <Plus className="size-3.5" /> Add Partner Logo
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-6 overflow-x-auto py-4 px-2 rounded-xl bg-black/40 border border-white/5 scrollbar-thin">
+            {activePartners.length > 0 ? (
+              activePartners.map((p, idx) => (
+                <div
+                  key={p.id || idx}
+                  className="flex h-14 shrink-0 items-center px-4 py-2 rounded-xl bg-white/[0.05] border border-white/10 shadow-sm"
+                >
+                  <img
+                    src={p.logo_url}
+                    alt={p.name}
+                    className="h-8 w-auto max-w-[140px] object-contain drop-shadow"
+                  />
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-[var(--fg-muted)] py-3 mx-auto">
+                No active partner logos yet. Click "Add Partner Logo" below.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Partners List */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-[var(--fg)]">
+                Partner Logos List ({partners.length})
+              </h3>
+              <p className="text-xs text-[var(--fg-muted)]">
+                Upload company or brand logos (transparent PNG or SVG recommended) and set their destination link.
+              </p>
+            </div>
+            <Button size="sm" onClick={addPartner}>
+              <Plus className="size-3.5" /> Add Partner
+            </Button>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {partners.map((p, idx) => {
+              const isUploading = uploadingIdx === idx;
+
+              return (
+                <div
+                  key={p.id || `partner-${idx}`}
+                  className={cn(
+                    "flex flex-col gap-3 rounded-2xl border p-4 shadow-sm transition-colors",
+                    p.is_active !== false
+                      ? "border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--brand)]/40"
+                      : "border-[var(--border)] bg-[var(--surface)] opacity-60"
+                  )}
+                >
+                  {/* Header & Controls */}
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="grid size-6 place-items-center rounded-lg bg-[var(--surface)] text-[11px] font-mono font-bold text-[var(--fg)] border border-[var(--border)]">
+                        #{idx + 1}
+                      </span>
+                      <span className="text-xs font-bold text-[var(--fg)] truncate max-w-[120px]">
+                        {p.name || "Untitled"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => updatePartner(idx, { is_active: p.is_active === false })}
+                        title={p.is_active !== false ? "Disable Partner" : "Enable Partner"}
+                        className={cn(
+                          "rounded px-2 py-0.5 text-[10px] font-mono font-semibold transition-colors",
+                          p.is_active !== false
+                            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                            : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                        )}
+                      >
+                        {p.is_active !== false ? "Active" : "Disabled"}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => movePartner(idx, "up")}
+                        title="Move Up"
+                        className="rounded p-1 text-[var(--fg-muted)] hover:bg-[var(--surface)] disabled:opacity-30"
+                      >
+                        <ArrowUp className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === partners.length - 1}
+                        onClick={() => movePartner(idx, "down")}
+                        title="Move Down"
+                        className="rounded p-1 text-[var(--fg-muted)] hover:bg-[var(--surface)] disabled:opacity-30"
+                      >
+                        <ArrowDown className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removePartner(idx)}
+                        title="Delete Partner"
+                        className="rounded p-1 text-red-400 hover:bg-red-500/10 transition-colors ml-0.5"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Logo Display & Upload Box */}
+                  <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                    <div className="relative size-16 shrink-0 rounded-lg overflow-hidden border border-white/10 bg-black/60 flex items-center justify-center p-1.5">
+                      {p.logo_url ? (
+                        <img
+                          src={p.logo_url}
+                          alt={p.name}
+                          className="size-full object-contain drop-shadow"
+                        />
+                      ) : (
+                        <div className="size-full grid place-items-center text-white/30">
+                          <ImageIcon className="size-6" />
+                        </div>
+                      )}
+                      {isUploading && (
+                        <div className="absolute inset-0 bg-black/75 grid place-items-center">
+                          <Loader2 className="size-4 animate-spin text-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] transition-colors w-fit">
+                        <Upload className="size-3 text-cyan-400" />
+                        <span>Upload Logo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleLogoUpload(idx, f);
+                          }}
+                        />
+                      </label>
+                      {p.logo_url && (
+                        <a
+                          href={p.logo_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-[var(--brand)] hover:underline inline-flex items-center gap-1 truncate"
+                        >
+                          <span>View Logo File</span>
+                          <ExternalLink className="size-2.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Partner Name & Website URL */}
+                  <div>
+                    <label className="text-[11px] font-medium text-[var(--fg-muted)] mb-1 block">
+                      Partner / Sponsor Name
+                    </label>
+                    <Input
+                      value={p.name || ""}
+                      placeholder="e.g. Red Bull, Sony Music"
+                      className="text-xs h-8"
+                      onChange={(e) => updatePartner(idx, { name: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-medium text-[var(--fg-muted)] mb-1 block">
+                      Partner Website URL
+                    </label>
+                    <Input
+                      value={p.website_url || ""}
+                      placeholder="https://partner-website.com"
+                      className="text-xs h-8"
+                      onChange={(e) => updatePartner(idx, { website_url: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-medium text-[var(--fg-muted)] mb-1 block">
+                      Direct Logo Image URL
+                    </label>
+                    <Input
+                      value={p.logo_url || ""}
+                      placeholder="https://..."
+                      className="text-xs h-7"
+                      onChange={(e) => updatePartner(idx, { logo_url: e.target.value })}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Bottom Actions */}
+        <div className="flex items-center justify-between border-t border-[var(--border)] pt-4">
+          <Button size="sm" variant="ghost" onClick={resetToDefaults}>
+            <RotateCcw className="size-3.5" aria-hidden /> Restore Defaults
+          </Button>
+          <Button size="md" onClick={handleSave} loading={busy}>
+            <Save className="size-4" aria-hidden /> Save Partners & Sponsors
           </Button>
         </div>
       </div>
