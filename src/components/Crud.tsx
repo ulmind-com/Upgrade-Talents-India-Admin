@@ -40,6 +40,9 @@ export type CrudConfig<T = any> = {
   singular: string;
   /** Extra per-row buttons (publish toggles, exports, etc.). */
   rowActions?: (row: T, ctx: { reload: () => void }) => ReactNode;
+  /** Renders each record as a full-width card instead of a table row. The card
+   *  owns its own edit / delete controls, so `rowActions` is not rendered. */
+  renderCard?: (row: T, ctx: { reload: () => void; edit: () => void; remove: () => void }) => ReactNode;
   /** Buttons rendered beside the search box. */
   toolbar?: (ctx: { reload: () => void }) => ReactNode;
   /** Shapes form values into the exact request body the backend expects. */
@@ -53,7 +56,7 @@ export type CrudConfig<T = any> = {
 export function CrudPage<T extends Record<string, any>>({ config }: { config: CrudConfig<T> }) {
   const {
     load, create, update, remove, columns, fields = [], searchKeys,
-    title, subtitle, singular, rowActions, toolbar, toBody, toForm, emptyBody, pageSize,
+    title, subtitle, singular, rowActions, toolbar, toBody, toForm, emptyBody, pageSize, renderCard,
   } = config;
 
   const { push } = useToast();
@@ -156,7 +159,7 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
   };
 
   const actionCol: Column<T> | null =
-    update || remove || rowActions
+    !renderCard && (update || remove || rowActions)
       ? {
           key: "__actions",
           header: "Actions",
@@ -215,6 +218,16 @@ export function CrudPage<T extends Record<string, any>>({ config }: { config: Cr
           searchKeys={searchKeys}
           pageSize={pageSize}
           toolbar={toolbar?.({ reload })}
+          renderCard={
+            renderCard
+              ? (row) =>
+                  renderCard(row, {
+                    reload,
+                    edit: () => openEdit(row),
+                    remove: () => onDelete(row),
+                  })
+              : undefined
+          }
           empty={{
             title: `No ${title.toLowerCase()} yet`,
             body: emptyBody,

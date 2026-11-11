@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import {
   Gavel, Lock, Trophy, Send, RefreshCw, Eye, EyeOff, UserPlus, UserMinus,
   Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
-  Upload, Loader2, Plus, Trash2, Image as ImageIcon,
+  Upload, Loader2, Plus, Trash2, Pencil, Image as ImageIcon,
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
   ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square,
   Link2, Music, FileUp, Sparkles, UserCheck, XCircle, Layers, ArrowRight, Settings, CheckSquare,
@@ -16,6 +16,8 @@ import { KeyValues, StatCard } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import { competitionsApi, judgesApi, safe, toRows } from "@/lib/api";
+import { CompetitionCard } from "./CompetitionCard";
+import { UserAvatar } from "./UserAvatar";
 import { formatDate, formatINR, formatNumber, fromDateTimeInput, rowId, cn } from "@/lib/utils";
 
 function ImageUploaderField({
@@ -77,7 +79,7 @@ function ImageUploaderField({
       <div className="flex items-start gap-3">
         {value ? (
           <div className={cn("relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] shrink-0 shadow-sm", aspectClass)}>
-            <img src={value} alt="" className="size-full object-cover" />
+            <img src={value} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
           </div>
         ) : (
           <div className={cn("grid place-items-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] text-[11px] text-[var(--fg-subtle)] shrink-0", aspectClass)}>
@@ -758,72 +760,21 @@ export default function CompetitionsPage() {
               );
             } },
           ],
-          rowActions: (row, { reload }) => (
-            <div className="flex items-center gap-1.5">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  setDetail(row);
-                  setModalTab("results");
-                }}
-                className="border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:text-white"
-                title="View Official Results, Category-Wise Winners & Judge Scores"
-              >
-                <Trophy className="size-3.5 text-amber-400" aria-hidden /> Results
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShareComp(row)}
-                className="text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 border-sky-500/20"
-                title="Share & Promote Competition (WhatsApp, Direct Links)"
-              >
-                <Share2 className="size-3.5" aria-hidden /> Share
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  setDetail(row);
-                  setModalTab("stage");
-                }}
-                className="border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-white"
-                title="Manage Live Stage Performance & Lineup Queue"
-              >
-                <Radio className="size-3.5 text-rose-500 animate-pulse" aria-hidden /> Live Stage
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  setDetail(row);
-                  setModalTab("participants");
-                }}
-                title="View Registered Participants & Submissions"
-              >
-                <Users className="size-3.5" aria-hidden /> Participants
-              </Button>
-              <button
-                onClick={() => {
-                  setDetail(row);
-                  setModalTab("workflow");
-                }}
-                aria-label="Open competition judging controls"
-                title="Judging & Session Controls"
-                className="grid size-8 cursor-pointer place-items-center rounded-lg text-[var(--fg-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--brand)]"
-              >
-                <Gavel className="size-4" aria-hidden />
-              </button>
-              <Button
-                size="sm"
-                variant={row.is_published ? "secondary" : "success"}
-                onClick={() => run(row.is_published ? "Unpublish" : "Publish",
-                  () => (row.is_published ? competitionsApi.unpublish(rowId(row)) : competitionsApi.publish(rowId(row))), reload)}
-              >
-                {row.is_published ? "Unpublish" : "Publish"}
-              </Button>
-            </div>
+          renderCard: (row: any, { reload, edit, remove }) => (
+            <CompetitionCard
+              row={row}
+              onOpen={(tab) => { setDetail(row); setModalTab(tab); }}
+              onShare={() => setShareComp(row)}
+              onTogglePublish={() =>
+                run(
+                  row.is_published ? "Unpublish" : "Publish",
+                  () => (row.is_published ? competitionsApi.unpublish(rowId(row)) : competitionsApi.publish(rowId(row))),
+                  reload
+                )
+              }
+              onEdit={edit}
+              onDelete={remove}
+            />
           ),
           fields: [
             { name: "title", label: "Title", required: true, placeholder: "e.g. Big Classic Dance Competition" },
@@ -1948,19 +1899,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
         <div className="relative overflow-hidden rounded-xl border-2 border-rose-500/40 bg-gradient-to-br from-rose-500/15 via-[var(--surface-2)] to-[var(--surface)] p-3 shadow-lg">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="relative shrink-0">
-                {currentPerformer.user_photo || currentPerformer.avatar ? (
-                  <img
-                    src={currentPerformer.user_photo || currentPerformer.avatar}
-                    alt={currentPerformer.user_name}
-                    className="size-11 rounded-xl object-cover border-2 border-rose-500 shadow-md"
-                  />
-                ) : (
-                  <div className="flex size-11 items-center justify-center rounded-xl bg-rose-500/20 border-2 border-rose-500 text-rose-200 font-black text-base shadow-md">
-                    {((currentPerformer.user_name || currentPerformer.user_email || "P")[0] || "P").toUpperCase()}
-                  </div>
-                )}
-              </div>
+              <UserAvatar user={currentPerformer} className="size-11" rounded="rounded-xl" />
 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -2096,24 +2035,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                 const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
                 return (
                   <div className="flex items-center gap-2.5 min-w-[175px]">
-                    <div className="relative shrink-0">
-                      {r.user_photo || r.avatar ? (
-                        <img
-                          src={r.user_photo || r.avatar}
-                          alt={r.user_name}
-                          className="size-8 rounded-lg object-cover border border-[var(--border)]"
-                        />
-                      ) : (
-                        <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--surface-3)] text-xs font-bold text-[var(--fg-muted)]">
-                          {((r.user_name || r.user_email || "P")[0] || "P").toUpperCase()}
-                        </div>
-                      )}
-                      {isVerified && (
-                        <span className="absolute -bottom-1 -right-1">
-                          <VerifiedBadge size="xs" />
-                        </span>
-                      )}
-                    </div>
+                    <UserAvatar user={r} className="size-8" rounded="rounded-lg" verified={isVerified} />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1">
                         <span className="font-semibold text-xs text-white truncate">
@@ -2802,20 +2724,12 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
             header: "Participant",
             width: "250px",
             render: (r: any) => {
-              const initial = ((r.user_name || r.user_email || "P").trim()[0] || "P").toUpperCase();
               const isVerified = Boolean(
                 r.is_verified || r.verified_badge || r.verified_tick || r.is_id_verified || r.is_govt_id_verified
               );
               return (
                 <div className="flex items-center gap-2.5 min-w-[210px] max-w-[260px]">
-                  <div className="relative flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600/30 to-indigo-600/30 border border-violet-500/30 font-bold text-violet-200 text-xs shadow-inner">
-                    {initial}
-                    {isVerified && (
-                      <span className="absolute -bottom-1 -right-1">
-                        <VerifiedBadge size="xs" />
-                      </span>
-                    )}
-                  </div>
+                  <UserAvatar user={r} className="size-9" rounded="rounded-xl" verified={isVerified} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <p className="font-semibold text-white truncate text-xs">{r.user_name || "Participant"}</p>
@@ -4459,7 +4373,7 @@ function CompetitionResultsAdminPanel({
                 <div className="mt-3 flex flex-col items-center">
                   <div className="relative size-14 rounded-full border-2 border-slate-400 overflow-hidden bg-[var(--surface-3)]">
                     {top3[1].profile_photo || top3[1].avatar ? (
-                      <img src={top3[1].profile_photo || top3[1].avatar} alt="" className="size-full object-cover" />
+                      <img src={top3[1].profile_photo || top3[1].avatar} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
                     ) : (
                       <div className="size-full grid place-items-center text-slate-300 font-bold text-sm">
                         {(top3[1].name || "U")[0]}
@@ -4500,7 +4414,7 @@ function CompetitionResultsAdminPanel({
                 <div className="mt-2 flex flex-col items-center">
                   <div className="relative size-16 rounded-full border-3 border-amber-400 overflow-hidden bg-amber-500/20 ring-4 ring-amber-400/30 shadow-lg">
                     {top3[0].profile_photo || top3[0].avatar ? (
-                      <img src={top3[0].profile_photo || top3[0].avatar} alt="" className="size-full object-cover" />
+                      <img src={top3[0].profile_photo || top3[0].avatar} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
                     ) : (
                       <div className="size-full grid place-items-center text-amber-300 font-black text-base">
                         {(top3[0].name || "U")[0]}
@@ -4541,7 +4455,7 @@ function CompetitionResultsAdminPanel({
                 <div className="mt-3 flex flex-col items-center">
                   <div className="relative size-14 rounded-full border-2 border-amber-700 overflow-hidden bg-[var(--surface-3)]">
                     {top3[2].profile_photo || top3[2].avatar ? (
-                      <img src={top3[2].profile_photo || top3[2].avatar} alt="" className="size-full object-cover" />
+                      <img src={top3[2].profile_photo || top3[2].avatar} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
                     ) : (
                       <div className="size-full grid place-items-center text-amber-200 font-bold text-sm">
                         {(top3[2].name || "U")[0]}
@@ -4635,7 +4549,7 @@ function CompetitionResultsAdminPanel({
                         <div className="flex items-center gap-2.5">
                           <div className="size-8 rounded-full border border-white/10 overflow-hidden bg-[var(--surface-2)] shrink-0">
                             {p.profile_photo || p.avatar ? (
-                              <img src={p.profile_photo || p.avatar} alt="" className="size-full object-cover" />
+                              <img src={p.profile_photo || p.avatar} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
                             ) : (
                               <div className="size-full grid place-items-center text-[var(--fg-muted)] font-bold text-xs">
                                 {(p.name || "U")[0]}
