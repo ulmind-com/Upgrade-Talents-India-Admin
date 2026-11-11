@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Gavel, Lock, Trophy, Send, RefreshCw, Eye, EyeOff, UserPlus, UserMinus,
   Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
   Upload, Loader2, Plus, Trash2, Image as ImageIcon,
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
-  ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Pause, Square,
+  ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square,
   Link2, Music, FileUp, Sparkles, UserCheck, XCircle, Layers, ArrowRight, Settings, CheckSquare,
   Share2, MessageCircle, Crown, Medal, MessageSquare, Award
 } from "lucide-react";
@@ -1748,130 +1748,6 @@ function InlineMediaPlayer({ item, compact = false }: { item: any; compact?: boo
   );
 }
 
-/* Only one contestant track may sound at a time across the whole lineup. */
-let activeStageAudioEl: HTMLAudioElement | null = null;
-
-function StageTrackControl({ item }: { item: any }) {
-  const mediaList = useMemo(() => extractStageMediaList(item), [item]);
-  const audioTrack = mediaList.find((m) => m.isAudio) || null;
-  const visualTracks = mediaList.filter((m) => !m.isAudio);
-
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [openVisual, setOpenVisual] = useState<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      const el = audioRef.current;
-      if (el) {
-        el.pause();
-        if (activeStageAudioEl === el) activeStageAudioEl = null;
-      }
-    };
-  }, []);
-
-  const togglePlay = () => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (!el.paused) {
-      el.pause();
-      return;
-    }
-    if (activeStageAudioEl && activeStageAudioEl !== el) activeStageAudioEl.pause();
-    activeStageAudioEl = el;
-    el.play().catch(() => {
-      // The track was not buffered yet: load it, then start as soon as it can play.
-      const startWhenReady = () => {
-        el.removeEventListener("canplay", startWhenReady);
-        void el.play().catch(() => undefined);
-      };
-      el.addEventListener("canplay", startWhenReady);
-      el.load();
-    });
-  };
-
-  if (!audioTrack && visualTracks.length === 0) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-lg border border-dashed border-[var(--border)] px-2 py-1 text-[10px] text-[var(--fg-subtle)] whitespace-nowrap">
-        <Music className="size-3 opacity-50" /> Live / No track
-      </span>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-1 min-w-[200px]">
-      {audioTrack && (
-        <>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={togglePlay}
-              title={`${playing ? "Pause" : "Play"} — ${audioTrack.label}`}
-              className={cn(
-                "cursor-pointer inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold whitespace-nowrap transition-colors",
-                playing
-                  ? "border-amber-500/50 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30"
-                  : "border-emerald-500/50 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30"
-              )}
-            >
-              {playing ? <Pause className="size-3" /> : <Play className="size-3" />}
-              {playing ? "Pause" : "Play Track"}
-            </button>
-            <a
-              href={audioTrack.url}
-              target="_blank"
-              rel="noreferrer"
-              title={`Open ${audioTrack.label} in a new tab`}
-              className="text-emerald-400/80 hover:text-emerald-300 shrink-0"
-            >
-              <ExternalLink className="size-3" />
-            </a>
-          </div>
-          <audio
-            ref={audioRef}
-            controls
-            preload="metadata"
-            src={audioTrack.url}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onEnded={() => setPlaying(false)}
-            className="h-7 w-full max-w-[230px]"
-          />
-        </>
-      )}
-
-      {visualTracks.map((m) => {
-        const embedUrl = m.isYouTube ? getYouTubeEmbedUrlAdmin(m.url) : null;
-        return (
-          <div key={m.url} className="flex flex-col gap-1">
-            <button
-              type="button"
-              onClick={() => setOpenVisual(openVisual === m.url ? null : m.url)}
-              className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/15 px-2 py-1 text-[10.5px] font-bold text-rose-200 hover:bg-rose-500/25 whitespace-nowrap"
-              title={`${m.label}: ${m.url}`}
-            >
-              <Video className="size-3" />
-              {openVisual === m.url ? "Hide Video" : "Play Video"}
-            </button>
-            {openVisual === m.url &&
-              (embedUrl ? (
-                <div className="aspect-video w-full max-w-[230px] overflow-hidden rounded-lg border border-[var(--border)] bg-black">
-                  <iframe src={embedUrl} className="h-full w-full" allowFullScreen title={m.label} />
-                </div>
-              ) : (
-                <video
-                  controls
-                  src={m.url}
-                  className="w-full max-w-[230px] rounded-lg border border-[var(--border)] bg-black"
-                />
-              ))}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitle?: string }) {
   const { push } = useToast();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -2135,7 +2011,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
 
           {extractStageMediaList(currentPerformer).length > 0 && (
             <div className="mt-2.5 pt-2.5 border-t border-rose-500/20">
-              <StageTrackControl item={currentPerformer} />
+              <InlineMediaPlayer item={currentPerformer} />
             </div>
           )}
         </div>
@@ -2253,56 +2129,26 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                       <span className="block font-mono text-[10.5px] text-[var(--fg-subtle)] truncate">
                         {r.user_email}
                       </span>
-                      <span className="block font-mono text-[10px] font-bold text-emerald-400 truncate">
-                        {r.registration_reference || "—"}
-                      </span>
                     </div>
                   </div>
                 );
               },
             },
             {
-              key: "actions",
-              header: "Track & Stage Action",
-              width: "330px",
-              render: (r: any) => {
-                const isOnStage = Boolean(r.is_current_performer || r.stage_status === "ON_STAGE");
-                const rId = r.registration_id || r.user_email;
-
-                return (
-                  <div className="flex items-start gap-2 min-w-[310px]">
-                    <div className="shrink-0">
-                      <StageTrackControl item={r} />
-                    </div>
-                    {isOnStage ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleEndPerformance}
-                        loading={actionLoading === "end"}
-                        className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 text-[11px] font-bold whitespace-nowrap"
-                      >
-                        <Square className="size-3 mr-1" /> End Now
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        disabled={actionLoading === `set-${rId}`}
-                        onClick={() => handleSetPerformer(rId, r.user_name || "Competitor")}
-                        className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] whitespace-nowrap"
-                      >
-                        {actionLoading === `set-${rId}` ? (
-                          <Loader2 className="size-3 animate-spin mr-1" />
-                        ) : (
-                          <Mic className="size-3 mr-1" />
-                        )}
-                        Send to Stage
-                      </Button>
-                    )}
-                  </div>
-                );
-              },
+              key: "registration_reference",
+              header: "Reg Ref",
+              width: "120px",
+              render: (r: any) => (
+                <span className="font-mono text-[11px] text-emerald-400 font-bold whitespace-nowrap">
+                  {r.registration_reference || "—"}
+                </span>
+              ),
+            },
+            {
+              key: "media",
+              header: "Audio / Track",
+              width: "225px",
+              render: (r: any) => <InlineMediaPlayer item={r} compact />,
             },
             {
               key: "stage_status",
@@ -2335,6 +2181,46 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                   <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-0.5 text-[10.5px] font-medium text-[var(--fg-muted)] whitespace-nowrap">
                     <Clock className="size-2.5" /> In Lineup
                   </span>
+                );
+              },
+            },
+            {
+              key: "actions",
+              header: "Stage Action",
+              width: "160px",
+              render: (r: any) => {
+                const isOnStage = Boolean(r.is_current_performer || r.stage_status === "ON_STAGE");
+                const rId = r.registration_id || r.user_email;
+
+                if (isOnStage) {
+                  return (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleEndPerformance}
+                      loading={actionLoading === "end"}
+                      className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 text-[11px] font-bold"
+                    >
+                      <Square className="size-3 mr-1" /> End Now
+                    </Button>
+                  );
+                }
+
+                return (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={actionLoading === `set-${rId}`}
+                    onClick={() => handleSetPerformer(rId, r.user_name || "Competitor")}
+                    className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] whitespace-nowrap"
+                  >
+                    {actionLoading === `set-${rId}` ? (
+                      <Loader2 className="size-3 animate-spin mr-1" />
+                    ) : (
+                      <Mic className="size-3 mr-1" />
+                    )}
+                    Send to Stage
+                  </Button>
                 );
               },
             },
