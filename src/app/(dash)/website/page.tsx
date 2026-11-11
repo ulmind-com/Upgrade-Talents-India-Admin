@@ -19,6 +19,7 @@ const TABS = [
   { key: "stage", label: "Stage Moments (Ring)" },
   { key: "spotlight", label: "Spotlight Posts & Social" },
   { key: "partners", label: "Partners & Sponsors" },
+  { key: "popup", label: "Grand Sponsor Pop-up" },
   { key: "banners", label: "Sponsored Banners" },
   { key: "tiles", label: "Featured 4 Tiles" },
   { key: "gallery", label: "Gallery Section" },
@@ -57,6 +58,7 @@ export default function WebsitePage() {
       {tab === "stage" && <StageMomentsSectionEditor />}
       {tab === "spotlight" && <SpotlightSectionEditor />}
       {tab === "partners" && <PartnersSectionEditor />}
+      {tab === "popup" && <SponsorPopupEditor />}
       {tab === "banners" && <BannersSection />}
       {tab === "tiles" && <FeaturedTilesSection />}
       {tab === "gallery" && <GallerySectionEditor />}
@@ -2465,6 +2467,439 @@ function PartnersSectionEditor() {
           </Button>
           <Button size="md" onClick={handleSave} loading={busy}>
             <Save className="size-4" aria-hidden /> Save Partners & Sponsors
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+/* ───────── GRAND SPONSOR POP-UP (WEBSITE OPENING MODAL) ───────── */
+
+const DEFAULT_POPUP_CONFIG = {
+  is_enabled: false,
+  sponsor_name: "Title Sponsor",
+  badge_text: "OFFICIAL TITLE SPONSOR",
+  title: "Grand National Championship 2026",
+  subtitle: "Presented by our Mega Platinum Partner — Win Cash Prizes & National Recognition",
+  banner_image_url: "https://images.unsplash.com/photo-1547153760-18fc86324498?q=80&w=1920&auto=format&fit=crop",
+  mobile_image_url: "",
+  cta_text: "Explore Exclusive Offer",
+  cta_link: "/competitions",
+  show_mode: "once_per_session",
+  auto_close_seconds: 0,
+};
+
+function SponsorPopupEditor() {
+  const { push } = useToast();
+  const { data, loading, reload } = useResource(async () => {
+    return await safe(cmsApi.getSponsorPopup(), null);
+  }, []);
+
+  const [config, setConfig] = useState<any>(DEFAULT_POPUP_CONFIG);
+  const [busy, setBusy] = useState(false);
+  const [uploadingDesktop, setUploadingDesktop] = useState(false);
+  const [uploadingMobile, setUploadingMobile] = useState(false);
+
+  useEffect(() => {
+    if (data) {
+      setConfig({
+        is_enabled: Boolean(data.is_enabled),
+        sponsor_name: data.sponsor_name || "Title Sponsor",
+        badge_text: data.badge_text || "OFFICIAL TITLE SPONSOR",
+        title: data.title || "Grand National Championship 2026",
+        subtitle: data.subtitle || "",
+        banner_image_url: data.banner_image_url || "",
+        mobile_image_url: data.mobile_image_url || "",
+        cta_text: data.cta_text || "Explore Exclusive Offer",
+        cta_link: data.cta_link || "/competitions",
+        show_mode: data.show_mode || "once_per_session",
+        auto_close_seconds: Number(data.auto_close_seconds) || 0,
+      });
+    }
+  }, [data]);
+
+  const update = (patch: Partial<any>) => {
+    setConfig((prev: any) => ({ ...prev, ...patch }));
+  };
+
+  const handleUpload = async (file: File, type: "desktop" | "mobile") => {
+    if (!file) return;
+    if (type === "desktop") setUploadingDesktop(true);
+    else setUploadingMobile(true);
+
+    try {
+      const res = await cmsApi.uploadSponsorPopupImage(file);
+      const url = res?.url || res?.image_url;
+      if (url) {
+        if (type === "desktop") update({ banner_image_url: url });
+        else update({ mobile_image_url: url });
+        push("success", `${type === "desktop" ? "Desktop" : "Mobile"} sponsor banner uploaded successfully.`);
+      }
+    } catch (e: any) {
+      push("error", e?.message || "Failed to upload image.");
+    } finally {
+      if (type === "desktop") setUploadingDesktop(false);
+      else setUploadingMobile(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      await cmsApi.updateSponsorPopup(config);
+      push("success", "Grand Sponsor Pop-up settings saved successfully.");
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Could not save sponsor pop-up settings.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading && !data) {
+    return (
+      <Panel title="Grand Sponsor Pop-up (Website Opening Modal)">
+        <div className="flex h-44 items-center justify-center text-[var(--fg-muted)]">
+          <Loader2 className="size-6 animate-spin" />
+        </div>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel
+      title="Grand Sponsor Pop-up (Website Opening Modal)"
+      subtitle="Exclusive high-impact popup banner shown to visitors when opening the website. Fully dedicated to mega-sponsors (₹50k - ₹1L+)."
+      action={
+        <Button size="sm" onClick={handleSave} loading={busy}>
+          <Save className="size-3.5" aria-hidden /> Save Sponsor Pop-up
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-8">
+        {/* Enable / Disable Master Switch & Status */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+          <div className="flex items-center gap-3">
+            <Toggle
+              checked={config.is_enabled}
+              onChange={(val) => update({ is_enabled: val })}
+              label="Enable Grand Sponsor Modal on Website"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm text-[var(--fg)]">
+                  Pop-up Status:
+                </span>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider",
+                    config.is_enabled
+                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      : "bg-zinc-500/20 text-zinc-400 border border-zinc-500/30"
+                  )}
+                >
+                  <span className={cn("size-2 rounded-full", config.is_enabled ? "bg-emerald-400 animate-pulse" : "bg-zinc-400")} />
+                  {config.is_enabled ? "Live & Active" : "Disabled (Hidden)"}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--fg-subtle)] mt-1">
+                When enabled, visitors will see this luxury popup banner with your platinum sponsor's branding.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-[var(--fg-muted)]">Display Mode:</label>
+            <select
+              value={config.show_mode}
+              onChange={(e) => update({ show_mode: e.target.value })}
+              className="h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--fg)] outline-none"
+            >
+              <option value="once_per_session">Once Per Session (Recommended)</option>
+              <option value="once_per_day">Once Per Day</option>
+              <option value="always">Always (Every Website Open)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Sponsor Identity & Messaging */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+          <h3 className="text-sm font-semibold text-[var(--fg)] mb-4 flex items-center gap-2">
+            <Sparkles className="size-4 text-amber-400" /> Sponsor Details & Copywriting
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Sponsor Name / Brand" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={config.sponsor_name}
+                  placeholder="e.g. Tata Motors / Red Bull / Star Arena"
+                  onChange={(e) => update({ sponsor_name: e.target.value })}
+                />
+              )}
+            </Field>
+
+            <Field label="Badge Ribbon Text">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={config.badge_text}
+                  placeholder="e.g. OFFICIAL TITLE SPONSOR"
+                  onChange={(e) => update({ badge_text: e.target.value })}
+                />
+              )}
+            </Field>
+
+            <Field label="Modal Heading / Title" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={config.title}
+                  placeholder="e.g. Grand National Championship 2026"
+                  onChange={(e) => update({ title: e.target.value })}
+                />
+              )}
+            </Field>
+
+            <Field label="Tagline / Subtitle">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={config.subtitle}
+                  placeholder="e.g. Presented by our Mega Platinum Partner"
+                  onChange={(e) => update({ subtitle: e.target.value })}
+                />
+              )}
+            </Field>
+          </div>
+        </div>
+
+        {/* Banner Images (Desktop & Mobile) */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+          <h3 className="text-sm font-semibold text-[var(--fg)] mb-4 flex items-center gap-2">
+            <ImageIcon className="size-4 text-cyan-400" /> Sponsor Banner Media
+          </h3>
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Desktop Banner */}
+            <div className="flex flex-col gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[var(--fg)]">Desktop Banner (16:9 / Landscape)</span>
+                <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] transition-colors">
+                  <Upload className="size-3 text-cyan-400" />
+                  <span>Upload</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUpload(f, "desktop");
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="relative aspect-[16/9] w-full rounded-lg overflow-hidden border border-white/10 bg-black/60 flex items-center justify-center">
+                {config.banner_image_url ? (
+                  <img
+                    src={config.banner_image_url}
+                    alt="Desktop Banner"
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center text-xs text-white/40 p-4">
+                    <ImageIcon className="size-8 mx-auto mb-1 opacity-50" />
+                    No desktop banner image selected
+                  </div>
+                )}
+                {uploadingDesktop && (
+                  <div className="absolute inset-0 bg-black/80 grid place-items-center">
+                    <Loader2 className="size-6 animate-spin text-white" />
+                  </div>
+                )}
+              </div>
+
+              <Input
+                value={config.banner_image_url || ""}
+                placeholder="Direct image URL https://..."
+                className="text-xs h-7"
+                onChange={(e) => update({ banner_image_url: e.target.value })}
+              />
+            </div>
+
+            {/* Mobile Banner */}
+            <div className="flex flex-col gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[var(--fg)]">Mobile Banner (Optional - Fallback to Desktop)</span>
+                <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] transition-colors">
+                  <Upload className="size-3 text-cyan-400" />
+                  <span>Upload</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUpload(f, "mobile");
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="relative aspect-[16/9] w-full rounded-lg overflow-hidden border border-white/10 bg-black/60 flex items-center justify-center">
+                {config.mobile_image_url ? (
+                  <img
+                    src={config.mobile_image_url}
+                    alt="Mobile Banner"
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center text-xs text-white/40 p-4">
+                    <ImageIcon className="size-8 mx-auto mb-1 opacity-50" />
+                    Optional: Uses desktop banner if empty
+                  </div>
+                )}
+                {uploadingMobile && (
+                  <div className="absolute inset-0 bg-black/80 grid place-items-center">
+                    <Loader2 className="size-6 animate-spin text-white" />
+                  </div>
+                )}
+              </div>
+
+              <Input
+                value={config.mobile_image_url || ""}
+                placeholder="Direct mobile image URL https://..."
+                className="text-xs h-7"
+                onChange={(e) => update({ mobile_image_url: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* CTA & Interaction Controls */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+          <h3 className="text-sm font-semibold text-[var(--fg)] mb-4 flex items-center gap-2">
+            <ExternalLink className="size-4 text-emerald-400" /> Call to Action & Behavior
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="CTA Button Text" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={config.cta_text}
+                  placeholder="e.g. Explore Exclusive Offer"
+                  onChange={(e) => update({ cta_text: e.target.value })}
+                />
+              )}
+            </Field>
+
+            <Field label="CTA Target URL" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={config.cta_link}
+                  placeholder="e.g. /competitions or https://..."
+                  onChange={(e) => update({ cta_link: e.target.value })}
+                />
+              )}
+            </Field>
+
+            <Field label="Auto-Close Timer (Seconds, 0 = Manual)">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={config.auto_close_seconds || 0}
+                  onChange={(e) => update({ auto_close_seconds: Number(e.target.value) || 0 })}
+                />
+              )}
+            </Field>
+          </div>
+        </div>
+
+        {/* Live Interactive Preview Box */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--fg-muted)]">
+                Live Interactive Modal Preview
+              </h4>
+              <p className="text-[11px] text-[var(--fg-subtle)]">
+                This is how the popup appears to users when they first land on the website.
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-amber-400 bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/20">
+              Preview Mode
+            </span>
+          </div>
+
+          <div className="relative mx-auto max-w-lg rounded-2xl overflow-hidden border border-amber-500/40 bg-[#07090E] shadow-[0_20px_60px_-15px_rgba(245,158,11,0.3)]">
+            {/* Top Close Button simulation */}
+            <div className="absolute top-3 right-3 z-20 size-7 rounded-full bg-black/70 border border-white/20 grid place-items-center text-white/70 text-xs">
+              ✕
+            </div>
+
+            {/* Banner Media */}
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-black/80">
+              {config.banner_image_url ? (
+                <img
+                  src={config.banner_image_url}
+                  alt={config.title}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <div className="size-full grid place-items-center text-white/40">
+                  Banner Image Preview
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#07090E] via-transparent to-black/40" />
+
+              {/* Sponsor Ribbon */}
+              {config.badge_text && (
+                <div className="absolute top-3 left-3">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/80 text-amber-400 border border-amber-400/50 shadow-lg backdrop-blur-md">
+                    <Sparkles className="size-3" />
+                    {config.badge_text}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 flex flex-col gap-2 text-center">
+              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-amber-400/90 font-semibold">
+                {config.sponsor_name}
+              </span>
+              <h3 className="text-xl font-bold font-display text-white leading-tight">
+                {config.title}
+              </h3>
+              {config.subtitle && (
+                <p className="text-xs text-white/70 leading-relaxed max-w-sm mx-auto">
+                  {config.subtitle}
+                </p>
+              )}
+
+              <div className="mt-3 flex items-center justify-center gap-3">
+                <a
+                  href={config.cta_link || "#"}
+                  onClick={(e) => e.preventDefault()}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition-transform hover:scale-105 active:scale-95"
+                >
+                  <span>{config.cta_text || "Explore Now"}</span>
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Actions */}
+        <div className="flex items-center justify-end border-t border-[var(--border)] pt-4">
+          <Button size="md" onClick={handleSave} loading={busy}>
+            <Save className="size-4" aria-hidden /> Save Grand Sponsor Pop-up
           </Button>
         </div>
       </div>

@@ -170,6 +170,13 @@ export const cmsApi = {
     fd.append("file", file);
     return api<any>(`${cms}/upload-partner-logo`, { method: "POST", form: fd });
   },
+  getSponsorPopup: () => api<any>(`${cms}/sponsor-popup`),
+  updateSponsorPopup: (body: any) => api<any>(`${cms}/sponsor-popup`, { method: "PUT", body }),
+  uploadSponsorPopupImage: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api<any>(`${cms}/upload-sponsor-popup-image`, { method: "POST", form: fd });
+  },
 
   listEvents: (q?: any) => api<any[]>(`${cms}/events`, { query: q }),
   createEvent: (body: any) => api<any>(`${cms}/events`, { method: "POST", body }),
