@@ -2129,26 +2129,56 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                       <span className="block font-mono text-[10.5px] text-[var(--fg-subtle)] truncate">
                         {r.user_email}
                       </span>
+                      <span className="block font-mono text-[10px] font-bold text-emerald-400 truncate">
+                        {r.registration_reference || "—"}
+                      </span>
                     </div>
                   </div>
                 );
               },
             },
             {
-              key: "registration_reference",
-              header: "Reg Ref",
-              width: "120px",
-              render: (r: any) => (
-                <span className="font-mono text-[11px] text-emerald-400 font-bold whitespace-nowrap">
-                  {r.registration_reference || "—"}
-                </span>
-              ),
-            },
-            {
-              key: "media",
-              header: "Audio / Track",
-              width: "225px",
-              render: (r: any) => <InlineMediaPlayer item={r} compact />,
+              key: "actions",
+              header: "Track & Stage Action",
+              width: "330px",
+              render: (r: any) => {
+                const isOnStage = Boolean(r.is_current_performer || r.stage_status === "ON_STAGE");
+                const rId = r.registration_id || r.user_email;
+
+                return (
+                  <div className="flex items-center gap-2 min-w-[310px]">
+                    <div className="shrink-0">
+                      <InlineMediaPlayer item={r} compact />
+                    </div>
+                    {isOnStage ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleEndPerformance}
+                        loading={actionLoading === "end"}
+                        className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 text-[11px] font-bold whitespace-nowrap"
+                      >
+                        <Square className="size-3 mr-1" /> End Now
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={actionLoading === `set-${rId}`}
+                        onClick={() => handleSetPerformer(rId, r.user_name || "Competitor")}
+                        className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] whitespace-nowrap"
+                      >
+                        {actionLoading === `set-${rId}` ? (
+                          <Loader2 className="size-3 animate-spin mr-1" />
+                        ) : (
+                          <Mic className="size-3 mr-1" />
+                        )}
+                        Send to Stage
+                      </Button>
+                    )}
+                  </div>
+                );
+              },
             },
             {
               key: "stage_status",
@@ -2181,46 +2211,6 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                   <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-0.5 text-[10.5px] font-medium text-[var(--fg-muted)] whitespace-nowrap">
                     <Clock className="size-2.5" /> In Lineup
                   </span>
-                );
-              },
-            },
-            {
-              key: "actions",
-              header: "Stage Action",
-              width: "160px",
-              render: (r: any) => {
-                const isOnStage = Boolean(r.is_current_performer || r.stage_status === "ON_STAGE");
-                const rId = r.registration_id || r.user_email;
-
-                if (isOnStage) {
-                  return (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleEndPerformance}
-                      loading={actionLoading === "end"}
-                      className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 text-[11px] font-bold"
-                    >
-                      <Square className="size-3 mr-1" /> End Now
-                    </Button>
-                  );
-                }
-
-                return (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    disabled={actionLoading === `set-${rId}`}
-                    onClick={() => handleSetPerformer(rId, r.user_name || "Competitor")}
-                    className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] whitespace-nowrap"
-                  >
-                    {actionLoading === `set-${rId}` ? (
-                      <Loader2 className="size-3 animate-spin mr-1" />
-                    ) : (
-                      <Mic className="size-3 mr-1" />
-                    )}
-                    Send to Stage
-                  </Button>
                 );
               },
             },
