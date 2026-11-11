@@ -165,7 +165,7 @@ export type Column<T = any> = {
 };
 
 export function DataTable<T extends Record<string, any>>({
-  columns, rows, loading, error, onRetry, empty, searchKeys, pageSize = 10, rowKey, toolbar,
+  columns, rows, loading, error, onRetry, empty, searchKeys, pageSize = 10, rowKey, toolbar, renderCard,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -177,6 +177,9 @@ export function DataTable<T extends Record<string, any>>({
   pageSize?: number;
   rowKey?: (row: T) => string;
   toolbar?: ReactNode;
+  /** Renders every row as a full-width card instead of a table row, so wide
+   *  records wrap on one page instead of scrolling sideways. */
+  renderCard?: (row: T) => ReactNode;
 }) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -226,6 +229,13 @@ export function DataTable<T extends Record<string, any>>({
         />
       ) : (
         <>
+          {renderCard ? (
+            <div className="flex flex-col gap-3">
+              {slice.map((row, i) => (
+                <div key={rowKey?.(row) ?? String(row?._id ?? row?.id ?? i)}>{renderCard(row)}</div>
+              ))}
+            </div>
+          ) : (
           <div className="-mx-5 overflow-x-auto px-5">
             <table className="w-full min-w-[640px] border-collapse">
               <thead>
@@ -258,6 +268,7 @@ export function DataTable<T extends Record<string, any>>({
               </tbody>
             </table>
           </div>
+          )}
 
           {totalPages > 1 && (
             <nav aria-label="Table pages" className="flex items-center justify-between gap-4 pt-1">
