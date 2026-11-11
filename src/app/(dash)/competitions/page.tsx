@@ -1586,9 +1586,172 @@ function JudgesPanel({
   );
 }
 
+function getYouTubeEmbedUrlAdmin(url?: string | null): string | null {
+  if (!url) return null;
+  const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return match && match[2].length === 11 ? `https://www.youtube.com/embed/${match[2]}` : null;
+}
+
+function isAudioMediaUrl(url: string, label = ""): boolean {
+  const lu = url.toLowerCase();
+  if (lu.includes("youtube.com") || lu.includes("youtu.be")) return false;
+  return (
+    /\.(mp3|wav|aac|ogg|m4a|flac|opus)(\?|$)/i.test(lu) ||
+    lu.includes("/audio/") ||
+    /(audio|song|track|music|sound|vocal|bgm)/i.test(label)
+  );
+}
+
+interface StageMediaItem {
+  label: string;
+  url: string;
+  isAudio: boolean;
+  isYouTube: boolean;
+}
+
+function extractStageMediaList(item: any): StageMediaItem[] {
+  if (!item) return [];
+  const out: StageMediaItem[] = [];
+  const seen = new Set<string>();
+
+  const pushEntry = (label: string, rawUrl: any, forcedAudio?: boolean, forcedYt?: boolean) => {
+    if (typeof rawUrl !== "string") return;
+    const url = rawUrl.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) return;
+    if (seen.has(url)) return;
+    seen.add(url);
+    const cleanLabel = String(label || "Media Track").trim() || "Media Track";
+    const isYouTube = forcedYt ?? Boolean(getYouTubeEmbedUrlAdmin(url));
+    const isAudio = forcedAudio ?? isAudioMediaUrl(url, cleanLabel);
+    out.push({ label: cleanLabel, url, isAudio, isYouTube });
+  };
+
+  if (Array.isArray(item.media_files)) {
+    item.media_files.forEach((mf: any) =>
+      pushEntry(mf?.label || "Audition Track", mf?.url, mf?.is_audio, mf?.is_youtube)
+    );
+  }
+
+  const fileMaps = [item.files, item.submission?.files];
+  for (const files of fileMaps) {
+    if (files && typeof files === "object" && !Array.isArray(files)) {
+      Object.entries(files).forEach(([k, v]) => pushEntry(k, v));
+    }
+  }
+
+  pushEntry("Audition Audio Track", item.audio_url ?? item.submission?.audio_url);
+  pushEntry("Submission Media", item.submission_url ?? item.submission?.submission_url);
+
+  return out;
+}
+
+function isParticipantInLineup(p: any, attendanceStarted: boolean): boolean {
+  const isFree = p?.payment_method === "FREE" || Number(p?.fee) === 0 || p?.payment_status === "NOT_REQUIRED";
+  const isPaid = p?.payment_status === "PAID" || p?.cash_status === "COLLECTED" || p?.cash_status === "PAID";
+  const isConfirmed = p?.status === "CONFIRMED" || isPaid || isFree;
+  if (!isConfirmed) return false;
+  if (!attendanceStarted) return true;
+  return Boolean(
+    p?.is_present ||
+      p?.attendance_status === "PRESENT" ||
+      p?.is_on_stage ||
+      p?.stage_status === "ON_STAGE" ||
+      p?.stage_status === "COMPLETED"
+  );
+}
+
+function InlineMediaPlayer({ item, compact = false }: { item: any; compact?: boolean }) {
+  const [expandedYt, setExpandedYt] = useState<string | null>(null);
+  const mediaList = extractStageMediaList(item);
+
+  if (mediaList.length === 0) {
+    return compact ? (
+      <span className="text-[11px] text-[var(--fg-subtle)] whitespace-nowrap">Live / No track</span>
+    ) : null;
+  }
+
+  return (
+    <div className={cn("flex flex-col gap-1.5", compact ? "min-w-[195px] max-w-[235px]" : "w-full")}>
+      {mediaList.map((m) => {
+        if (m.isAudio) {
+          return (
+            <div
+              key={m.url}
+              className={cn(
+                "rounded-lg border border-emerald-500/30 bg-emerald-500/10",
+                compact
+                  ? "p-1.5 flex flex-col gap-1"
+                  : "px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+              )}
+            >
+              <div className="flex items-center justify-between gap-1.5 min-w-0">
+                <span className="inline-flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-300 truncate">
+                  <Music className="size-3 shrink-0 text-emerald-400" />
+                  <span className="truncate">{m.label}</span>
+                </span>
+                <a
+                  href={m.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-400/80 hover:text-emerald-300 shrink-0"
+                  title="Open audio in new tab"
+                >
+                  <ExternalLink className="size-3" />
+                </a>
+              </div>
+              <audio
+                controls
+                preload={compact ? "none" : "metadata"}
+                src={m.url}
+                className={cn("h-7 max-w-full", compact ? "w-full" : "w-full sm:w-72")}
+              />
+            </div>
+          );
+        }
+
+        const embedUrl = m.isYouTube ? getYouTubeEmbedUrlAdmin(m.url) : null;
+        return (
+          <div key={m.url} className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              {embedUrl && (
+                <button
+                  type="button"
+                  onClick={() => setExpandedYt(expandedYt === m.url ? null : m.url)}
+                  className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/15 px-2 py-1 text-[10.5px] font-bold text-rose-200 hover:bg-rose-500/25"
+                >
+                  <Play className="size-2.5" />
+                  {expandedYt === m.url ? "Hide" : "Play"}
+                </button>
+              )}
+              <a
+                href={m.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group/link inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-2 py-1 text-[10.5px] font-mono text-[var(--brand)] hover:border-[var(--brand)] transition-colors truncate max-w-[220px]"
+                title={`${m.label}: ${m.url}`}
+              >
+                <Video className="size-3 shrink-0 text-[var(--fg-muted)] group-hover/link:text-[var(--brand)]" />
+                <span className="truncate flex-1">{m.label}</span>
+                <ExternalLink className="size-2.5 shrink-0 opacity-60" />
+              </a>
+            </div>
+            {embedUrl && expandedYt === m.url && (
+              <div className="aspect-video w-full max-w-sm overflow-hidden rounded-lg border border-[var(--border)] bg-black">
+                <iframe src={embedUrl} className="h-full w-full" allowFullScreen title={m.label} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitle?: string }) {
   const { push } = useToast();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showAllRegistered, setShowAllRegistered] = useState(false);
 
   const { data, loading, reload } = useResource(
     () => (!compId ? Promise.resolve(null) : competitionsApi.stageDashboard(compId)),
@@ -1598,6 +1761,9 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const currentPerformer = data?.current_performer;
   const stageStatus = data?.stage_status || (currentPerformer ? "LIVE" : "IDLE");
   const participants = Array.isArray(data?.participants) ? data.participants : [];
+  const allParticipants = Array.isArray(data?.all_participants) ? data.all_participants : participants;
+  const displayedParticipants =
+    showAllRegistered && (data?.absent_count ?? 0) > 0 ? allParticipants : participants;
   const completedCount = data?.completed_count ?? participants.filter((p: any) => p.stage_status === "COMPLETED").length;
   const remainingCount = data?.remaining_count ?? participants.filter((p: any) => p.stage_status !== "COMPLETED").length;
   const totalCount = data?.total_participants ?? participants.length;
@@ -1660,17 +1826,17 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       {/* ── Top Live Stage Status & Action Bar ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface-2)] via-[var(--surface)] to-[var(--surface-2)] p-4 shadow-sm">
-        <div className="flex items-center gap-3.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface-2)] via-[var(--surface)] to-[var(--surface-2)] p-3 shadow-sm">
+        <div className="flex items-center gap-2.5">
           <div className={cn(
-            "relative grid size-12 shrink-0 place-items-center rounded-2xl border shadow-inner",
+            "relative grid size-9 shrink-0 place-items-center rounded-xl border shadow-inner",
             currentPerformer
               ? "border-rose-500/50 bg-rose-500/20 text-rose-400"
               : "border-[var(--border)] bg-[var(--surface-3)] text-[var(--fg-muted)]"
           )}>
-            <Radio className={cn("size-6", currentPerformer && "animate-pulse")} />
+            <Radio className={cn("size-5", currentPerformer && "animate-pulse")} />
             {currentPerformer && (
               <span className="absolute -top-1 -right-1 size-3 rounded-full bg-rose-500 animate-ping" />
             )}
@@ -1743,151 +1909,178 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
       </div>
 
       {/* ── Metrics Cards ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-[var(--surface-2)] to-[var(--surface)] p-2.5 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-sky-300">Total Contestants</span>
-            <Users className="size-3.5 text-sky-400" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300">Total Contestants</span>
+            <Users className="size-3 text-sky-400" />
           </div>
-          <div className="mt-2 text-2xl font-black text-white tabular-nums">{formatNumber(totalCount)}</div>
+          <div className="mt-1 text-xl font-black text-white tabular-nums">{formatNumber(totalCount)}</div>
         </div>
 
-        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-[var(--surface-2)] to-[var(--surface)] p-2.5 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-300">Stage Status</span>
-            <Radio className="size-3.5 text-rose-400 animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300">Stage Status</span>
+            <Radio className="size-3 text-rose-400 animate-pulse" />
           </div>
-          <div className="mt-2 text-xl font-black text-rose-400 tracking-wide uppercase">{stageStatus}</div>
+          <div className="mt-1 text-lg font-black text-rose-400 tracking-wide uppercase">{stageStatus}</div>
         </div>
 
-        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-[var(--surface-2)] to-[var(--surface)] p-2.5 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Completed</span>
-            <CheckCircle2 className="size-3.5 text-emerald-400" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Completed</span>
+            <CheckCircle2 className="size-3 text-emerald-400" />
           </div>
-          <div className="mt-2 text-2xl font-black text-white tabular-nums">{formatNumber(completedCount)}</div>
+          <div className="mt-1 text-xl font-black text-white tabular-nums">{formatNumber(completedCount)}</div>
         </div>
 
-        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-[var(--surface-2)] to-[var(--surface)] p-3.5 shadow-sm">
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-[var(--surface-2)] to-[var(--surface)] p-2.5 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300">Remaining Queue</span>
-            <Clock className="size-3.5 text-amber-400" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">Remaining Queue</span>
+            <Clock className="size-3 text-amber-400" />
           </div>
-          <div className="mt-2 text-2xl font-black text-white tabular-nums">{formatNumber(remainingCount)}</div>
+          <div className="mt-1 text-xl font-black text-white tabular-nums">{formatNumber(remainingCount)}</div>
         </div>
       </div>
 
-      {/* ── Active Performer Hero Card ── */}
+      {/* ── Active Performer Hero Card (Compact + Front & Center Audio Player) ── */}
       {currentPerformer ? (
-        <div className="relative overflow-hidden rounded-2xl border-2 border-rose-500/40 bg-gradient-to-br from-rose-500/15 via-[var(--surface-2)] to-[var(--surface)] p-5 shadow-lg">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-            <div className="flex items-center gap-4">
-              <div className="relative">
+        <div className="relative overflow-hidden rounded-xl border-2 border-rose-500/40 bg-gradient-to-br from-rose-500/15 via-[var(--surface-2)] to-[var(--surface)] p-3 shadow-lg">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative shrink-0">
                 {currentPerformer.user_photo || currentPerformer.avatar ? (
                   <img
                     src={currentPerformer.user_photo || currentPerformer.avatar}
                     alt={currentPerformer.user_name}
-                    className="size-16 rounded-2xl object-cover border-2 border-rose-500 shadow-md"
+                    className="size-11 rounded-xl object-cover border-2 border-rose-500 shadow-md"
                   />
                 ) : (
-                  <div className="flex size-16 items-center justify-center rounded-2xl bg-rose-500/20 border-2 border-rose-500 text-rose-200 font-black text-xl shadow-md">
+                  <div className="flex size-11 items-center justify-center rounded-xl bg-rose-500/20 border-2 border-rose-500 text-rose-200 font-black text-base shadow-md">
                     {((currentPerformer.user_name || currentPerformer.user_email || "P")[0] || "P").toUpperCase()}
                   </div>
                 )}
-                <span className="absolute -bottom-1 -right-1">
-                  <VerifiedBadge size="sm" />
-                </span>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-rose-500 text-white font-extrabold text-[10px] px-2.5 py-0.5 uppercase tracking-wider animate-pulse flex items-center gap-1">
-                    <span className="size-1.5 rounded-full bg-white" /> NOW PERFORMING ON STAGE
+                  <span className="rounded-full bg-rose-500 text-white font-extrabold text-[9px] px-2 py-0.5 uppercase tracking-wider animate-pulse flex items-center gap-1">
+                    <span className="size-1.5 rounded-full bg-white" /> NOW ON STAGE
                   </span>
-                  <span className="font-mono text-xs font-bold text-rose-300">
-                    Order #{currentPerformer.stage_order || 1}
-                  </span>
+                  {currentPerformer.registration_reference && (
+                    <span className="text-[10px] font-mono text-[var(--brand)] font-bold">
+                      {currentPerformer.registration_reference}
+                    </span>
+                  )}
                 </div>
 
-                <h3 className="mt-1 text-lg font-bold text-white flex items-center gap-1.5">
-                  {currentPerformer.user_name || "Performer"}
+                <h3 className="mt-0.5 text-sm font-bold text-white flex items-center gap-1.5 truncate">
+                  <span className="truncate">{currentPerformer.user_name || "Performer"}</span>
                   {(currentPerformer.is_verified || currentPerformer.verified_badge) && (
                     <VerifiedBadge size="sm" />
                   )}
                 </h3>
 
-                <p className="text-xs text-[var(--fg-muted)]">
-                  {currentPerformer.entry_title || "Performance Entry"}
-                </p>
-
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] font-mono text-[var(--fg-subtle)]">
-                  {currentPerformer.registration_reference && (
-                    <span className="text-[var(--brand)] font-bold">
-                      Ref: {currentPerformer.registration_reference}
-                    </span>
-                  )}
-                  {currentPerformer.user_email && <span>{currentPerformer.user_email}</span>}
-                  {currentPerformer.user_phone && <span>Tel: {currentPerformer.user_phone}</span>}
+                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] font-mono text-[var(--fg-subtle)]">
+                  {currentPerformer.user_email && <span className="truncate">{currentPerformer.user_email}</span>}
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={handleEndPerformance}
                 loading={actionLoading === "end"}
-                className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 font-bold"
+                className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 font-bold text-[11px]"
               >
-                <Square className="size-3.5 mr-1.5" /> End Performance
+                <Square className="size-3 mr-1" /> End
               </Button>
               <Button
                 variant="primary"
                 size="sm"
                 onClick={handleNextPerformer}
                 loading={actionLoading === "next"}
-                className="bg-rose-600 hover:bg-rose-500 text-white font-bold"
+                className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px]"
               >
-                <SkipForward className="size-3.5 mr-1.5" /> Next Performer →
+                <SkipForward className="size-3 mr-1" /> Next →
               </Button>
             </div>
           </div>
+
+          {extractStageMediaList(currentPerformer).length > 0 && (
+            <div className="mt-2.5 pt-2.5 border-t border-rose-500/20">
+              <InlineMediaPlayer item={currentPerformer} />
+            </div>
+          )}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/40 p-6 text-center">
-          <Mic className="size-8 mx-auto text-[var(--fg-muted)] opacity-60 mb-2" />
-          <p className="text-sm font-semibold text-white">Stage is Currently Idle</p>
-          <p className="text-xs text-[var(--fg-muted)] mt-1 max-w-md mx-auto">
-            Click <strong>"Call Next Performer"</strong> above to advance the lineup, or click <strong>"Send to Stage"</strong> next to any competitor below to put them on stage immediately.
+        <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/40 p-3.5 text-center">
+          <div className="flex items-center justify-center gap-2">
+            <Mic className="size-4 text-[var(--fg-muted)] opacity-70" />
+            <p className="text-xs font-semibold text-white">Stage is Currently Idle</p>
+          </div>
+          <p className="text-[10.5px] text-[var(--fg-muted)] mt-0.5 max-w-md mx-auto">
+            Click <strong>"Call Next Performer"</strong> above or click <strong>"Send to Stage"</strong> below. Submitted tracks can be played directly from the lineup rows below.
           </p>
         </div>
       )}
 
       {/* ── Serial Performance Lineup Table ── */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Users className="size-4 text-[var(--brand)]" />
-              Serial Performance Lineup ({participants.length} Registered)
+            <h3 className="text-xs font-bold text-white flex items-center gap-2">
+              <Users className="size-3.5 text-[var(--brand)]" />
+              Serial Performance Lineup ({participants.length} {data?.present_count > 0 ? "Present" : "Registered"})
             </h3>
-            <p className="text-xs text-[var(--fg-muted)] mt-0.5">
-              Admin controls who takes the stage in serial sequence. Judges and registered users receive live real-time sync.
+            <p className="text-[10px] text-[var(--fg-muted)] mt-0.5">
+              Play contestant audio tracks directly here or send next performer on stage.
             </p>
           </div>
-          <span className="text-xs text-[var(--fg-subtle)] font-mono">
-            {completedCount} of {participants.length} done
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {(data?.absent_count ?? 0) > 0 && (
+              <div className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-0.5 text-[10px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setShowAllRegistered(false)}
+                  className={cn(
+                    "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
+                    !showAllRegistered
+                      ? "bg-emerald-500/20 text-emerald-300 font-bold"
+                      : "text-[var(--fg-muted)] hover:text-white"
+                  )}
+                >
+                  Present Only ({participants.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAllRegistered(true)}
+                  className={cn(
+                    "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
+                    showAllRegistered
+                      ? "bg-[var(--brand)]/20 text-[var(--brand)] font-bold"
+                      : "text-[var(--fg-muted)] hover:text-white"
+                  )}
+                >
+                  All Registered ({allParticipants.length})
+                </button>
+              </div>
+            )}
+            <span className="text-[10px] text-[var(--fg-subtle)] font-mono">
+              {completedCount} of {participants.length} done
+            </span>
+          </div>
         </div>
 
         <DataTable
-          rows={participants}
+          rows={displayedParticipants}
           columns={[
             {
               key: "stage_order",
-              header: "# Order",
-              width: "70px",
+              header: "#",
+              width: "56px",
               render: (r: any) => (
                 <span className="font-mono font-bold text-xs text-[var(--brand)]">
                   #{r.stage_order || 1}
@@ -1897,20 +2090,21 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
             {
               key: "participant",
               header: "Competitor & Profile",
-              width: "280px",
+              width: "215px",
               render: (r: any) => {
                 const isVerified = Boolean(r.is_verified || r.verified_badge || r.verified_tick);
+                const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
                 return (
-                  <div className="flex items-center gap-3 min-w-[200px]">
-                    <div className="relative">
+                  <div className="flex items-center gap-2.5 min-w-[175px]">
+                    <div className="relative shrink-0">
                       {r.user_photo || r.avatar ? (
                         <img
                           src={r.user_photo || r.avatar}
                           alt={r.user_name}
-                          className="size-9 rounded-xl object-cover border border-[var(--border)]"
+                          className="size-8 rounded-lg object-cover border border-[var(--border)]"
                         />
                       ) : (
-                        <div className="flex size-9 items-center justify-center rounded-xl bg-[var(--surface-3)] text-xs font-bold text-[var(--fg-muted)]">
+                        <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--surface-3)] text-xs font-bold text-[var(--fg-muted)]">
                           {((r.user_name || r.user_email || "P")[0] || "P").toUpperCase()}
                         </div>
                       )}
@@ -1921,13 +2115,18 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                       )}
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <span className="font-semibold text-xs text-white truncate">
                           {r.user_name || "Competitor"}
                         </span>
                         {isVerified && <VerifiedBadge size="xs" />}
+                        {showAllRegistered && !isPresent && (
+                          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
+                            Absent
+                          </span>
+                        )}
                       </div>
-                      <span className="block font-mono text-[11px] text-[var(--fg-subtle)] truncate">
+                      <span className="block font-mono text-[10.5px] text-[var(--fg-subtle)] truncate">
                         {r.user_email}
                       </span>
                     </div>
@@ -1937,18 +2136,24 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
             },
             {
               key: "registration_reference",
-              header: "Reg Reference",
-              width: "150px",
+              header: "Reg Ref",
+              width: "120px",
               render: (r: any) => (
-                <span className="font-mono text-xs text-emerald-400 font-bold whitespace-nowrap">
+                <span className="font-mono text-[11px] text-emerald-400 font-bold whitespace-nowrap">
                   {r.registration_reference || "—"}
                 </span>
               ),
             },
             {
+              key: "media",
+              header: "Audio / Track",
+              width: "225px",
+              render: (r: any) => <InlineMediaPlayer item={r} compact />,
+            },
+            {
               key: "stage_status",
               header: "Stage Status",
-              width: "160px",
+              width: "135px",
               render: (r: any) => {
                 if (r.is_current_performer || r.stage_status === "ON_STAGE") {
                   return (
@@ -2183,7 +2388,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
       let matchFilter = true;
       if (filterMode === "LINEUP_CONFIRMED") {
-        matchFilter = isPaid || isFree || p.status === "CONFIRMED";
+        matchFilter = isParticipantInLineup(p, presentCount > 0);
       } else if (filterMode === "LINEUP_PENDING") {
         matchFilter = !isPaid && !isFree && p.status !== "CONFIRMED";
       } else if (filterMode === "PRESENT") {
@@ -2381,7 +2586,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                   : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-emerald-300"
               )}
             >
-              <CheckCircle2 className="size-3.5 text-emerald-400" /> In Lineup ({rawParticipants.filter((p: any) => p.status === "CONFIRMED" || p.payment_status === "PAID" || p.cash_status === "COLLECTED" || p.payment_method === "FREE" || Number(p.fee) === 0).length})
+              <CheckCircle2 className="size-3.5 text-emerald-400" /> In Lineup ({rawParticipants.filter((p: any) => isParticipantInLineup(p, presentCount > 0)).length})
             </button>
 
             <button
@@ -2646,46 +2851,23 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
             },
           },
           {
-            key: "verification",
-            header: "Aadhaar / Blue Badge",
-            width: "200px",
+            key: "submission",
+            header: "Audio / Submitted Media",
+            width: "225px",
             render: (r: any) => {
-              const isVerified = Boolean(
-                r.is_verified || r.verified_badge || r.verified_tick || r.is_id_verified || r.is_govt_id_verified
-              );
-              const rId = r._id || r.registration_id;
-
-              if (isVerified) {
-                return (
-                  <div className="flex flex-col gap-1 min-w-[170px]">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-300 shadow-sm w-fit">
-                      <VerifiedBadge size="xs" /> Verified (Lifetime)
-                    </span>
-                    <span className="text-[10px] text-[var(--fg-subtle)]">
-                      Aadhaar checked • No re-check needed
-                    </span>
-                  </div>
-                );
+              const sub = r.submission;
+              const mediaList = extractStageMediaList(r);
+              if (!sub && mediaList.length === 0) {
+                return <span className="text-[11px] text-[var(--fg-subtle)] whitespace-nowrap">Awaiting files</span>;
               }
-
               return (
-                <div className="flex flex-col gap-1.5 min-w-[170px]">
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-300">
-                    <ShieldAlert className="size-3 text-amber-400 shrink-0" /> Aadhaar Not Checked
-                  </span>
-                  <button
-                    type="button"
-                    disabled={verifyingId === rId}
-                    onClick={() => handleVerifyAadhaar(r)}
-                    className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50 w-fit"
-                  >
-                    {verifyingId === rId ? (
-                      <Loader2 className="size-3 animate-spin text-sky-400" />
-                    ) : (
-                      <ShieldCheck className="size-3 text-sky-400" />
-                    )}
-                    Verify Aadhaar
-                  </button>
+                <div className="flex flex-col gap-1 min-w-[200px] max-w-[235px]">
+                  {sub && (
+                    <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-green-400 whitespace-nowrap">
+                      <CheckCircle2 className="size-3" /> {sub.status || "Submitted"}
+                    </span>
+                  )}
+                  <InlineMediaPlayer item={r} compact />
                 </div>
               );
             },
@@ -2693,13 +2875,13 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           {
             key: "attendance",
             header: "On-The-Spot Attendance",
-            width: "210px",
+            width: "195px",
             render: (r: any) => {
               const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
               const rId = r._id || r.registration_id;
               const isBusy = actionLoading === `att-${rId}`;
               return (
-                <div className="flex flex-col gap-1.5 min-w-[170px]">
+                <div className="flex flex-col gap-1 min-w-[165px]">
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -2723,7 +2905,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                         }
                       }}
                       className={cn(
-                        "cursor-pointer inline-flex items-center gap-1.5 rounded-lg font-bold text-[10.5px] px-2.5 py-1.5 transition-all shadow-sm whitespace-nowrap disabled:opacity-50",
+                        "cursor-pointer inline-flex items-center gap-1.5 rounded-lg font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50",
                         isPresent
                           ? "bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 shadow-emerald-950/20"
                           : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 hover:border-zinc-500"
@@ -2764,9 +2946,108 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
             },
           },
           {
+            key: "status",
+            header: "Lineup Status",
+            width: "155px",
+            render: (r: any) => {
+              const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
+              const isPaid = r.payment_status === "PAID" || r.cash_status === "COLLECTED" || r.cash_status === "PAID";
+              const isConfirmed = r.status === "CONFIRMED" || isPaid || isFree;
+              const attendanceStarted = presentCount > 0;
+              const inLineup = isParticipantInLineup(r, attendanceStarted);
+
+              if (inLineup) {
+                return (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10.5px] font-extrabold text-emerald-400 w-fit whitespace-nowrap">
+                      <CheckCircle2 className="size-3" /> In Lineup
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {attendanceStarted ? "Venue Checked In" : "Payment Confirmed"}
+                    </span>
+                  </div>
+                );
+              }
+
+              if (isConfirmed && (isPaid || isFree) && attendanceStarted) {
+                return (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-zinc-600/60 bg-zinc-800/80 px-2.5 py-0.5 text-[10.5px] font-bold text-zinc-300 w-fit whitespace-nowrap">
+                      <Clock className="size-3 text-zinc-400" /> Awaiting Check-in
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-medium">Absent • Excluded from stage</span>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex flex-col gap-0.5">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300 w-fit whitespace-nowrap">
+                    <Clock className="size-3 animate-pulse" /> Pending
+                  </span>
+                  <span className="text-[10px] text-amber-300/80 font-medium">Awaiting Confirmation</span>
+                </div>
+              );
+            },
+          },
+          {
+            key: "stage",
+            header: "Live Stage",
+            width: "145px",
+            render: (r: any) => {
+              const isOnStage = Boolean(r.is_on_stage || r.stage_status === "ON_STAGE");
+              const isCompleted = r.stage_status === "COMPLETED";
+              const rId = r._id || r.registration_id;
+
+              if (isOnStage) {
+                return (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-[10.5px] font-extrabold text-rose-300 animate-pulse whitespace-nowrap">
+                    <Radio className="size-3 text-rose-400" /> On Stage Now
+                  </span>
+                );
+              }
+
+              if (isCompleted) {
+                return (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <CheckCircle2 className="size-3" /> Done Performing
+                  </span>
+                );
+              }
+
+              return (
+                <button
+                  type="button"
+                  disabled={actionLoading === `stage-${rId}`}
+                  onClick={async () => {
+                    setActionLoading(`stage-${rId}`);
+                    try {
+                      await competitionsApi.setStagePerformer(compId, rId);
+                      push("success", `${r.user_name || "Competitor"} is now LIVE ON STAGE!`);
+                      reload();
+                    } catch (e: any) {
+                      push("error", e?.message || "Failed to put competitor on stage.");
+                    } finally {
+                      setActionLoading(null);
+                    }
+                  }}
+                  className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
+                  title="Send this participant straight to the live performance stage"
+                >
+                  {actionLoading === `stage-${rId}` ? (
+                    <Loader2 className="size-3 animate-spin text-rose-400" />
+                  ) : (
+                    <Mic className="size-3 text-rose-400" />
+                  )}
+                  Send to Stage
+                </button>
+              );
+            },
+          },
+          {
             key: "category",
             header: "Category",
-            width: "120px",
+            width: "110px",
             render: (r: any) => (
               <span className="inline-flex items-center rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10.5px] font-bold text-violet-300 whitespace-nowrap">
                 {r.category || "General"}
@@ -2776,9 +3057,9 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
           {
             key: "registration_reference",
             header: "Reg Reference",
-            width: "170px",
+            width: "160px",
             render: (r: any) => (
-              <div className="min-w-[150px]">
+              <div className="min-w-[145px]">
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono font-bold text-[var(--brand)] text-[11.5px] tracking-wider whitespace-nowrap">
                     {r.registration_reference}
@@ -2803,9 +3084,54 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
             ),
           },
           {
+            key: "verification",
+            header: "Aadhaar / Blue Badge",
+            width: "185px",
+            render: (r: any) => {
+              const isVerified = Boolean(
+                r.is_verified || r.verified_badge || r.verified_tick || r.is_id_verified || r.is_govt_id_verified
+              );
+              const rId = r._id || r.registration_id;
+
+              if (isVerified) {
+                return (
+                  <div className="flex flex-col gap-1 min-w-[165px]">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-300 shadow-sm w-fit">
+                      <VerifiedBadge size="xs" /> Verified (Lifetime)
+                    </span>
+                    <span className="text-[10px] text-[var(--fg-subtle)]">
+                      Aadhaar checked • No re-check needed
+                    </span>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex flex-col gap-1.5 min-w-[165px]">
+                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-300">
+                    <ShieldAlert className="size-3 text-amber-400 shrink-0" /> Aadhaar Not Checked
+                  </span>
+                  <button
+                    type="button"
+                    disabled={verifyingId === rId}
+                    onClick={() => handleVerifyAadhaar(r)}
+                    className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50 w-fit"
+                  >
+                    {verifyingId === rId ? (
+                      <Loader2 className="size-3 animate-spin text-sky-400" />
+                    ) : (
+                      <ShieldCheck className="size-3 text-sky-400" />
+                    )}
+                    Verify Aadhaar
+                  </button>
+                </div>
+              );
+            },
+          },
+          {
             key: "fee",
             header: "Fee / Payment Method",
-            width: "270px",
+            width: "245px",
             render: (r: any) => {
               const isCash = Boolean(r.cash_payment || r.payment_method === "CASH");
               const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
@@ -2813,7 +3139,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
               if (isFree) {
                 return (
-                  <div className="min-w-[160px]">
+                  <div className="min-w-[150px]">
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-purple-300 whitespace-nowrap">
                       <Trophy className="size-3 text-purple-400" /> Free Entry
                     </span>
@@ -2826,7 +3152,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
               if (isCash) {
                 return (
-                  <div className="flex flex-col gap-1.5 min-w-[240px]">
+                  <div className="flex flex-col gap-1.5 min-w-[225px]">
                     <div className="flex items-center gap-2">
                       <span className="font-extrabold text-white text-[13px] tabular-nums whitespace-nowrap">{formatINR(r.fee)}</span>
                       <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300 shadow-sm whitespace-nowrap">
@@ -2880,7 +3206,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
               // Online payment
               return (
-                <div className="flex flex-col gap-1.5 min-w-[200px]">
+                <div className="flex flex-col gap-1.5 min-w-[190px]">
                   <div className="flex items-center gap-2">
                     <span className="font-extrabold text-white text-[13px] tabular-nums whitespace-nowrap">{formatINR(r.fee)}</span>
                     <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-300 shadow-sm whitespace-nowrap">
@@ -2920,126 +3246,6 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                       </button>
                     </div>
                   )}
-                </div>
-              );
-            },
-          },
-          {
-            key: "status",
-            header: "Lineup Status",
-            width: "160px",
-            render: (r: any) => {
-              const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
-              const isPaid = r.payment_status === "PAID" || r.cash_status === "COLLECTED" || r.cash_status === "PAID";
-              const isConfirmed = r.status === "CONFIRMED" || isPaid || isFree;
-
-              if (isConfirmed && (isPaid || isFree)) {
-                return (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10.5px] font-extrabold text-emerald-400">
-                      <CheckCircle2 className="size-3" /> In Lineup
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium">Payment Confirmed</span>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="flex flex-col gap-0.5">
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300">
-                    <Clock className="size-3 animate-pulse" /> Pending
-                  </span>
-                  <span className="text-[10px] text-amber-300/80 font-medium">Awaiting Confirmation</span>
-                </div>
-              );
-            },
-          },
-          {
-            key: "stage",
-            header: "Live Stage",
-            width: "160px",
-            render: (r: any) => {
-              const isOnStage = Boolean(r.is_on_stage || r.stage_status === "ON_STAGE");
-              const isCompleted = r.stage_status === "COMPLETED";
-              const rId = r._id || r.registration_id;
-
-              if (isOnStage) {
-                return (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-[10.5px] font-extrabold text-rose-300 animate-pulse whitespace-nowrap">
-                    <Radio className="size-3 text-rose-400" /> On Stage Now
-                  </span>
-                );
-              }
-
-              if (isCompleted) {
-                return (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
-                    <CheckCircle2 className="size-3" /> Done Performing
-                  </span>
-                );
-              }
-
-              return (
-                <button
-                  type="button"
-                  disabled={actionLoading === `stage-${rId}`}
-                  onClick={async () => {
-                    setActionLoading(`stage-${rId}`);
-                    try {
-                      await competitionsApi.setStagePerformer(compId, rId);
-                      push("success", `${r.user_name || "Competitor"} is now LIVE ON STAGE!`);
-                      reload();
-                    } catch (e: any) {
-                      push("error", e?.message || "Failed to put competitor on stage.");
-                    } finally {
-                      setActionLoading(null);
-                    }
-                  }}
-                  className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
-                  title="Send this participant straight to the live performance stage"
-                >
-                  {actionLoading === `stage-${rId}` ? (
-                    <Loader2 className="size-3 animate-spin text-rose-400" />
-                  ) : (
-                    <Mic className="size-3 text-rose-400" />
-                  )}
-                  Send to Stage
-                </button>
-              );
-            },
-          },
-          {
-            key: "submission",
-            header: "Submitted Files / Media",
-            width: "240px",
-            render: (r: any) => {
-              const sub = r.submission;
-              if (!sub) {
-                return <span className="text-[11px] text-[var(--fg-subtle)] whitespace-nowrap">Awaiting files</span>;
-              }
-              const files = sub.files || {};
-              const entries = Object.entries(files);
-              return (
-                <div className="flex flex-col gap-1.5 min-w-[200px] max-w-[260px]">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-400 whitespace-nowrap">
-                    <CheckCircle2 className="size-3" /> {sub.status || "Submitted"}
-                  </span>
-                  <div className="flex flex-col gap-1">
-                    {entries.map(([label, url]: any) => (
-                      <a
-                        key={label}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="group/link inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-1 text-[10.5px] font-mono text-[var(--brand)] hover:border-[var(--brand)] transition-colors truncate max-w-[240px]"
-                        title={`${label}: ${url}`}
-                      >
-                        <Video className="size-3 shrink-0 text-[var(--fg-muted)] group-hover/link:text-[var(--brand)]" />
-                        <span className="truncate flex-1">{label}</span>
-                        <ExternalLink className="size-2.5 shrink-0 opacity-60" />
-                      </a>
-                    ))}
-                  </div>
                 </div>
               );
             },
