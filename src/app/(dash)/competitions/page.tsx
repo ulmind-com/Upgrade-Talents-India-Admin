@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import {
   Gavel, Lock, Trophy, Send, RefreshCw, Eye, EyeOff, UserPlus, UserMinus,
   Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
@@ -11,7 +11,7 @@ import {
   Share2, MessageCircle, Crown, Medal, MessageSquare, Award
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
-import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select } from "@/components/Kit";
+import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select, type Column } from "@/components/Kit";
 import { KeyValues, StatCard } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
 import VerifiedBadge from "@/components/VerifiedBadge";
@@ -2353,6 +2353,466 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
     });
   }, [rawParticipants, filterMode, search, selectedCategory]);
 
+  const participantColumns: Column<any>[] = [
+  {
+    key: "user",
+    header: "Participant",
+    width: "250px",
+    render: (r: any) => {
+      const isVerified = Boolean(
+        r.is_verified || r.verified_badge || r.verified_tick || r.is_id_verified || r.is_govt_id_verified
+      );
+      return (
+        <div className="flex items-center gap-2.5 min-w-[210px] max-w-[260px]">
+          <UserAvatar user={r} className="size-9" rounded="rounded-xl" verified={isVerified} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <p className="font-semibold text-white truncate text-xs">{r.user_name || "Participant"}</p>
+              {isVerified && <VerifiedBadge size="xs" />}
+            </div>
+            <a
+              href={`mailto:${r.user_email}`}
+              className="block font-mono text-[11px] text-[var(--fg-muted)] hover:text-white truncate"
+              title={r.user_email}
+            >
+              {r.user_email}
+            </a>
+            <div className="flex items-center gap-2 mt-0.5">
+              {r.user_phone && (
+                <a
+                  href={`tel:${r.user_phone}`}
+                  className="inline-flex items-center gap-1 font-mono text-[10px] text-[var(--fg-subtle)] hover:text-white"
+                >
+                  <Phone className="size-2.5" /> {r.user_phone}
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedParticipant(r)}
+                className="cursor-pointer text-[10.5px] font-semibold text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1 ml-auto"
+              >
+                <Eye className="size-3" /> View Profile & ID
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    key: "submission",
+    header: "Audio / Submitted Media",
+    width: "225px",
+    render: (r: any) => {
+      const sub = r.submission;
+      const mediaList = extractStageMediaList(r);
+      if (!sub && mediaList.length === 0) {
+        return <span className="text-[11px] text-[var(--fg-subtle)] whitespace-nowrap">Awaiting files</span>;
+      }
+      return (
+        <div className="flex flex-col gap-1 min-w-[200px] max-w-[235px]">
+          {sub && (
+            <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-green-400 whitespace-nowrap">
+              <CheckCircle2 className="size-3" /> {sub.status || "Submitted"}
+            </span>
+          )}
+          <InlineMediaPlayer item={r} compact />
+        </div>
+      );
+    },
+  },
+  {
+    key: "attendance",
+    header: "On-The-Spot Attendance",
+    width: "195px",
+    render: (r: any) => {
+      const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
+      const rId = r._id || r.registration_id;
+      const isBusy = actionLoading === `att-${rId}`;
+      return (
+        <div className="flex flex-col gap-1 min-w-[165px]">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={async () => {
+                setActionLoading(`att-${rId}`);
+                try {
+                  const nextState = !isPresent;
+                  await competitionsApi.markAttendance(compId, rId, nextState);
+                  push(
+                    nextState ? "success" : "info",
+                    nextState
+                      ? `✓ Marked ${r.user_name || "participant"} as PRESENT on venue.`
+                      : `Marked ${r.user_name || "participant"} as ABSENT.`
+                  );
+                  reload();
+                } catch (e: any) {
+                  push("error", e?.message || "Failed to update attendance.");
+                } finally {
+                  setActionLoading(null);
+                }
+              }}
+              className={cn(
+                "cursor-pointer inline-flex items-center gap-1.5 rounded-lg font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50",
+                isPresent
+                  ? "bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 shadow-emerald-950/20"
+                  : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 hover:border-zinc-500"
+              )}
+              title={isPresent ? "Click to toggle Absent" : "Click to mark Present"}
+            >
+              {isBusy ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : isPresent ? (
+                <CheckCircle2 className="size-3 text-emerald-200" />
+              ) : (
+                <XCircle className="size-3 text-zinc-400" />
+              )}
+              {isPresent ? "✓ Present (Checked In)" : "Mark Present"}
+            </button>
+          </div>
+          {isPresent && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {entryOrderMap.has(String(rId)) && (
+                <span className="rounded bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 font-mono text-[9.5px] font-black text-emerald-300">
+                  Venue Entry #{entryOrderMap.get(String(rId))}
+                </span>
+              )}
+              {r.attended_at && (
+                <span className="text-[10px] font-mono text-emerald-400/90 flex items-center gap-1">
+                  <Clock className="size-2.5 text-emerald-400" /> {formatDate(r.attended_at, true)}
+                </span>
+              )}
+            </div>
+          )}
+          {!isPresent && (
+            <span className="text-[10px] text-zinc-500 font-medium">
+              Not checked in at venue
+            </span>
+          )}
+        </div>
+      );
+    },
+  },
+  {
+    key: "status",
+    header: "Lineup Status",
+    width: "155px",
+    render: (r: any) => {
+      const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
+      const isPaid = r.payment_status === "PAID" || r.cash_status === "COLLECTED" || r.cash_status === "PAID";
+      const isConfirmed = r.status === "CONFIRMED" || isPaid || isFree;
+      const attendanceStarted = presentCount > 0;
+      const inLineup = isParticipantInLineup(r, attendanceStarted);
+
+      if (inLineup) {
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10.5px] font-extrabold text-emerald-400 w-fit whitespace-nowrap">
+              <CheckCircle2 className="size-3" /> In Lineup
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">
+              {attendanceStarted ? "Venue Checked In" : "Payment Confirmed"}
+            </span>
+          </div>
+        );
+      }
+
+      if (isConfirmed && (isPaid || isFree) && attendanceStarted) {
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="inline-flex items-center gap-1 rounded-full border border-zinc-600/60 bg-zinc-800/80 px-2.5 py-0.5 text-[10.5px] font-bold text-zinc-300 w-fit whitespace-nowrap">
+              <Clock className="size-3 text-zinc-400" /> Awaiting Check-in
+            </span>
+            <span className="text-[10px] text-zinc-500 font-medium">Absent • Excluded from stage</span>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300 w-fit whitespace-nowrap">
+            <Clock className="size-3 animate-pulse" /> Pending
+          </span>
+          <span className="text-[10px] text-amber-300/80 font-medium">Awaiting Confirmation</span>
+        </div>
+      );
+    },
+  },
+  {
+    key: "stage",
+    header: "Live Stage",
+    width: "145px",
+    render: (r: any) => {
+      const isOnStage = Boolean(r.is_on_stage || r.stage_status === "ON_STAGE");
+      const isCompleted = r.stage_status === "COMPLETED";
+      const rId = r._id || r.registration_id;
+
+      if (isOnStage) {
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-[10.5px] font-extrabold text-rose-300 animate-pulse whitespace-nowrap">
+            <Radio className="size-3 text-rose-400" /> On Stage Now
+          </span>
+        );
+      }
+
+      if (isCompleted) {
+        return (
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+            <CheckCircle2 className="size-3" /> Done Performing
+          </span>
+        );
+      }
+
+      return (
+        <button
+          type="button"
+          disabled={actionLoading === `stage-${rId}`}
+          onClick={async () => {
+            setActionLoading(`stage-${rId}`);
+            try {
+              await competitionsApi.setStagePerformer(compId, rId);
+              push("success", `${r.user_name || "Competitor"} is now LIVE ON STAGE!`);
+              reload();
+            } catch (e: any) {
+              push("error", e?.message || "Failed to put competitor on stage.");
+            } finally {
+              setActionLoading(null);
+            }
+          }}
+          className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
+          title="Send this participant straight to the live performance stage"
+        >
+          {actionLoading === `stage-${rId}` ? (
+            <Loader2 className="size-3 animate-spin text-rose-400" />
+          ) : (
+            <Mic className="size-3 text-rose-400" />
+          )}
+          Send to Stage
+        </button>
+      );
+    },
+  },
+  {
+    key: "category",
+    header: "Category",
+    width: "110px",
+    render: (r: any) => (
+      <span className="inline-flex items-center rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10.5px] font-bold text-violet-300 whitespace-nowrap">
+        {r.category || "General"}
+      </span>
+    ),
+  },
+  {
+    key: "registration_reference",
+    header: "Reg Reference",
+    width: "160px",
+    render: (r: any) => (
+      <div className="min-w-[145px]">
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono font-bold text-[var(--brand)] text-[11.5px] tracking-wider whitespace-nowrap">
+            {r.registration_reference}
+          </span>
+          <button
+            type="button"
+            onClick={() => handleCopy(r.registration_reference)}
+            title="Copy reference code"
+            className="cursor-pointer text-[var(--fg-subtle)] hover:text-white transition-colors p-0.5 rounded"
+          >
+            {copiedRef === r.registration_reference ? (
+              <Check className="size-3 text-emerald-400" />
+            ) : (
+              <Copy className="size-3" />
+            )}
+          </button>
+        </div>
+        <span className="block text-[10.5px] text-[var(--fg-subtle)] whitespace-nowrap mt-0.5">
+          {formatDate(r.registered_at, true)}
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: "verification",
+    header: "Aadhaar / Blue Badge",
+    width: "185px",
+    render: (r: any) => {
+      const isVerified = Boolean(
+        r.is_verified || r.verified_badge || r.verified_tick || r.is_id_verified || r.is_govt_id_verified
+      );
+      const rId = r._id || r.registration_id;
+
+      if (isVerified) {
+        return (
+          <div className="flex flex-col gap-1 min-w-[165px]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-300 shadow-sm w-fit">
+              <VerifiedBadge size="xs" /> Verified (Lifetime)
+            </span>
+            <span className="text-[10px] text-[var(--fg-subtle)]">
+              Aadhaar checked • No re-check needed
+            </span>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-col gap-1.5 min-w-[165px]">
+          <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-300">
+            <ShieldAlert className="size-3 text-amber-400 shrink-0" /> Aadhaar Not Checked
+          </span>
+          <button
+            type="button"
+            disabled={verifyingId === rId}
+            onClick={() => handleVerifyAadhaar(r)}
+            className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50 w-fit"
+          >
+            {verifyingId === rId ? (
+              <Loader2 className="size-3 animate-spin text-sky-400" />
+            ) : (
+              <ShieldCheck className="size-3 text-sky-400" />
+            )}
+            Verify Aadhaar
+          </button>
+        </div>
+      );
+    },
+  },
+  {
+    key: "fee",
+    header: "Fee / Payment Method",
+    width: "245px",
+    render: (r: any) => {
+      const isCash = Boolean(r.cash_payment || r.payment_method === "CASH");
+      const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
+      const isPaid = r.payment_status === "PAID" || r.cash_status === "COLLECTED" || r.cash_status === "PAID";
+
+      if (isFree) {
+        return (
+          <div className="min-w-[150px]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-purple-300 whitespace-nowrap">
+              <Trophy className="size-3 text-purple-400" /> Free Entry
+            </span>
+            <span className="block mt-1 text-[10.5px] text-[var(--fg-subtle)] font-medium">
+              No Fee Required
+            </span>
+          </div>
+        );
+      }
+
+      if (isCash) {
+        return (
+          <div className="flex flex-col gap-1.5 min-w-[225px]">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-white text-[13px] tabular-nums whitespace-nowrap">{formatINR(r.fee)}</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300 shadow-sm whitespace-nowrap">
+                <Banknote className="size-3 text-amber-400" /> Cash on Venue
+              </span>
+            </div>
+
+            {isPaid ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                  <CheckCircle2 className="size-3.5 shrink-0" /> Cash Received
+                </span>
+                <button
+                  type="button"
+                  title="Revert cash payment back to pending"
+                  disabled={actionLoading === r._id}
+                  onClick={() => handleRevertCash(r._id, r.user_name)}
+                  className="cursor-pointer text-[10px] text-[var(--fg-subtle)] hover:text-amber-400 underline whitespace-nowrap"
+                >
+                  Revert
+                </button>
+                {r.cash_collected_at && (
+                  <span className="text-[10px] font-mono text-[var(--fg-subtle)] whitespace-nowrap">
+                    • {formatDate(r.cash_collected_at, true)}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-300 whitespace-nowrap">
+                  <Clock className="size-3 shrink-0 text-amber-400 animate-pulse" /> Pending
+                </span>
+                <button
+                  type="button"
+                  disabled={actionLoading === r._id}
+                  onClick={() => handleConfirmCash(r._id, r.user_name, r.fee)}
+                  className="cursor-pointer inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
+                >
+                  {actionLoading === r._id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Check className="size-3" />
+                  )}
+                  Mark Cash Collected
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // Online payment
+      return (
+        <div className="flex flex-col gap-1.5 min-w-[190px]">
+          <div className="flex items-center gap-2">
+            <span className="font-extrabold text-white text-[13px] tabular-nums whitespace-nowrap">{formatINR(r.fee)}</span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-300 shadow-sm whitespace-nowrap">
+              <CreditCard className="size-3 text-sky-400" /> Online Payment
+            </span>
+          </div>
+
+          {r.payment_status === "PAID" ? (
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+              <CheckCircle2 className="size-3.5 shrink-0" />
+              <span>Paid Online</span>
+            </div>
+          ) : r.payment_status === "FAILED" ? (
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-rose-400 whitespace-nowrap">
+              <AlertCircle className="size-3.5 shrink-0" />
+              <span>Payment Failed</span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 whitespace-nowrap">
+                <Clock className="size-3.5 shrink-0 animate-pulse" />
+                <span>Online Pending</span>
+              </span>
+              <button
+                type="button"
+                disabled={actionLoading === r._id}
+                onClick={() => handleConfirmPayment(r._id, r.user_name, r.fee)}
+                className="cursor-pointer inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
+                title="Confirm participant payment and admit to official performance lineup"
+              >
+                {actionLoading === r._id ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Check className="size-3" />
+                )}
+                Confirm &amp; Admit
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    },
+  },
+  ];
+
+  const cell = (key: string, r: any) => {
+    const col = participantColumns.find((c) => c.key === key);
+    return col?.render ? col.render(r) : null;
+  };
+
+  const Labeled = ({ label, children }: { label: string; children: ReactNode }) => (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="text-[9.5px] font-bold uppercase tracking-wider text-[var(--fg-subtle)]">{label}</span>
+      {children}
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-5 text-xs">
       {/* ── KPI Metric Strip (Clean, Compact, No Word Breaks) ── */}
@@ -2718,453 +3178,33 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
             ? "Try resetting your search query or payment filters above."
             : "Users who register for this competition will display here with their payment mode and submitted media."
         }}
-        columns={[
-          {
-            key: "user",
-            header: "Participant",
-            width: "250px",
-            render: (r: any) => {
-              const isVerified = Boolean(
-                r.is_verified || r.verified_badge || r.verified_tick || r.is_id_verified || r.is_govt_id_verified
-              );
-              return (
-                <div className="flex items-center gap-2.5 min-w-[210px] max-w-[260px]">
-                  <UserAvatar user={r} className="size-9" rounded="rounded-xl" verified={isVerified} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-semibold text-white truncate text-xs">{r.user_name || "Participant"}</p>
-                      {isVerified && <VerifiedBadge size="xs" />}
-                    </div>
-                    <a
-                      href={`mailto:${r.user_email}`}
-                      className="block font-mono text-[11px] text-[var(--fg-muted)] hover:text-white truncate"
-                      title={r.user_email}
-                    >
-                      {r.user_email}
-                    </a>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {r.user_phone && (
-                        <a
-                          href={`tel:${r.user_phone}`}
-                          className="inline-flex items-center gap-1 font-mono text-[10px] text-[var(--fg-subtle)] hover:text-white"
-                        >
-                          <Phone className="size-2.5" /> {r.user_phone}
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedParticipant(r)}
-                        className="cursor-pointer text-[10.5px] font-semibold text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1 ml-auto"
-                      >
-                        <Eye className="size-3" /> View Profile & ID
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            },
-          },
-          {
-            key: "submission",
-            header: "Audio / Submitted Media",
-            width: "225px",
-            render: (r: any) => {
-              const sub = r.submission;
-              const mediaList = extractStageMediaList(r);
-              if (!sub && mediaList.length === 0) {
-                return <span className="text-[11px] text-[var(--fg-subtle)] whitespace-nowrap">Awaiting files</span>;
-              }
-              return (
-                <div className="flex flex-col gap-1 min-w-[200px] max-w-[235px]">
-                  {sub && (
-                    <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-green-400 whitespace-nowrap">
-                      <CheckCircle2 className="size-3" /> {sub.status || "Submitted"}
-                    </span>
-                  )}
-                  <InlineMediaPlayer item={r} compact />
-                </div>
-              );
-            },
-          },
-          {
-            key: "attendance",
-            header: "On-The-Spot Attendance",
-            width: "195px",
-            render: (r: any) => {
-              const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
-              const rId = r._id || r.registration_id;
-              const isBusy = actionLoading === `att-${rId}`;
-              return (
-                <div className="flex flex-col gap-1 min-w-[165px]">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={isBusy}
-                      onClick={async () => {
-                        setActionLoading(`att-${rId}`);
-                        try {
-                          const nextState = !isPresent;
-                          await competitionsApi.markAttendance(compId, rId, nextState);
-                          push(
-                            nextState ? "success" : "info",
-                            nextState
-                              ? `✓ Marked ${r.user_name || "participant"} as PRESENT on venue.`
-                              : `Marked ${r.user_name || "participant"} as ABSENT.`
-                          );
-                          reload();
-                        } catch (e: any) {
-                          push("error", e?.message || "Failed to update attendance.");
-                        } finally {
-                          setActionLoading(null);
-                        }
-                      }}
-                      className={cn(
-                        "cursor-pointer inline-flex items-center gap-1.5 rounded-lg font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50",
-                        isPresent
-                          ? "bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 shadow-emerald-950/20"
-                          : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 hover:border-zinc-500"
-                      )}
-                      title={isPresent ? "Click to toggle Absent" : "Click to mark Present"}
-                    >
-                      {isBusy ? (
-                        <Loader2 className="size-3 animate-spin" />
-                      ) : isPresent ? (
-                        <CheckCircle2 className="size-3 text-emerald-200" />
-                      ) : (
-                        <XCircle className="size-3 text-zinc-400" />
-                      )}
-                      {isPresent ? "✓ Present (Checked In)" : "Mark Present"}
-                    </button>
-                  </div>
-                  {isPresent && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {entryOrderMap.has(String(rId)) && (
-                        <span className="rounded bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 font-mono text-[9.5px] font-black text-emerald-300">
-                          Venue Entry #{entryOrderMap.get(String(rId))}
-                        </span>
-                      )}
-                      {r.attended_at && (
-                        <span className="text-[10px] font-mono text-emerald-400/90 flex items-center gap-1">
-                          <Clock className="size-2.5 text-emerald-400" /> {formatDate(r.attended_at, true)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {!isPresent && (
-                    <span className="text-[10px] text-zinc-500 font-medium">
-                      Not checked in at venue
-                    </span>
-                  )}
-                </div>
-              );
-            },
-          },
-          {
-            key: "status",
-            header: "Lineup Status",
-            width: "155px",
-            render: (r: any) => {
-              const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
-              const isPaid = r.payment_status === "PAID" || r.cash_status === "COLLECTED" || r.cash_status === "PAID";
-              const isConfirmed = r.status === "CONFIRMED" || isPaid || isFree;
-              const attendanceStarted = presentCount > 0;
-              const inLineup = isParticipantInLineup(r, attendanceStarted);
-
-              if (inLineup) {
-                return (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10.5px] font-extrabold text-emerald-400 w-fit whitespace-nowrap">
-                      <CheckCircle2 className="size-3" /> In Lineup
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium">
-                      {attendanceStarted ? "Venue Checked In" : "Payment Confirmed"}
-                    </span>
-                  </div>
-                );
-              }
-
-              if (isConfirmed && (isPaid || isFree) && attendanceStarted) {
-                return (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-zinc-600/60 bg-zinc-800/80 px-2.5 py-0.5 text-[10.5px] font-bold text-zinc-300 w-fit whitespace-nowrap">
-                      <Clock className="size-3 text-zinc-400" /> Awaiting Check-in
-                    </span>
-                    <span className="text-[10px] text-zinc-500 font-medium">Absent • Excluded from stage</span>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="flex flex-col gap-0.5">
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300 w-fit whitespace-nowrap">
-                    <Clock className="size-3 animate-pulse" /> Pending
-                  </span>
-                  <span className="text-[10px] text-amber-300/80 font-medium">Awaiting Confirmation</span>
-                </div>
-              );
-            },
-          },
-          {
-            key: "stage",
-            header: "Live Stage",
-            width: "145px",
-            render: (r: any) => {
-              const isOnStage = Boolean(r.is_on_stage || r.stage_status === "ON_STAGE");
-              const isCompleted = r.stage_status === "COMPLETED";
-              const rId = r._id || r.registration_id;
-
-              if (isOnStage) {
-                return (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-[10.5px] font-extrabold text-rose-300 animate-pulse whitespace-nowrap">
-                    <Radio className="size-3 text-rose-400" /> On Stage Now
-                  </span>
-                );
-              }
-
-              if (isCompleted) {
-                return (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
-                    <CheckCircle2 className="size-3" /> Done Performing
-                  </span>
-                );
-              }
-
-              return (
-                <button
-                  type="button"
-                  disabled={actionLoading === `stage-${rId}`}
-                  onClick={async () => {
-                    setActionLoading(`stage-${rId}`);
-                    try {
-                      await competitionsApi.setStagePerformer(compId, rId);
-                      push("success", `${r.user_name || "Competitor"} is now LIVE ON STAGE!`);
-                      reload();
-                    } catch (e: any) {
-                      push("error", e?.message || "Failed to put competitor on stage.");
-                    } finally {
-                      setActionLoading(null);
-                    }
-                  }}
-                  className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
-                  title="Send this participant straight to the live performance stage"
-                >
-                  {actionLoading === `stage-${rId}` ? (
-                    <Loader2 className="size-3 animate-spin text-rose-400" />
-                  ) : (
-                    <Mic className="size-3 text-rose-400" />
-                  )}
-                  Send to Stage
-                </button>
-              );
-            },
-          },
-          {
-            key: "category",
-            header: "Category",
-            width: "110px",
-            render: (r: any) => (
-              <span className="inline-flex items-center rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10.5px] font-bold text-violet-300 whitespace-nowrap">
-                {r.category || "General"}
-              </span>
-            ),
-          },
-          {
-            key: "registration_reference",
-            header: "Reg Reference",
-            width: "160px",
-            render: (r: any) => (
-              <div className="min-w-[145px]">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-mono font-bold text-[var(--brand)] text-[11.5px] tracking-wider whitespace-nowrap">
-                    {r.registration_reference}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(r.registration_reference)}
-                    title="Copy reference code"
-                    className="cursor-pointer text-[var(--fg-subtle)] hover:text-white transition-colors p-0.5 rounded"
-                  >
-                    {copiedRef === r.registration_reference ? (
-                      <Check className="size-3 text-emerald-400" />
-                    ) : (
-                      <Copy className="size-3" />
-                    )}
-                  </button>
-                </div>
-                <span className="block text-[10.5px] text-[var(--fg-subtle)] whitespace-nowrap mt-0.5">
-                  {formatDate(r.registered_at, true)}
-                </span>
+        columns={participantColumns}
+        renderCard={(r: any) => (
+          <article className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-3.5 shadow-sm transition-colors hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)]">
+            {/* ── Identity, category and reference ── */}
+            <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-2">
+              <div className="min-w-[230px] flex-1">{cell("user", r)}</div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                {cell("category", r)}
+                {cell("registration_reference", r)}
               </div>
-            ),
-          },
-          {
-            key: "verification",
-            header: "Aadhaar / Blue Badge",
-            width: "185px",
-            render: (r: any) => {
-              const isVerified = Boolean(
-                r.is_verified || r.verified_badge || r.verified_tick || r.is_id_verified || r.is_govt_id_verified
-              );
-              const rId = r._id || r.registration_id;
+            </div>
 
-              if (isVerified) {
-                return (
-                  <div className="flex flex-col gap-1 min-w-[165px]">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-300 shadow-sm w-fit">
-                      <VerifiedBadge size="xs" /> Verified (Lifetime)
-                    </span>
-                    <span className="text-[10px] text-[var(--fg-subtle)]">
-                      Aadhaar checked • No re-check needed
-                    </span>
-                  </div>
-                );
-              }
+            {/* ── Venue and stage state ── */}
+            <div className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-3 border-t border-[var(--border)] pt-3">
+              <Labeled label="Aadhaar / Blue Badge">{cell("verification", r)}</Labeled>
+              <Labeled label="On-the-spot attendance">{cell("attendance", r)}</Labeled>
+              <Labeled label="Lineup status">{cell("status", r)}</Labeled>
+              <Labeled label="Live stage">{cell("stage", r)}</Labeled>
+            </div>
 
-              return (
-                <div className="flex flex-col gap-1.5 min-w-[165px]">
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-300">
-                    <ShieldAlert className="size-3 text-amber-400 shrink-0" /> Aadhaar Not Checked
-                  </span>
-                  <button
-                    type="button"
-                    disabled={verifyingId === rId}
-                    onClick={() => handleVerifyAadhaar(r)}
-                    className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50 w-fit"
-                  >
-                    {verifyingId === rId ? (
-                      <Loader2 className="size-3 animate-spin text-sky-400" />
-                    ) : (
-                      <ShieldCheck className="size-3 text-sky-400" />
-                    )}
-                    Verify Aadhaar
-                  </button>
-                </div>
-              );
-            },
-          },
-          {
-            key: "fee",
-            header: "Fee / Payment Method",
-            width: "245px",
-            render: (r: any) => {
-              const isCash = Boolean(r.cash_payment || r.payment_method === "CASH");
-              const isFree = r.payment_method === "FREE" || Number(r.fee) === 0 || r.payment_status === "NOT_REQUIRED";
-              const isPaid = r.payment_status === "PAID" || r.cash_status === "COLLECTED" || r.cash_status === "PAID";
-
-              if (isFree) {
-                return (
-                  <div className="min-w-[150px]">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-purple-300 whitespace-nowrap">
-                      <Trophy className="size-3 text-purple-400" /> Free Entry
-                    </span>
-                    <span className="block mt-1 text-[10.5px] text-[var(--fg-subtle)] font-medium">
-                      No Fee Required
-                    </span>
-                  </div>
-                );
-              }
-
-              if (isCash) {
-                return (
-                  <div className="flex flex-col gap-1.5 min-w-[225px]">
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-white text-[13px] tabular-nums whitespace-nowrap">{formatINR(r.fee)}</span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300 shadow-sm whitespace-nowrap">
-                        <Banknote className="size-3 text-amber-400" /> Cash on Venue
-                      </span>
-                    </div>
-
-                    {isPaid ? (
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
-                          <CheckCircle2 className="size-3.5 shrink-0" /> Cash Received
-                        </span>
-                        <button
-                          type="button"
-                          title="Revert cash payment back to pending"
-                          disabled={actionLoading === r._id}
-                          onClick={() => handleRevertCash(r._id, r.user_name)}
-                          className="cursor-pointer text-[10px] text-[var(--fg-subtle)] hover:text-amber-400 underline whitespace-nowrap"
-                        >
-                          Revert
-                        </button>
-                        {r.cash_collected_at && (
-                          <span className="text-[10px] font-mono text-[var(--fg-subtle)] whitespace-nowrap">
-                            • {formatDate(r.cash_collected_at, true)}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-300 whitespace-nowrap">
-                          <Clock className="size-3 shrink-0 text-amber-400 animate-pulse" /> Pending
-                        </span>
-                        <button
-                          type="button"
-                          disabled={actionLoading === r._id}
-                          onClick={() => handleConfirmCash(r._id, r.user_name, r.fee)}
-                          className="cursor-pointer inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
-                        >
-                          {actionLoading === r._id ? (
-                            <Loader2 className="size-3 animate-spin" />
-                          ) : (
-                            <Check className="size-3" />
-                          )}
-                          Mark Cash Collected
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              // Online payment
-              return (
-                <div className="flex flex-col gap-1.5 min-w-[190px]">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-white text-[13px] tabular-nums whitespace-nowrap">{formatINR(r.fee)}</span>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-300 shadow-sm whitespace-nowrap">
-                      <CreditCard className="size-3 text-sky-400" /> Online Payment
-                    </span>
-                  </div>
-
-                  {r.payment_status === "PAID" ? (
-                    <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
-                      <CheckCircle2 className="size-3.5 shrink-0" />
-                      <span>Paid Online</span>
-                    </div>
-                  ) : r.payment_status === "FAILED" ? (
-                    <div className="flex items-center gap-1 text-[11px] font-semibold text-rose-400 whitespace-nowrap">
-                      <AlertCircle className="size-3.5 shrink-0" />
-                      <span>Payment Failed</span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 whitespace-nowrap">
-                        <Clock className="size-3.5 shrink-0 animate-pulse" />
-                        <span>Online Pending</span>
-                      </span>
-                      <button
-                        type="button"
-                        disabled={actionLoading === r._id}
-                        onClick={() => handleConfirmPayment(r._id, r.user_name, r.fee)}
-                        className="cursor-pointer inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10.5px] px-2.5 py-1 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
-                        title="Confirm participant payment and admit to official performance lineup"
-                      >
-                        {actionLoading === r._id ? (
-                          <Loader2 className="size-3 animate-spin" />
-                        ) : (
-                          <Check className="size-3" />
-                        )}
-                        Confirm &amp; Admit
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            },
-          },
-        ]}
+            {/* ── Submitted media and money ── */}
+            <div className="mt-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] pt-3">
+              <Labeled label="Audio / submitted media">{cell("submission", r)}</Labeled>
+              <Labeled label="Fee / payment method">{cell("fee", r)}</Labeled>
+            </div>
+          </article>
+        )}
       />
 
       {/* ── Competitor Profile & Aadhaar Verification Modal ── */}
