@@ -18,6 +18,7 @@ import VerifiedBadge from "@/components/VerifiedBadge";
 import { competitionsApi, judgesApi, safe, toRows } from "@/lib/api";
 import { CompetitionCard } from "./CompetitionCard";
 import { UserAvatar } from "./UserAvatar";
+import { RoundStandingCard, ResultStandingCard } from "./StandingCards";
 import { formatDate, formatINR, formatNumber, fromDateTimeInput, rowId, cn } from "@/lib/utils";
 
 function ImageUploaderField({
@@ -1776,6 +1777,144 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
     return <Loading rows={5} />;
   }
 
+  const lineupColumns: Column<any>[] = [
+  {
+    key: "stage_order",
+    header: "#",
+    width: "56px",
+    render: (r: any) => (
+      <span className="font-mono font-bold text-xs text-[var(--brand)]">
+        #{r.stage_order || 1}
+      </span>
+    ),
+  },
+  {
+    key: "participant",
+    header: "Competitor & Profile",
+    width: "215px",
+    render: (r: any) => {
+      const isVerified = Boolean(r.is_verified || r.verified_badge || r.verified_tick);
+      const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
+      return (
+        <div className="flex items-center gap-2.5 min-w-[175px]">
+          <UserAvatar user={r} className="size-8" rounded="rounded-lg" verified={isVerified} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <span className="font-semibold text-xs text-white truncate">
+                {r.user_name || "Competitor"}
+              </span>
+              {isVerified && <VerifiedBadge size="xs" />}
+              {showAllRegistered && !isPresent && (
+                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
+                  Absent
+                </span>
+              )}
+            </div>
+            <span className="block font-mono text-[10.5px] text-[var(--fg-subtle)] truncate">
+              {r.user_email}
+            </span>
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    key: "registration_reference",
+    header: "Reg Ref",
+    width: "120px",
+    render: (r: any) => (
+      <span className="font-mono text-[11px] text-emerald-400 font-bold whitespace-nowrap">
+        {r.registration_reference || "—"}
+      </span>
+    ),
+  },
+  {
+    key: "media",
+    header: "Audio / Track",
+    width: "225px",
+    render: (r: any) => <InlineMediaPlayer item={r} compact />,
+  },
+  {
+    key: "stage_status",
+    header: "Stage Status",
+    width: "135px",
+    render: (r: any) => {
+      if (r.is_current_performer || r.stage_status === "ON_STAGE") {
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-[11px] font-extrabold text-rose-300 shadow-sm animate-pulse whitespace-nowrap">
+            <Radio className="size-3 text-rose-400 animate-ping" />
+            ON STAGE NOW
+          </span>
+        );
+      }
+      if (r.stage_status === "COMPLETED") {
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+              <CheckCircle2 className="size-3 text-emerald-400" /> Completed
+            </span>
+            {r.is_scored && (
+              <span className="text-[10px] text-[var(--fg-subtle)] font-mono">
+                Avg: {r.average_score} ({r.judge_score_count} judge{r.judge_score_count === 1 ? "" : "s"})
+              </span>
+            )}
+          </div>
+        );
+      }
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-0.5 text-[10.5px] font-medium text-[var(--fg-muted)] whitespace-nowrap">
+          <Clock className="size-2.5" /> In Lineup
+        </span>
+      );
+    },
+  },
+  {
+    key: "actions",
+    header: "Stage Action",
+    width: "160px",
+    render: (r: any) => {
+      const isOnStage = Boolean(r.is_current_performer || r.stage_status === "ON_STAGE");
+      const rId = r.registration_id || r.user_email;
+
+      if (isOnStage) {
+        return (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleEndPerformance}
+            loading={actionLoading === "end"}
+            className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 text-[11px] font-bold"
+          >
+            <Square className="size-3 mr-1" /> End Now
+          </Button>
+        );
+      }
+
+      return (
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={actionLoading === `set-${rId}`}
+          onClick={() => handleSetPerformer(rId, r.user_name || "Competitor")}
+          className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] whitespace-nowrap"
+        >
+          {actionLoading === `set-${rId}` ? (
+            <Loader2 className="size-3 animate-spin mr-1" />
+          ) : (
+            <Mic className="size-3 mr-1" />
+          )}
+          Send to Stage
+        </Button>
+      );
+    },
+  },
+  ];
+
+  const lineupCell = (key: string, r: any) => {
+    const col = lineupColumns.find((c) => c.key === key);
+    return col?.render ? col.render(r) : null;
+  };
+
   return (
     <div className="flex flex-col gap-3">
       {/* ── Top Live Stage Status & Action Bar ── */}
@@ -2015,138 +2154,25 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
 
         <DataTable
           rows={displayedParticipants}
-          columns={[
-            {
-              key: "stage_order",
-              header: "#",
-              width: "56px",
-              render: (r: any) => (
-                <span className="font-mono font-bold text-xs text-[var(--brand)]">
-                  #{r.stage_order || 1}
-                </span>
-              ),
-            },
-            {
-              key: "participant",
-              header: "Competitor & Profile",
-              width: "215px",
-              render: (r: any) => {
-                const isVerified = Boolean(r.is_verified || r.verified_badge || r.verified_tick);
-                const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
-                return (
-                  <div className="flex items-center gap-2.5 min-w-[175px]">
-                    <UserAvatar user={r} className="size-8" rounded="rounded-lg" verified={isVerified} />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold text-xs text-white truncate">
-                          {r.user_name || "Competitor"}
-                        </span>
-                        {isVerified && <VerifiedBadge size="xs" />}
-                        {showAllRegistered && !isPresent && (
-                          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
-                            Absent
-                          </span>
-                        )}
-                      </div>
-                      <span className="block font-mono text-[10.5px] text-[var(--fg-subtle)] truncate">
-                        {r.user_email}
-                      </span>
-                    </div>
-                  </div>
-                );
-              },
-            },
-            {
-              key: "registration_reference",
-              header: "Reg Ref",
-              width: "120px",
-              render: (r: any) => (
-                <span className="font-mono text-[11px] text-emerald-400 font-bold whitespace-nowrap">
-                  {r.registration_reference || "—"}
-                </span>
-              ),
-            },
-            {
-              key: "media",
-              header: "Audio / Track",
-              width: "225px",
-              render: (r: any) => <InlineMediaPlayer item={r} compact />,
-            },
-            {
-              key: "stage_status",
-              header: "Stage Status",
-              width: "135px",
-              render: (r: any) => {
-                if (r.is_current_performer || r.stage_status === "ON_STAGE") {
-                  return (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-[11px] font-extrabold text-rose-300 shadow-sm animate-pulse whitespace-nowrap">
-                      <Radio className="size-3 text-rose-400 animate-ping" />
-                      ON STAGE NOW
-                    </span>
-                  );
-                }
-                if (r.stage_status === "COMPLETED") {
-                  return (
-                    <div className="flex flex-col gap-0.5">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
-                        <CheckCircle2 className="size-3 text-emerald-400" /> Completed
-                      </span>
-                      {r.is_scored && (
-                        <span className="text-[10px] text-[var(--fg-subtle)] font-mono">
-                          Avg: {r.average_score} ({r.judge_score_count} judge{r.judge_score_count === 1 ? "" : "s"})
-                        </span>
-                      )}
-                    </div>
-                  );
-                }
-                return (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-0.5 text-[10.5px] font-medium text-[var(--fg-muted)] whitespace-nowrap">
-                    <Clock className="size-2.5" /> In Lineup
-                  </span>
-                );
-              },
-            },
-            {
-              key: "actions",
-              header: "Stage Action",
-              width: "160px",
-              render: (r: any) => {
-                const isOnStage = Boolean(r.is_current_performer || r.stage_status === "ON_STAGE");
-                const rId = r.registration_id || r.user_email;
-
-                if (isOnStage) {
-                  return (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleEndPerformance}
-                      loading={actionLoading === "end"}
-                      className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 text-[11px] font-bold"
-                    >
-                      <Square className="size-3 mr-1" /> End Now
-                    </Button>
-                  );
-                }
-
-                return (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    disabled={actionLoading === `set-${rId}`}
-                    onClick={() => handleSetPerformer(rId, r.user_name || "Competitor")}
-                    className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] whitespace-nowrap"
-                  >
-                    {actionLoading === `set-${rId}` ? (
-                      <Loader2 className="size-3 animate-spin mr-1" />
-                    ) : (
-                      <Mic className="size-3 mr-1" />
-                    )}
-                    Send to Stage
-                  </Button>
-                );
-              },
-            },
-          ]}
+          columns={lineupColumns}
+          renderCard={(r: any) => (
+            <article className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-3 shadow-sm transition-colors hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)]">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <div className="flex min-w-[230px] flex-1 items-center gap-2.5">
+                  {lineupCell("stage_order", r)}
+                  {lineupCell("participant", r)}
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {lineupCell("registration_reference", r)}
+                  {lineupCell("stage_status", r)}
+                </div>
+              </div>
+              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[var(--border)] pt-2.5">
+                {lineupCell("media", r)}
+                {lineupCell("actions", r)}
+              </div>
+            </article>
+          )}
         />
       </div>
     </div>
@@ -3851,108 +3877,34 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
             No contestants or scores recorded for Round {selectedRound} yet.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-[var(--border)] text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
-                  <th className="py-2.5 px-3 w-8">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size > 0 && selectedIds.size === filteredParticipants.length}
-                      onChange={handleSelectAll}
-                      className="rounded accent-amber-500"
-                    />
-                  </th>
-                  <th className="py-2.5 px-3">Rank</th>
-                  <th className="py-2.5 px-3">Contestant</th>
-                  <th className="py-2.5 px-3">Category</th>
-                  <th className="py-2.5 px-3 text-right">Judge Score</th>
-                  <th className="py-2.5 px-3 text-right">Audience Votes</th>
-                  <th className="py-2.5 px-3 text-right">Points</th>
-                  <th className="py-2.5 px-3 text-center">Round Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredParticipants.map((p: any, idx: number) => {
-                  const id = p.registration_id || p.email || p.user_email;
-                  const isChecked = selectedIds.has(id);
-                  const isAdvancingZone = idx < advancingCount;
-                  const displayRank = selectedCategory !== "ALL" ? (idx + 1) : (p.rank ?? (idx + 1));
+          <div className="flex flex-col gap-2">
+            <label className="flex w-fit cursor-pointer items-center gap-2 px-1 text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
+              <input
+                type="checkbox"
+                checked={selectedIds.size > 0 && selectedIds.size === filteredParticipants.length}
+                onChange={handleSelectAll}
+                className="rounded accent-amber-500"
+              />
+              Select all {filteredParticipants.length}
+            </label>
 
-                  return (
-                    <tr
-                      key={id || idx}
-                      className={cn(
-                        "border-b border-[var(--border)]/60 hover:bg-[var(--surface-2)]/60 transition-colors",
-                        isChecked ? "bg-amber-500/10" : isAdvancingZone ? "bg-emerald-500/[0.04]" : ""
-                      )}
-                    >
-                      <td className="py-2.5 px-3">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleToggleSelect(id)}
-                          className="rounded accent-amber-500"
-                        />
-                      </td>
-                      <td className="py-2.5 px-3 font-bold">
-                        {displayRank === 1 ? (
-                          <span className="grid size-6 place-items-center rounded-full bg-amber-400 text-slate-950 font-black text-[11px]">1</span>
-                        ) : displayRank === 2 ? (
-                          <span className="grid size-6 place-items-center rounded-full bg-slate-300 text-slate-900 font-bold text-[11px]">2</span>
-                        ) : displayRank === 3 ? (
-                          <span className="grid size-6 place-items-center rounded-full bg-amber-700 text-amber-50 font-bold text-[11px]">3</span>
-                        ) : (
-                          <span className="text-[var(--fg-muted)] pl-2">{displayRank}</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-[var(--fg)] flex items-center gap-1">
-                              <span>{p.name || p.user_name || "Contestant"}</span>
-                              {p.is_verified && <VerifiedBadge size="xs" />}
-                            </p>
-                            <p className="text-[10.5px] text-[var(--fg-muted)] truncate max-w-[200px]">
-                              {p.email || p.user_email}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10.5px] font-bold text-violet-300">
-                          {p.category || "General"}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums text-[var(--fg-muted)] font-medium">
-                        {p.judge_score != null ? p.judge_score : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums text-[var(--fg-muted)] font-medium">
-                        {p.audience_votes != null ? formatNumber(p.audience_votes) : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums font-bold text-amber-400 font-display">
-                        {p.points ?? p.final_score ?? p.audience_votes ?? "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        {p.round_status === "ELIMINATED" ? (
-                          <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-bold text-rose-400">
-                            Eliminated
-                          </span>
-                        ) : p.is_advancing || isAdvancingZone ? (
-                          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-400 flex items-center justify-center gap-1">
-                            <Sparkles className="size-2.5" /> Advancing
-                          </span>
-                        ) : (
-                          <span className="rounded-full border border-slate-500/30 bg-slate-500/10 px-2.5 py-0.5 text-[10px] font-bold text-slate-300">
-                            Qualified
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {filteredParticipants.map((p: any, idx: number) => {
+              const id = p.registration_id || p.email || p.user_email;
+              const isChecked = selectedIds.has(id);
+              const isAdvancingZone = idx < advancingCount;
+              const displayRank = selectedCategory !== "ALL" ? (idx + 1) : (p.rank ?? (idx + 1));
+
+              return (
+                <RoundStandingCard
+                  key={id || idx}
+                  p={p}
+                  isChecked={isChecked}
+                  isAdvancingZone={isAdvancingZone}
+                  displayRank={displayRank}
+                  onToggle={() => handleToggleSelect(id)}
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -4544,129 +4496,17 @@ function CompetitionResultsAdminPanel({
             No contestants or judge scores recorded for Stage {selectedRound} in {selectedCategory === "ALL" ? "any category" : `category "${selectedCategory}"`}.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-[var(--border)] text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
-                  <th className="py-3 px-3">Rank</th>
-                  <th className="py-3 px-3">Contestant</th>
-                  <th className="py-3 px-3">Category</th>
-                  <th className="py-3 px-3 text-right">Judge Score</th>
-                  <th className="py-3 px-3 text-right">Audience Votes</th>
-                  <th className="py-3 px-3 text-right">Points / Score</th>
-                  <th className="py-3 px-3 text-center">Status</th>
-                  <th className="py-3 px-3 text-center">Judge Breakdown</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredParticipants.map((p: any, idx: number) => {
-                  const r = p.displayRank;
-                  const is1 = r === 1;
-                  const is2 = r === 2;
-                  const is3 = r === 3;
-                  const hasJudgeDetails = Array.isArray(p.judge_details) && p.judge_details.length > 0;
-
-                  return (
-                    <tr
-                      key={p.registration_id || p.email || p.user_email || idx}
-                      className={cn(
-                        "border-b border-[var(--border)]/60 hover:bg-[var(--surface-2)]/60 transition-colors",
-                        is1 ? "bg-amber-500/[0.04]" : is2 ? "bg-slate-500/[0.03]" : is3 ? "bg-amber-700/[0.03]" : ""
-                      )}
-                    >
-                      <td className="py-3 px-3 font-bold">
-                        {is1 ? (
-                          <span className="grid size-6 place-items-center rounded-full bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm">1</span>
-                        ) : is2 ? (
-                          <span className="grid size-6 place-items-center rounded-full bg-slate-300 text-slate-900 font-bold text-[11px] shadow-sm">2</span>
-                        ) : is3 ? (
-                          <span className="grid size-6 place-items-center rounded-full bg-amber-700 text-amber-50 font-bold text-[11px] shadow-sm">3</span>
-                        ) : (
-                          <span className="text-[var(--fg-muted)] pl-2">{r}</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="size-8 rounded-full border border-white/10 overflow-hidden bg-[var(--surface-2)] shrink-0">
-                            {p.profile_photo || p.avatar ? (
-                              <img src={p.profile_photo || p.avatar} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
-                            ) : (
-                              <div className="size-full grid place-items-center text-[var(--fg-muted)] font-bold text-xs">
-                                {(p.name || "U")[0]}
-                              </div>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-white flex items-center gap-1">
-                              <span>{p.name || p.user_name || "Contestant"}</span>
-                              {p.is_verified && <VerifiedBadge size="xs" />}
-                            </p>
-                            <p className="text-[10.5px] text-[var(--fg-muted)] truncate max-w-[200px]">
-                              {p.email || p.user_email} • {p.registration_reference || "Reg"}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10.5px] font-bold text-violet-300">
-                          {p.category || "General"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right tabular-nums text-white font-medium">
-                        {p.judge_score != null ? p.judge_score : "—"}
-                        {p.judge_score_count ? (
-                          <span className="text-[10px] text-[var(--fg-muted)] block">
-                            ({p.judge_score_count} {p.judge_score_count === 1 ? "judge" : "judges"})
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="py-3 px-3 text-right tabular-nums text-[var(--fg-muted)] font-medium">
-                        {p.audience_votes != null ? formatNumber(p.audience_votes) : "—"}
-                      </td>
-                      <td className="py-3 px-3 text-right tabular-nums font-bold text-amber-400 font-display text-sm">
-                        {p.effectiveScore}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        {is1 ? (
-                          <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 text-[10px] font-black text-amber-300">
-                            👑 1st Champion
-                          </span>
-                        ) : is2 ? (
-                          <span className="rounded-full bg-slate-400/20 border border-slate-400/40 px-2.5 py-0.5 text-[10px] font-bold text-slate-300">
-                            🥈 2nd Place
-                          </span>
-                        ) : is3 ? (
-                          <span className="rounded-full bg-amber-700/20 border border-amber-700/40 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
-                            🥉 3rd Place
-                          </span>
-                        ) : p.round_status === "ELIMINATED" ? (
-                          <span className="rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-semibold text-rose-400">
-                            Eliminated
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">
-                            Qualified
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        {hasJudgeDetails || (p.comments && p.comments.length > 0) ? (
-                          <button
-                            type="button"
-                            onClick={() => setInspectParticipant(p)}
-                            className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/20 hover:border-amber-400 transition-colors"
-                          >
-                            <MessageSquare className="size-3" /> View Feedback
-                          </button>
-                        ) : (
-                          <span className="text-[10.5px] text-[var(--fg-subtle)]">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="flex flex-col gap-2">
+            {filteredParticipants.map((p: any, idx: number) => {
+              return (
+                <ResultStandingCard
+                  key={p.registration_id || p.email || p.user_email || idx}
+                  p={p}
+                  rank={p.displayRank}
+                  onInspect={() => setInspectParticipant(p)}
+                />
+              );
+            })}
           </div>
         )}
       </div>
