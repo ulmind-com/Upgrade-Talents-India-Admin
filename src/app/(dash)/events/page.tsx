@@ -43,10 +43,12 @@ import {
   Badge,
   Loading,
   Input,
+  type Column,
 } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
 import { cmsApi, safe, toRows } from "@/lib/api";
 import { cn, formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
+import { EventCard } from "./EventCard";
 
 /* ═══════════════════════════════════════════════════════════════════
    1. MAIN EVENTS MANAGEMENT DASHBOARD
@@ -295,65 +297,16 @@ export default function EventsPage() {
                 ),
               },
             ],
-            rowActions: (row, { reload }) => (
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  href={`https://upgradetalentsindia.in/events/${rowId(row)}/book`}
-                  target="_blank"
-                  title="Open live ticket booking on website"
-                >
-                  <ArrowUpRight className="size-3.5 text-sky-400" aria-hidden /> Live
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShareEvent(row)}
-                  title="Share Booking Links (WhatsApp, Telegram, Direct)"
-                >
-                  <Share2 className="size-3.5 text-sky-400" aria-hidden /> Share
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => openEventBookingsModal(row)}
-                  title="View attendee bookings and live gate attendance"
-                >
-                  <Users className="size-3.5 text-[var(--brand)]" aria-hidden /> Bookings
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  href={`/vip?eventId=${rowId(row)}`}
-                  title="View VIP Passes & Bookings"
-                >
-                  <Crown className="size-3.5 text-amber-400" aria-hidden /> VIP
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  href={`/tickets?eventId=${rowId(row)}&tab=tiers`}
-                  title="Configure Ticket Tiers"
-                >
-                  <Ticket className="size-3.5" aria-hidden /> Tiers
-                </Button>
-                <Button
-                  size="sm"
-                  variant={row.is_published ? "secondary" : "success"}
-                  onClick={() => togglePublish(row, reload)}
-                >
-                  {row.is_published ? (
-                    <>
-                      <EyeOff className="size-3.5" aria-hidden /> Unpublish
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="size-3.5" aria-hidden /> Publish
-                    </>
-                  )}
-                </Button>
-              </div>
+            renderCard: (row: any, { reload, edit, remove }) => (
+              <EventCard
+                row={row}
+                stats={bookingStatsMap[rowId(row)]}
+                onBookings={() => openEventBookingsModal(row)}
+                onShare={() => setShareEvent(row)}
+                onTogglePublish={() => togglePublish(row, reload)}
+                onEdit={edit}
+                onDelete={remove}
+              />
             ),
             fields: [
               { name: "title", label: "Title", required: true, placeholder: "Grand Gala Festival" },
@@ -711,6 +664,145 @@ function EventBookingsInspector({
     exportFinalPresentListToCsv(currentEvent?.title || "event", rawBookings);
   };
 
+  const bookingColumns: Column<any>[] = [
+{
+  key: "booking_reference",
+  header: "Booking Ref",
+  render: (r: any) => (
+    <div>
+      <span className="font-mono text-xs font-bold text-[var(--brand)]">
+        {r.booking_reference || rowId(r)}
+      </span>
+      <span className="block text-[11px] text-[var(--fg-subtle)]">
+        {formatDate(r.booked_at || r.created_at, true)}
+      </span>
+    </div>
+  ),
+},
+{
+  key: "user",
+  header: "Buyer / Contact",
+  render: (r: any) => (
+    <div className="text-xs">
+      <p className="font-semibold text-white">{r.user_name || "Attendee"}</p>
+      <p className="font-mono text-[11px] text-[var(--fg-muted)] truncate max-w-[180px]">
+        {r.user_email}
+      </p>
+      {r.user_phone ? (
+        <p className="text-[11px] text-[var(--fg-subtle)] font-mono">{r.user_phone}</p>
+      ) : (
+        <span className="text-[10px] text-[var(--fg-subtle)]">No phone</span>
+      )}
+    </div>
+  ),
+},
+{
+  key: "ticket_type",
+  header: "Tier / Pass",
+  render: (r: any) => (
+    <div className="text-xs">
+      <span className="inline-block rounded bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium capitalize text-[var(--brand)] border border-[var(--border)]">
+        {String(r.ticket_type || r.category || "general").replace(/_/g, " ")}
+      </span>
+    </div>
+  ),
+},
+{
+  key: "quantity",
+  header: "Tickets / Amount",
+  render: (r: any) => (
+    <div className="text-xs">
+      <span className="font-bold text-white">
+        {r.quantity} ticket{r.quantity > 1 ? "s" : ""}
+      </span>
+      <span className="block font-mono text-[11px] text-[var(--fg-muted)]">
+        {formatINR(r.total_amount)}
+      </span>
+    </div>
+  ),
+},
+{
+  key: "booking_status",
+  header: "Status",
+  render: (r: any) => (
+    <div className="flex flex-col gap-1">
+      <StatusBadge value={r.booking_status} />
+      <span
+        className={`text-[10px] font-bold uppercase ${
+          r.payment_status === "PAID" || r.payment_status === "NOT_REQUIRED"
+            ? "text-emerald-400"
+            : r.payment_method === "CASH"
+            ? "text-amber-400"
+            : "text-amber-400"
+        }`}
+      >
+        {r.payment_method === "CASH" ? "CASH PENDING" : r.payment_status}
+      </span>
+    </div>
+  ),
+},
+{
+  key: "attendance",
+  header: "Gate Attendance (✓)",
+  render: (r: any) => {
+    const isPresent = Boolean(
+      r.is_present || r.attendance_status === "PRESENT" || (r.tickets || []).some((t: any) => t.is_checked_in)
+    );
+    return (
+      <div className="flex items-center gap-2">
+        {isPresent ? (
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+              <Check className="size-3 stroke-[3]" /> PRESENT
+            </span>
+            <button
+              type="button"
+              onClick={() => handleToggleAttendance(r)}
+              className="text-[10px] text-[var(--fg-subtle)] hover:text-red-400 transition-colors underline"
+              title="Revert check-in to absent"
+            >
+              Untick
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleToggleAttendance(r)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all shadow-sm"
+            title="Mark attendee as PRESENT (✓)"
+          >
+            <Check className="size-3.5 stroke-[2.5]" /> Mark Present
+          </button>
+        )}
+      </div>
+    );
+  },
+},
+{
+  key: "__actions",
+  header: "Passes",
+  className: "text-right",
+  render: (r: any) => (
+    <Button
+      size="sm"
+      variant="secondary"
+      onClick={() => {
+        setSelectedBooking(r);
+        setDetailModalOpen(true);
+      }}
+      title="Inspect holder names & digital tickets"
+    >
+      <Eye className="size-3.5" /> View
+    </Button>
+  ),
+},
+  ];
+
+  const bookingCell = (key: string, r: any) => {
+    const col = bookingColumns.find((c) => c.key === key);
+    return col?.render ? col.render(r) : null;
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {/* ── Event Selector & Header ── */}
@@ -926,139 +1018,24 @@ function EventBookingsInspector({
                   ? "No attendees match your current search query."
                   : "No tickets have been booked for this event yet.",
               }}
-              columns={[
-                {
-                  key: "booking_reference",
-                  header: "Booking Ref",
-                  render: (r: any) => (
-                    <div>
-                      <span className="font-mono text-xs font-bold text-[var(--brand)]">
-                        {r.booking_reference || rowId(r)}
-                      </span>
-                      <span className="block text-[11px] text-[var(--fg-subtle)]">
-                        {formatDate(r.booked_at || r.created_at, true)}
-                      </span>
+              columns={bookingColumns}
+              renderCard={(r: any) => (
+                <article className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-3.5 shadow-sm transition-colors hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)]">
+                  <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-2">
+                    <div className="min-w-[220px] flex-1">{bookingCell("user", r)}</div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      {bookingCell("booking_reference", r)}
+                      {bookingCell("booking_status", r)}
                     </div>
-                  ),
-                },
-                {
-                  key: "user",
-                  header: "Buyer / Contact",
-                  render: (r: any) => (
-                    <div className="text-xs">
-                      <p className="font-semibold text-white">{r.user_name || "Attendee"}</p>
-                      <p className="font-mono text-[11px] text-[var(--fg-muted)] truncate max-w-[180px]">
-                        {r.user_email}
-                      </p>
-                      {r.user_phone ? (
-                        <p className="text-[11px] text-[var(--fg-subtle)] font-mono">{r.user_phone}</p>
-                      ) : (
-                        <span className="text-[10px] text-[var(--fg-subtle)]">No phone</span>
-                      )}
-                    </div>
-                  ),
-                },
-                {
-                  key: "ticket_type",
-                  header: "Tier / Pass",
-                  render: (r: any) => (
-                    <div className="text-xs">
-                      <span className="inline-block rounded bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium capitalize text-[var(--brand)] border border-[var(--border)]">
-                        {String(r.ticket_type || r.category || "general").replace(/_/g, " ")}
-                      </span>
-                    </div>
-                  ),
-                },
-                {
-                  key: "quantity",
-                  header: "Tickets / Amount",
-                  render: (r: any) => (
-                    <div className="text-xs">
-                      <span className="font-bold text-white">
-                        {r.quantity} ticket{r.quantity > 1 ? "s" : ""}
-                      </span>
-                      <span className="block font-mono text-[11px] text-[var(--fg-muted)]">
-                        {formatINR(r.total_amount)}
-                      </span>
-                    </div>
-                  ),
-                },
-                {
-                  key: "booking_status",
-                  header: "Status",
-                  render: (r: any) => (
-                    <div className="flex flex-col gap-1">
-                      <StatusBadge value={r.booking_status} />
-                      <span
-                        className={`text-[10px] font-bold uppercase ${
-                          r.payment_status === "PAID" || r.payment_status === "NOT_REQUIRED"
-                            ? "text-emerald-400"
-                            : r.payment_method === "CASH"
-                            ? "text-amber-400"
-                            : "text-amber-400"
-                        }`}
-                      >
-                        {r.payment_method === "CASH" ? "CASH PENDING" : r.payment_status}
-                      </span>
-                    </div>
-                  ),
-                },
-                {
-                  key: "attendance",
-                  header: "Gate Attendance (✓)",
-                  render: (r: any) => {
-                    const isPresent = Boolean(
-                      r.is_present || r.attendance_status === "PRESENT" || (r.tickets || []).some((t: any) => t.is_checked_in)
-                    );
-                    return (
-                      <div className="flex items-center gap-2">
-                        {isPresent ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                              <Check className="size-3 stroke-[3]" /> PRESENT
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleAttendance(r)}
-                              className="text-[10px] text-[var(--fg-subtle)] hover:text-red-400 transition-colors underline"
-                              title="Revert check-in to absent"
-                            >
-                              Untick
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleToggleAttendance(r)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all shadow-sm"
-                            title="Mark attendee as PRESENT (✓)"
-                          >
-                            <Check className="size-3.5 stroke-[2.5]" /> Mark Present
-                          </button>
-                        )}
-                      </div>
-                    );
-                  },
-                },
-                {
-                  key: "__actions",
-                  header: "Passes",
-                  className: "text-right",
-                  render: (r: any) => (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setSelectedBooking(r);
-                        setDetailModalOpen(true);
-                      }}
-                      title="Inspect holder names & digital tickets"
-                    >
-                      <Eye className="size-3.5" /> View
-                    </Button>
-                  ),
-                },
-              ]}
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-3 border-t border-[var(--border)] pt-3">
+                    {bookingCell("ticket_type", r)}
+                    {bookingCell("quantity", r)}
+                    {bookingCell("attendance", r)}
+                    <div className="ml-auto">{bookingCell("__actions", r)}</div>
+                  </div>
+                </article>
+              )}
             />
           </Panel>
         </>
@@ -1185,6 +1162,96 @@ function EventBookingsModal({
     });
   }, [rawBookings, statusFilter, search]);
 
+  const attendanceColumns: Column<any>[] = [
+{
+  key: "booking_reference",
+  header: "Booking Ref",
+  render: (r: any) => (
+    <div>
+      <span className="font-mono text-xs font-bold text-[var(--brand)]">
+        {r.booking_reference || rowId(r)}
+      </span>
+      <span className="block text-[10px] text-[var(--fg-subtle)]">
+        {formatDate(r.booked_at || r.created_at, true)}
+      </span>
+    </div>
+  ),
+},
+{
+  key: "user",
+  header: "Attendee",
+  render: (r: any) => (
+    <div className="text-xs">
+      <p className="font-semibold text-white">{r.user_name || "Attendee"}</p>
+      <p className="font-mono text-[10.5px] text-[var(--fg-muted)] truncate max-w-[150px]">
+        {r.user_email}
+      </p>
+    </div>
+  ),
+},
+{
+  key: "ticket_type",
+  header: "Pass Tier",
+  render: (r: any) => (
+    <span className="rounded bg-[var(--surface-2)] px-2 py-0.5 text-[10.5px] font-medium capitalize text-[var(--brand)]">
+      {String(r.ticket_type || r.category || "General").replace(/_/g, " ")}
+    </span>
+  ),
+},
+{
+  key: "quantity",
+  header: "Qty / Total",
+  render: (r: any) => (
+    <div className="text-xs">
+      <span className="font-bold">{r.quantity} tix</span>
+      <span className="block font-mono text-[10px] text-[var(--fg-muted)]">
+        {formatINR(r.total_amount)}
+      </span>
+    </div>
+  ),
+},
+{
+  key: "attendance",
+  header: "Attendance (✓)",
+  render: (r: any) => {
+    const isPresent = Boolean(
+      r.is_present || r.attendance_status === "PRESENT" || (r.tickets || []).some((t: any) => t.is_checked_in)
+    );
+    return isPresent ? (
+      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10.5px] font-bold text-emerald-400">
+        <Check className="size-3 stroke-[3]" /> PRESENT
+      </span>
+    ) : (
+      <button
+        type="button"
+        onClick={() => handleToggleAttendance(r)}
+        className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-bold text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all"
+      >
+        <Check className="size-3" /> Mark Present
+      </button>
+    );
+  },
+},
+{
+  key: "__actions",
+  header: "",
+  render: (r: any) => (
+    <button
+      type="button"
+      onClick={() => setSelectedBooking(r)}
+      className="text-[11px] font-semibold text-[var(--brand)] hover:underline"
+    >
+      Details
+    </button>
+  ),
+},
+  ];
+
+  const attendanceCell = (key: string, r: any) => {
+    const col = attendanceColumns.find((c) => c.key === key);
+    return col?.render ? col.render(r) : null;
+  };
+
   return (
     <Modal
       open={!!event}
@@ -1260,90 +1327,23 @@ function EventBookingsModal({
             loading={loading}
             error={error}
             onRetry={loadData}
-            columns={[
-              {
-                key: "booking_reference",
-                header: "Booking Ref",
-                render: (r: any) => (
-                  <div>
-                    <span className="font-mono text-xs font-bold text-[var(--brand)]">
-                      {r.booking_reference || rowId(r)}
-                    </span>
-                    <span className="block text-[10px] text-[var(--fg-subtle)]">
-                      {formatDate(r.booked_at || r.created_at, true)}
-                    </span>
+            columns={attendanceColumns}
+            renderCard={(r: any) => (
+              <article className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-3.5 shadow-sm transition-colors hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)]">
+                <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-2">
+                  <div className="min-w-[220px] flex-1">{attendanceCell("user", r)}</div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    {attendanceCell("booking_reference", r)}
                   </div>
-                ),
-              },
-              {
-                key: "user",
-                header: "Attendee",
-                render: (r: any) => (
-                  <div className="text-xs">
-                    <p className="font-semibold text-white">{r.user_name || "Attendee"}</p>
-                    <p className="font-mono text-[10.5px] text-[var(--fg-muted)] truncate max-w-[150px]">
-                      {r.user_email}
-                    </p>
-                  </div>
-                ),
-              },
-              {
-                key: "ticket_type",
-                header: "Pass Tier",
-                render: (r: any) => (
-                  <span className="rounded bg-[var(--surface-2)] px-2 py-0.5 text-[10.5px] font-medium capitalize text-[var(--brand)]">
-                    {String(r.ticket_type || r.category || "General").replace(/_/g, " ")}
-                  </span>
-                ),
-              },
-              {
-                key: "quantity",
-                header: "Qty / Total",
-                render: (r: any) => (
-                  <div className="text-xs">
-                    <span className="font-bold">{r.quantity} tix</span>
-                    <span className="block font-mono text-[10px] text-[var(--fg-muted)]">
-                      {formatINR(r.total_amount)}
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                key: "attendance",
-                header: "Attendance (✓)",
-                render: (r: any) => {
-                  const isPresent = Boolean(
-                    r.is_present || r.attendance_status === "PRESENT" || (r.tickets || []).some((t: any) => t.is_checked_in)
-                  );
-                  return isPresent ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10.5px] font-bold text-emerald-400">
-                      <Check className="size-3 stroke-[3]" /> PRESENT
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleToggleAttendance(r)}
-                      className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-bold text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all"
-                    >
-                      <Check className="size-3" /> Mark Present
-                    </button>
-                  );
-                },
-              },
-              {
-                key: "__actions",
-                header: "",
-                render: (r: any) => (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBooking(r)}
-                    className="text-[11px] font-semibold text-[var(--brand)] hover:underline"
-                  >
-                    Details
-                  </button>
-                ),
-              },
-            ]}
+                </div>
+                <div className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-3 border-t border-[var(--border)] pt-3">
+                  {attendanceCell("ticket_type", r)}
+                  {attendanceCell("quantity", r)}
+                  {attendanceCell("attendance", r)}
+                  <div className="ml-auto">{attendanceCell("__actions", r)}</div>
+                </div>
+              </article>
+            )}
           />
         </div>
       </div>
