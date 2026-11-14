@@ -2570,8 +2570,8 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
     header: "Live Stage",
     width: "145px",
     render: (r: any) => {
-      const isOnStage = Boolean(r.is_on_stage || r.stage_status === "ON_STAGE");
-      const isCompleted = r.stage_status === "COMPLETED";
+      const isOnStage = Boolean(r.is_on_stage);
+      const isCompleted = r.stage_status === "COMPLETED" || (!isOnStage && r.stage_status === "ON_STAGE");
       const rId = r._id || r.registration_id;
 
       if (isOnStage) {
@@ -4161,11 +4161,17 @@ function CompetitionResultsAdminPanel({
       return Number(b.judge_score ?? 0) - Number(a.judge_score ?? 0);
     });
 
-    return sorted.map((p, idx) => ({
-      ...p,
-      displayRank: selectedCategory !== "ALL" ? (idx + 1) : (p.rank ?? (idx + 1)),
-      effectiveScore: p.final_score ?? p.points ?? p.total_score ?? p.score ?? p.judge_score ?? p.audience_votes ?? 0,
-    }));
+    return sorted.map((p, idx) => {
+      const hasAudienceVotes = Number(p.audience_votes || 0) > 0;
+      const effScore = (!hasAudienceVotes && p.judge_score != null)
+        ? p.judge_score
+        : (p.final_score ?? p.points ?? p.total_score ?? p.score ?? p.judge_score ?? p.audience_votes ?? 0);
+      return {
+        ...p,
+        displayRank: selectedCategory !== "ALL" ? (idx + 1) : (p.rank ?? (idx + 1)),
+        effectiveScore: effScore,
+      };
+    });
   }, [participantsList, search, selectedCategory, lbData?.category_leaderboards]);
 
   const top3 = filteredParticipants.slice(0, 3);
