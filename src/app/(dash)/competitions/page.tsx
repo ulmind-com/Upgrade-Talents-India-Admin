@@ -8,7 +8,7 @@ import {
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
   ShieldCheck, ShieldAlert, BadgeCheck, Radio, Mic, SkipForward, Play, Square,
   Link2, Music, FileUp, Sparkles, UserCheck, XCircle, Layers, ArrowRight, Settings, CheckSquare,
-  Share2, MessageCircle, Crown, Medal, MessageSquare, Award
+  Share2, MessageCircle, Crown, Medal, MessageSquare, Award, X
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import { Button, Field, Input, Modal, Panel, StatusBadge, Loading, useResource, useConfirm, DataTable, Select, type Column } from "@/components/Kit";
@@ -2182,6 +2182,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
 function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; compTitle?: string }) {
   const [filterMode, setFilterMode] = useState<string>("ALL");
   const [search, setSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [selectedParticipant, setSelectedParticipant] = useState<any | null>(null);
@@ -2198,6 +2199,20 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
     if (Array.isArray(data)) return data;
     return toRows(data);
   }, [data]);
+
+  const searchSuggestions = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    if (!s) return [];
+    return rawParticipants
+      .filter((p: any) => {
+        const name = (p.user_name || "").toLowerCase();
+        const ref = (p.registration_reference || "").toLowerCase();
+        const email = (p.user_email || "").toLowerCase();
+        const phone = (p.user_phone || "").toLowerCase();
+        return name.includes(s) || ref.includes(s) || email.includes(s) || phone.includes(s);
+      })
+      .slice(0, 7);
+  }, [rawParticipants, search]);
   const totalRegistered = data?.total_registered ?? rawParticipants.length;
   const confirmedCount = data?.confirmed_count ?? rawParticipants.filter((p: any) => p.status === "CONFIRMED").length;
   const submissionsCount = data?.submissions_count ?? rawParticipants.filter((p: any) => !!p.submission).length;
@@ -2396,21 +2411,30 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
               <p className="font-semibold text-white truncate text-xs">{r.user_name || "Participant"}</p>
               {isVerified && <VerifiedBadge size="xs" />}
             </div>
-            <a
-              href={`mailto:${r.user_email}`}
-              className="block font-mono text-[11px] text-[var(--fg-muted)] hover:text-white truncate"
-              title={r.user_email}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCopy(r.user_email);
+              }}
+              className="cursor-pointer block text-left font-mono text-[11px] text-[var(--fg-muted)] hover:text-white truncate"
+              title={`Click to copy: ${r.user_email}`}
             >
               {r.user_email}
-            </a>
+            </button>
             <div className="flex items-center gap-2 mt-0.5">
               {r.user_phone && (
-                <a
-                  href={`tel:${r.user_phone}`}
-                  className="inline-flex items-center gap-1 font-mono text-[10px] text-[var(--fg-subtle)] hover:text-white"
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopy(r.user_phone);
+                  }}
+                  className="cursor-pointer inline-flex items-center gap-1 font-mono text-[10px] text-[var(--fg-subtle)] hover:text-white"
+                  title={`Click to copy: ${r.user_phone}`}
                 >
                   <Phone className="size-2.5" /> {r.user_phone}
-                </a>
+                </button>
               )}
               <button
                 type="button"
@@ -3118,10 +3142,96 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 220)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setShowSuggestions(false);
+                  }
+                }}
                 placeholder="Search participant, ref, cash…"
-                className="h-8.5 w-56 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 text-xs outline-none focus:border-[var(--brand)] transition-colors"
+                className="h-8.5 w-60 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-8 text-xs outline-none focus:border-[var(--brand)] transition-colors text-white"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setShowSuggestions(false);
+                  }}
+                  className="cursor-pointer absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] hover:text-white"
+                  title="Clear search"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+
+              {/* Autocomplete / Suggestions Dropdown */}
+              {showSuggestions && searchSuggestions.length > 0 && (
+                <div
+                  className="absolute left-0 top-full z-50 mt-1.5 w-80 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl backdrop-blur-xl"
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--fg-subtle)] flex items-center justify-between border-b border-[var(--border)]/40 pb-1.5">
+                    <span>Matching Contestants</span>
+                    <span className="text-[var(--accent)]">{searchSuggestions.length} found</span>
+                  </div>
+                  <div className="flex flex-col gap-1 mt-1 max-h-60 overflow-y-auto">
+                    {searchSuggestions.map((p: any) => {
+                      const isPresent = Boolean(p.is_present || p.attendance_status === "PRESENT");
+                      const isPaid = p.payment_status === "PAID" || p.cash_status === "COLLECTED" || p.cash_status === "PAID";
+                      return (
+                        <div
+                          key={p._id || p.registration_id || p.registration_reference}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSearch(p.user_name || p.registration_reference || p.user_email);
+                            setSelectedParticipant(p);
+                            setShowSuggestions(false);
+                          }}
+                          className="cursor-pointer flex items-center justify-between gap-2 rounded-xl p-2 hover:bg-[var(--surface-2)] transition-colors group"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-xs text-white truncate group-hover:text-amber-300">
+                                {p.user_name || "Contestant"}
+                              </span>
+                              {p.registration_reference && (
+                                <span className="font-mono text-[10px] text-[var(--fg-subtle)] truncate">
+                                  #{p.registration_reference}
+                                </span>
+                              )}
+                            </div>
+                            <span className="block font-mono text-[10.5px] text-[var(--fg-muted)] truncate">
+                              {p.user_email}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className={cn(
+                              "rounded-md px-1.5 py-0.5 text-[9.5px] font-black uppercase",
+                              isPresent ? "bg-emerald-500/20 text-emerald-300" : "bg-neutral-800 text-neutral-400"
+                            )}>
+                              {isPresent ? "Present" : "Absent"}
+                            </span>
+                            <span className={cn(
+                              "text-[9.5px] font-mono",
+                              isPaid ? "text-emerald-400 font-bold" : "text-amber-400"
+                            )}>
+                              {isPaid ? "Paid" : "Pending"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
             <Button size="sm" variant="secondary" onClick={reload} className="h-8.5 px-3">
               <RefreshCw className="size-3 mr-1" /> Refresh
