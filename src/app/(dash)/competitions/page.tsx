@@ -1642,15 +1642,7 @@ function InlineMediaPlayer({ item, compact = false }: { item: any; compact?: boo
                   <Music className="size-3 shrink-0 text-emerald-400" />
                   <span className="truncate">{m.label}</span>
                 </span>
-                <a
-                  href={m.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-emerald-400/80 hover:text-emerald-300 shrink-0"
-                  title="Open audio in new tab"
-                >
-                  <ExternalLink className="size-3" />
-                </a>
+                <span className="text-[10px] text-emerald-400/60 font-mono">Audio Player</span>
               </div>
               <audio
                 controls
@@ -1666,27 +1658,21 @@ function InlineMediaPlayer({ item, compact = false }: { item: any; compact?: boo
         return (
           <div key={m.url} className="flex flex-col gap-1">
             <div className="flex items-center gap-1.5">
-              {embedUrl && (
+              {embedUrl ? (
                 <button
                   type="button"
                   onClick={() => setExpandedYt(expandedYt === m.url ? null : m.url)}
-                  className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/15 px-2 py-1 text-[10.5px] font-bold text-rose-200 hover:bg-rose-500/25"
+                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/15 px-2.5 py-1 text-[11px] font-bold text-rose-200 hover:bg-rose-500/25 transition-colors"
                 >
-                  <Play className="size-2.5" />
-                  {expandedYt === m.url ? "Hide" : "Play"}
+                  <Video className="size-3 text-rose-400" />
+                  <span>{expandedYt === m.url ? "Hide Video" : `Watch ${m.label}`}</span>
                 </button>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-2 py-1 text-[10.5px] font-mono text-[var(--fg-muted)]">
+                  <Video className="size-3 shrink-0" />
+                  <span className="truncate">{m.label}</span>
+                </div>
               )}
-              <a
-                href={m.url}
-                target="_blank"
-                rel="noreferrer"
-                className="group/link inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-2 py-1 text-[10.5px] font-mono text-[var(--brand)] hover:border-[var(--brand)] transition-colors truncate max-w-[220px]"
-                title={`${m.label}: ${m.url}`}
-              >
-                <Video className="size-3 shrink-0 text-[var(--fg-muted)] group-hover/link:text-[var(--brand)]" />
-                <span className="truncate flex-1">{m.label}</span>
-                <ExternalLink className="size-2.5 shrink-0 opacity-60" />
-              </a>
             </div>
             {embedUrl && expandedYt === m.url && (
               <div className="aspect-video w-full max-w-sm overflow-hidden rounded-lg border border-[var(--border)] bg-black">
@@ -1706,6 +1692,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const [showAllRegistered, setShowAllRegistered] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [search, setSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const { data, loading, reload } = useResource(
     () => (!compId ? Promise.resolve(null) : competitionsApi.stageDashboard(compId)),
@@ -1722,6 +1709,20 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const remainingCount = data?.remaining_count ?? participants.filter((p: any) => p.stage_status !== "COMPLETED").length;
   const totalCount = data?.total_participants ?? participants.length;
 
+  const stageSuggestions = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    if (!s) return [];
+    return displayedParticipants
+      .filter((p: any) => {
+        const name = (p.user_name || p.full_name || "").toLowerCase();
+        const ref = (p.registration_reference || "").toLowerCase();
+        const email = (p.user_email || "").toLowerCase();
+        const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "").toLowerCase();
+        return name.includes(s) || ref.includes(s) || email.includes(s) || cat.includes(s);
+      })
+      .slice(0, 6);
+  }, [displayedParticipants, search]);
+
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
     if (Array.isArray(data?.categories)) {
@@ -1734,8 +1735,12 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
       const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "").trim();
       if (cat) set.add(cat);
     });
+    participants.forEach((p: any) => {
+      const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "").trim();
+      if (cat) set.add(cat);
+    });
     return Array.from(set);
-  }, [data?.categories, allParticipants]);
+  }, [data?.categories, allParticipants, participants]);
 
   const filteredLineup = useMemo(() => {
     let list = displayedParticipants;
@@ -2171,8 +2176,51 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
         </div>
       )}
 
-      {/* ── Serial Performance Lineup Table ── */}
-      <div className="flex flex-col gap-2.5">
+      {/* ── Serial Performance Lineup Section ── */}
+      <div className="flex flex-col gap-3">
+        {/* Category Division Filter Bar (Image 2 style: placed prominently at top) */}
+        {availableCategories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/80 p-2.5 shadow-sm backdrop-blur-sm">
+            <span className="text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-subtle)] mr-1 shrink-0 flex items-center gap-1">
+              <Layers className="size-3 text-violet-400" /> CATEGORY DIVISION:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory("ALL")}
+              className={cn(
+                "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all flex items-center gap-1.5",
+                selectedCategory === "ALL"
+                  ? "bg-violet-600 text-white shadow-sm font-black ring-1 ring-violet-400"
+                  : "border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-white"
+              )}
+            >
+              All Categories ({displayedParticipants.length})
+            </button>
+            {availableCategories.map((cat) => {
+              const count = displayedParticipants.filter((p: any) => {
+                const pCat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "General").trim().toLowerCase();
+                return pCat === cat.trim().toLowerCase();
+              }).length;
+              const isCatActive = selectedCategory.trim().toLowerCase() === cat.trim().toLowerCase();
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={cn(
+                    "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all flex items-center gap-1.5",
+                    isCatActive
+                      ? "bg-violet-600 text-white shadow-sm font-black ring-1 ring-violet-400"
+                      : "border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-white"
+                  )}
+                >
+                  {cat} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div>
             <h3 className="text-xs font-bold text-white flex items-center gap-2">
@@ -2191,19 +2239,66 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 placeholder="Search contestant, ref..."
-                className="h-8.5 w-44 sm:w-56 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-7 text-xs outline-none focus:border-[var(--brand)] transition-colors text-white placeholder:text-[var(--fg-subtle)]"
+                className="h-8.5 w-44 sm:w-60 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-7 text-xs outline-none focus:border-[var(--brand)] transition-colors text-white placeholder:text-[var(--fg-subtle)]"
               />
               {search && (
                 <button
                   type="button"
-                  onClick={() => setSearch("")}
+                  onClick={() => {
+                    setSearch("");
+                    setShowSuggestions(false);
+                  }}
                   className="cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] hover:text-white"
                   title="Clear search"
                 >
                   <X className="size-3" />
                 </button>
+              )}
+
+              {/* Suggestions Dropdown */}
+              {showSuggestions && stageSuggestions.length > 0 && (
+                <div
+                  className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl backdrop-blur-xl"
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--fg-subtle)] flex items-center justify-between border-b border-[var(--border)]/40 pb-1.5">
+                    <span>Matching Contestants</span>
+                    <span className="text-[var(--brand)]">{stageSuggestions.length} found</span>
+                  </div>
+                  <div className="flex flex-col gap-1 mt-1 max-h-56 overflow-y-auto">
+                    {stageSuggestions.map((p: any) => (
+                      <div
+                        key={p.registration_id || p.user_email}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSearch(p.user_name || p.registration_reference || p.user_email);
+                          setShowSuggestions(false);
+                        }}
+                        className="cursor-pointer flex items-center justify-between gap-2 rounded-xl p-2 hover:bg-[var(--surface-2)] transition-colors group"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-xs text-white truncate group-hover:text-[var(--brand)]">
+                            {p.user_name || "Contestant"}
+                          </p>
+                          <p className="font-mono text-[10px] text-[var(--fg-muted)] truncate">
+                            {p.registration_reference} • {p.user_email}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[9.5px] font-bold text-violet-300 shrink-0">
+                          {((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "General")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
@@ -2246,71 +2341,125 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
           </div>
         </div>
 
-        {/* Category Division Filter Bar (Image 2 style) */}
-        {availableCategories.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2">
-            <span className="text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-subtle)] mr-1 shrink-0">
-              CATEGORY DIVISION:
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedCategory("ALL")}
-              className={cn(
-                "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all flex items-center gap-1.5",
-                selectedCategory === "ALL"
-                  ? "bg-violet-600 text-white shadow-sm font-black ring-1 ring-violet-400"
-                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
-              )}
-            >
-              All Categories ({displayedParticipants.length})
-            </button>
-            {availableCategories.map((cat) => {
-              const count = displayedParticipants.filter((p: any) => {
-                const pCat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "General").trim().toLowerCase();
-                return pCat === cat.trim().toLowerCase();
-              }).length;
-              const isCatActive = selectedCategory.trim().toLowerCase() === cat.trim().toLowerCase();
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat)}
-                  className={cn(
-                    "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all flex items-center gap-1.5",
-                    isCatActive
-                      ? "bg-violet-600 text-white shadow-sm font-black ring-1 ring-violet-400"
-                      : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
-                  )}
-                >
-                  {cat} ({count})
-                </button>
-              );
-            })}
-          </div>
-        )}
-
         <DataTable
           rows={filteredLineup}
           columns={lineupColumns}
-          renderCard={(r: any) => (
-            <article className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-3 shadow-sm transition-colors hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)]">
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                <div className="flex min-w-[210px] flex-1 items-center gap-2.5">
-                  {lineupCell("stage_order", r)}
-                  {lineupCell("participant", r)}
+          renderCard={(r: any) => {
+            const isOnStage = Boolean(r.is_current_performer || r.stage_status === "ON_STAGE");
+            const isCompleted = r.stage_status === "COMPLETED";
+            const isVerified = Boolean(r.is_verified || r.verified_badge || r.verified_tick);
+            const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
+            const catName = (typeof r.category === "string" ? r.category : r.category?.name || r.division) || "General";
+            const rId = r.registration_id || r.user_email;
+
+            return (
+              <article className={cn(
+                "rounded-2xl border p-3.5 shadow-sm transition-all flex flex-col gap-3",
+                isOnStage
+                  ? "border-rose-500/50 bg-rose-500/10 shadow-rose-950/30 ring-1 ring-rose-500/30"
+                  : isCompleted
+                  ? "border-[var(--border)] bg-[var(--surface-2)]/40 hover:bg-[var(--surface-2)]"
+                  : "border-[var(--border)] bg-[var(--surface-2)]/60 hover:border-[var(--brand)]/40"
+              )}>
+                {/* ── Top Header: Order, Avatar, Name & Category Badge (Image 2 style) ── */}
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-3)] font-mono text-xs font-black text-[var(--brand)] border border-[var(--border)]">
+                      #{r.stage_order || 1}
+                    </span>
+                    <UserAvatar user={r} className="size-9 shrink-0" rounded="rounded-xl" verified={isVerified} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-xs text-white truncate">
+                          {r.user_name || "Competitor"}
+                        </span>
+                        {isVerified && <VerifiedBadge size="xs" />}
+                        {showAllRegistered && !isPresent && (
+                          <span className="rounded bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">
+                            Absent
+                          </span>
+                        )}
+                      </div>
+                      <span className="block font-mono text-[10.5px] text-[var(--fg-subtle)] truncate">
+                        {r.user_email}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Category Pill (Image 2 style) */}
+                  <span className="inline-flex items-center rounded-full border border-violet-500/35 bg-violet-500/15 px-2.5 py-0.5 text-[10.5px] font-black text-violet-300 whitespace-nowrap shrink-0">
+                    {catName}
+                  </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-                  {lineupCell("category", r)}
-                  {lineupCell("registration_reference", r)}
-                  {lineupCell("stage_status", r)}
+
+                {/* ── Status Bar: Reg Ref & Stage Status ── */}
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border)]/60 bg-[var(--surface)]/60 px-2.5 py-1.5 text-[11px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase font-bold text-[var(--fg-subtle)]">Reg:</span>
+                    <span className="font-mono text-emerald-400 font-bold">
+                      {r.registration_reference || "—"}
+                    </span>
+                  </div>
+
+                  {isOnStage ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-0.5 text-[10.5px] font-black text-rose-300 animate-pulse">
+                      <Radio className="size-2.5 text-rose-400 animate-ping" />
+                      ON STAGE
+                    </span>
+                  ) : isCompleted ? (
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                      <CheckCircle2 className="size-3 text-emerald-400" />
+                      <span>Done</span>
+                      {r.is_scored && (
+                        <span className="text-[10px] text-[var(--fg-subtle)] font-mono ml-1">
+                          ({r.average_score} pts)
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[10px] font-semibold text-[var(--fg-muted)]">
+                      <Clock className="size-2.5" /> In Queue
+                    </span>
+                  )}
                 </div>
-              </div>
-              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[var(--border)] pt-2.5">
-                {lineupCell("media", r)}
-                {lineupCell("actions", r)}
-              </div>
-            </article>
-          )}
+
+                {/* ── Audio Player ── */}
+                <div className="w-full">
+                  <InlineMediaPlayer item={r} compact />
+                </div>
+
+                {/* ── Action Button (Send to Stage / End Performance) ── */}
+                <div className="pt-1 flex items-center justify-end">
+                  {isOnStage ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleEndPerformance}
+                      loading={actionLoading === "end"}
+                      className="w-full border-rose-500/40 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25 text-xs font-bold py-2 rounded-xl"
+                    >
+                      <Square className="size-3 mr-1 text-rose-400" /> End Performance
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      disabled={actionLoading === `set-${rId}`}
+                      onClick={() => handleSetPerformer(rId, r.user_name || "Competitor")}
+                      className="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs py-2 rounded-xl"
+                    >
+                      {actionLoading === `set-${rId}` ? (
+                        <Loader2 className="size-3 animate-spin mr-1" />
+                      ) : (
+                        <Mic className="size-3 mr-1" />
+                      )}
+                      Send to Stage
+                    </Button>
+                  )}
+                </div>
+              </article>
+            );
+          }}
         />
       </div>
     </div>
@@ -3330,7 +3479,6 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
                             e.preventDefault();
                             e.stopPropagation();
                             setSearch(p.user_name || p.registration_reference || p.user_email);
-                            setSelectedParticipant(p);
                             setShowSuggestions(false);
                           }}
                           className="cursor-pointer flex items-center justify-between gap-2 rounded-xl p-2 hover:bg-[var(--surface-2)] transition-colors group"
