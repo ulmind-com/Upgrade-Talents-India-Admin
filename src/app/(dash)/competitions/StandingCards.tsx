@@ -88,7 +88,9 @@ export function RoundStandingCard({
         </span>
         <span className="flex items-center gap-1.5">
           <span className="text-[var(--fg-subtle)]">Points</span>
-          <span className="font-display text-sm font-bold tabular-nums text-amber-400">{p.points ?? p.final_score ?? p.audience_votes ?? "—"}</span>
+          <span className="font-display text-sm font-bold tabular-nums text-amber-400">
+            {(!Number(p.audience_votes || 0) && p.judge_score != null) ? p.judge_score : (p.points ?? p.final_score ?? p.audience_votes ?? "—")}
+          </span>
         </span>
       </div>
     </article>
