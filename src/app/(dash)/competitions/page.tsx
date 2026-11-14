@@ -1704,6 +1704,8 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const { push } = useToast();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showAllRegistered, setShowAllRegistered] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [search, setSearch] = useState("");
 
   const { data, loading, reload } = useResource(
     () => (!compId ? Promise.resolve(null) : competitionsApi.stageDashboard(compId)),
@@ -1719,6 +1721,43 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const completedCount = data?.completed_count ?? participants.filter((p: any) => p.stage_status === "COMPLETED").length;
   const remainingCount = data?.remaining_count ?? participants.filter((p: any) => p.stage_status !== "COMPLETED").length;
   const totalCount = data?.total_participants ?? participants.length;
+
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    if (Array.isArray(data?.categories)) {
+      data.categories.forEach((c: any) => {
+        const name = typeof c === "string" ? c : c?.name;
+        if (name && typeof name === "string" && name.trim()) set.add(name.trim());
+      });
+    }
+    allParticipants.forEach((p: any) => {
+      const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "").trim();
+      if (cat) set.add(cat);
+    });
+    return Array.from(set);
+  }, [data?.categories, allParticipants]);
+
+  const filteredLineup = useMemo(() => {
+    let list = displayedParticipants;
+    if (selectedCategory !== "ALL") {
+      const target = selectedCategory.trim().toLowerCase();
+      list = list.filter((p: any) => {
+        const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "General").trim().toLowerCase();
+        return cat === target;
+      });
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((p: any) => {
+        const name = (p.user_name || p.full_name || "").toLowerCase();
+        const email = (p.user_email || "").toLowerCase();
+        const ref = (p.registration_reference || "").toLowerCase();
+        const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "").toLowerCase();
+        return name.includes(q) || email.includes(q) || ref.includes(q) || cat.includes(q);
+      });
+    }
+    return list;
+  }, [displayedParticipants, selectedCategory, search]);
 
   const handleSetPerformer = async (identifier: string, name: string) => {
     setActionLoading(`set-${identifier}`);
@@ -1736,6 +1775,18 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const handleNextPerformer = async () => {
     setActionLoading("next");
     try {
+      if (selectedCategory !== "ALL") {
+        const nextInCategory = filteredLineup.find(
+          (p: any) => p.stage_status !== "COMPLETED" && p.stage_status !== "ON_STAGE" && !p.is_current_performer
+        );
+        if (nextInCategory) {
+          const rId = nextInCategory.registration_id || nextInCategory.user_email;
+          await competitionsApi.setStagePerformer(compId, rId);
+          push("success", `${nextInCategory.user_name || "Next participant"} called to stage!`);
+          reload();
+          return;
+        }
+      }
       const res = await competitionsApi.nextStagePerformer(compId);
       const nextName = res?.current_performer?.user_name || "Next participant";
       push("success", `${nextName} called to stage!`);
@@ -1817,6 +1868,16 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
         </div>
       );
     },
+  },
+  {
+    key: "category",
+    header: "Category",
+    width: "115px",
+    render: (r: any) => (
+      <span className="inline-flex items-center rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10.5px] font-bold text-violet-300 whitespace-nowrap">
+        {((typeof r.category === "string" ? r.category : r.category?.name || r.division) || "General")}
+      </span>
+    ),
   },
   {
     key: "registration_reference",
@@ -2045,6 +2106,11 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                   <span className="rounded-full bg-rose-500 text-white font-extrabold text-[9px] px-2 py-0.5 uppercase tracking-wider animate-pulse flex items-center gap-1">
                     <span className="size-1.5 rounded-full bg-white" /> NOW ON STAGE
                   </span>
+                  {(currentPerformer.category || currentPerformer.division) && (
+                    <span className="rounded-full border border-violet-500/40 bg-violet-500/20 px-2 py-0.5 text-[9.5px] font-bold text-violet-200">
+                      {typeof currentPerformer.category === "string" ? currentPerformer.category : currentPerformer.category?.name || currentPerformer.division || "General"}
+                    </span>
+                  )}
                   {currentPerformer.registration_reference && (
                     <span className="text-[10px] font-mono text-[var(--brand)] font-bold">
                       {currentPerformer.registration_reference}
@@ -2106,18 +2172,41 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
       )}
 
       {/* ── Serial Performance Lineup Table ── */}
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div>
             <h3 className="text-xs font-bold text-white flex items-center gap-2">
               <Users className="size-3.5 text-[var(--brand)]" />
-              Serial Performance Lineup ({participants.length} {data?.present_count > 0 ? "Present" : "Registered"})
+              Serial Performance Lineup ({filteredLineup.length} of {displayedParticipants.length})
             </h3>
             <p className="text-[10px] text-[var(--fg-muted)] mt-0.5">
               Play contestant audio tracks directly here or send next performer on stage.
             </p>
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--fg-subtle)]" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search contestant, ref..."
+                className="h-8.5 w-44 sm:w-56 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-7 text-xs outline-none focus:border-[var(--brand)] transition-colors text-white placeholder:text-[var(--fg-subtle)]"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] hover:text-white"
+                  title="Clear search"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+
             {(data?.absent_count ?? 0) > 0 && (
               <div className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-0.5 text-[10px] font-semibold">
                 <button
@@ -2130,7 +2219,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                       : "text-[var(--fg-muted)] hover:text-white"
                   )}
                 >
-                  Present Only ({participants.length})
+                  Present ({participants.length})
                 </button>
                 <button
                   type="button"
@@ -2142,27 +2231,76 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                       : "text-[var(--fg-muted)] hover:text-white"
                   )}
                 >
-                  All Registered ({allParticipants.length})
+                  All ({allParticipants.length})
                 </button>
               </div>
             )}
+
+            <Button size="sm" variant="secondary" onClick={() => reload()} className="h-8.5 px-2.5 text-xs">
+              <RefreshCw className="size-3 mr-1" /> Refresh
+            </Button>
+
             <span className="text-[10px] text-[var(--fg-subtle)] font-mono">
               {completedCount} of {participants.length} done
             </span>
           </div>
         </div>
 
+        {/* Category Division Filter Bar (Image 2 style) */}
+        {availableCategories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2">
+            <span className="text-[10.5px] font-bold uppercase tracking-wider text-[var(--fg-subtle)] mr-1 shrink-0">
+              CATEGORY DIVISION:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory("ALL")}
+              className={cn(
+                "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all flex items-center gap-1.5",
+                selectedCategory === "ALL"
+                  ? "bg-violet-600 text-white shadow-sm font-black ring-1 ring-violet-400"
+                  : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
+              )}
+            >
+              All Categories ({displayedParticipants.length})
+            </button>
+            {availableCategories.map((cat) => {
+              const count = displayedParticipants.filter((p: any) => {
+                const pCat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "General").trim().toLowerCase();
+                return pCat === cat.trim().toLowerCase();
+              }).length;
+              const isCatActive = selectedCategory.trim().toLowerCase() === cat.trim().toLowerCase();
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={cn(
+                    "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all flex items-center gap-1.5",
+                    isCatActive
+                      ? "bg-violet-600 text-white shadow-sm font-black ring-1 ring-violet-400"
+                      : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
+                  )}
+                >
+                  {cat} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <DataTable
-          rows={displayedParticipants}
+          rows={filteredLineup}
           columns={lineupColumns}
           renderCard={(r: any) => (
             <article className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-3 shadow-sm transition-colors hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)]">
               <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                <div className="flex min-w-[230px] flex-1 items-center gap-2.5">
+                <div className="flex min-w-[210px] flex-1 items-center gap-2.5">
                   {lineupCell("stage_order", r)}
                   {lineupCell("participant", r)}
                 </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                  {lineupCell("category", r)}
                   {lineupCell("registration_reference", r)}
                   {lineupCell("stage_status", r)}
                 </div>
