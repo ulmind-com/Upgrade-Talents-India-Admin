@@ -3,6 +3,26 @@ import { twMerge } from "tailwind-merge";
 
 export function cn(...i: ClassValue[]) { return twMerge(clsx(i)); }
 
+/**
+ * Parse a datetime value the API returns, always as a true instant.
+ *
+ * The backend stores competition times as UTC but serializes them WITHOUT a
+ * timezone designator (e.g. "2026-12-06T04:30:00"). JavaScript reads such a
+ * date-time string as the host's LOCAL time, so the same value renders
+ * differently per machine and an IST render comes out 5h30 wrong. Any
+ * timezone-less date-time is therefore read as UTC here. Strings that already
+ * carry a Z or offset, Date objects, and bare date-only values are left to the
+ * normal parser.
+ */
+export function parseApiDate(v?: string | Date | null): Date {
+  if (v instanceof Date) return v;
+  const s = String(v ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?$/.test(s)) {
+    return new Date(`${s.replace(" ", "T")}Z`);
+  }
+  return new Date(s);
+}
+
 export function formatINR(v?: number | string | null) {
   if (v == null || v === "") return "₹0";
   const n = Number(v);
@@ -21,7 +41,7 @@ export function formatNumber(v?: number | string | null) {
 
 export function formatDate(v?: string | Date | null, withTime = false) {
   if (!v) return "—";
-  const d = new Date(v);
+  const d = parseApiDate(v);
   if (isNaN(d.getTime())) return String(v);
   const options: Intl.DateTimeFormatOptions = {
     timeZone: "Asia/Kolkata",
@@ -38,7 +58,7 @@ export function formatDate(v?: string | Date | null, withTime = false) {
 
 export function formatTimeIST(v?: string | Date | null) {
   if (!v) return "—";
-  const d = new Date(v);
+  const d = parseApiDate(v);
   if (isNaN(d.getTime())) return String(v);
   const formatted = new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",
@@ -61,7 +81,7 @@ export function rowId(row: any): string {
 
 export function toDateInput(v?: string | null) {
   if (!v) return "";
-  const d = new Date(v);
+  const d = parseApiDate(v);
   if (isNaN(d.getTime())) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
@@ -75,7 +95,7 @@ export function toDateInput(v?: string | null) {
 
 export function toDateTimeInput(v?: string | null) {
   if (!v) return "";
-  const d = new Date(v);
+  const d = parseApiDate(v);
   if (isNaN(d.getTime())) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",

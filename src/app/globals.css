@@ -13,6 +13,7 @@
 
 :root,
 :root[data-theme="light"] {
+  color-scheme: light;
   --bg: #f4f5f7;
   --surface: #ffffff;
   --surface-2: #f8f9fb;
@@ -49,6 +50,7 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0b0e17;
   --surface: #141926;
   --surface-2: #1a2030;
@@ -127,6 +129,57 @@ p { text-wrap: pretty; overflow-wrap: anywhere; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; border: 2px solid var(--bg); }
+
+/* Native date / time picker calendar icon & picker popup:
+   Ensure color-scheme is explicitly applied to all date/time inputs so
+   the indicator is crisp white in dark mode and crisp black in light mode. */
+:root[data-theme="dark"] input[type="date"],
+:root[data-theme="dark"] input[type="datetime-local"],
+:root[data-theme="dark"] input[type="time"],
+:root[data-theme="dark"] input[type="month"],
+:root[data-theme="dark"] input[type="week"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="datetime-local"],
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="month"],
+[data-theme="dark"] input[type="week"] {
+  color-scheme: dark !important;
+}
+
+:root[data-theme="light"] input[type="date"],
+:root[data-theme="light"] input[type="datetime-local"],
+:root[data-theme="light"] input[type="time"],
+:root[data-theme="light"] input[type="month"],
+:root[data-theme="light"] input[type="week"],
+[data-theme="light"] input[type="date"],
+[data-theme="light"] input[type="datetime-local"],
+[data-theme="light"] input[type="time"],
+[data-theme="light"] input[type="month"],
+[data-theme="light"] input[type="week"] {
+  color-scheme: light !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 6px;
+  opacity: 0.85;
+  transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover,
+input[type="week"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background: var(--surface-3);
+  transform: scale(1.05);
+}
 
 /* Declared in the components layer so Tailwind utilities (bg-*, border-*)
    can still override these defaults on individual cards. */
