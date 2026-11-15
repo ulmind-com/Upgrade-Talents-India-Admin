@@ -890,11 +890,11 @@ export default function CompetitionsPage() {
             banner_image_url: r.banner_image_url || r.banner_url || "",
             share_image_url: r.share_image_url || "",
             max_participants: r.max_participants ?? "",
-            start_date: r.start_date || r.starts_at || "",
-            end_date: r.end_date || r.ends_at || "",
-            registration_start_date: r.registration_start_date || "",
-            registration_deadline: r.registration_deadline || "",
-            submission_deadline: r.submission_deadline || "",
+            start_date: r.start_date || r.starts_at || r.start_time || r.start || "",
+            end_date: r.end_date || r.ends_at || r.end_time || r.end || "",
+            registration_start_date: r.registration_start_date || r.registration_start || r.reg_start_date || r.registration_opens_at || "",
+            registration_deadline: r.registration_deadline || r.registration_end || r.registration_end_date || r.reg_deadline || r.registration_closes_at || "",
+            submission_deadline: r.submission_deadline || r.submission_end || r.submission_closes_at || "",
             participation_fee: r.participation_fee ?? 0,
             min_age: r.min_age ?? "",
             max_age: r.max_age ?? "",
@@ -999,7 +999,20 @@ export default function CompetitionsPage() {
               : [];
 
             if (editing) {
+              // Dates: send each edited value as UTC ISO. Required dates (start/end)
+              // are only included when present so an empty field can never wipe them
+              // or trigger a backend validation error. registration_deadline stays
+              // explicitly clearable (null = open-ended registration).
+              const startIso = toIso(v.start_date);
+              const endIso = toIso(v.end_date);
+              const regStartIso = toIso(v.registration_start_date);
+              const subIso = toIso(v.submission_deadline);
               return {
+                ...(startIso ? { start_date: startIso } : {}),
+                ...(endIso ? { end_date: endIso } : {}),
+                ...(regStartIso ? { registration_start_date: regStartIso } : {}),
+                registration_deadline: toIso(v.registration_deadline) || null,
+                ...(subIso ? { submission_deadline: subIso } : {}),
                 title: v.title ? String(v.title).trim() : undefined,
                 description: v.description !== undefined ? String(v.description || "").trim() : undefined,
                 category: v.category ? String(v.category).trim() : (cleanCategories[0]?.name || undefined),
@@ -1013,11 +1026,6 @@ export default function CompetitionsPage() {
                 participation_fee: v.participation_fee === "" || v.participation_fee == null ? 0 : Number(v.participation_fee),
                 min_age: v.min_age === "" || v.min_age == null ? null : Number(v.min_age),
                 max_age: v.max_age === "" || v.max_age == null ? null : Number(v.max_age),
-                start_date: toIso(v.start_date),
-                end_date: toIso(v.end_date),
-                registration_start_date: toIso(v.registration_start_date),
-                registration_deadline: toIso(v.registration_deadline) || null,
-                submission_deadline: toIso(v.submission_deadline),
                 is_published: !!v.is_published,
                 audience_voting_enabled: voteEnabled,
                 judge_scoring_enabled: judgeEnabled,
@@ -2681,6 +2689,26 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
     });
   }, [rawParticipants, filterMode, search, selectedCategory]);
 
+  // Live lineup order: present participants rise to the top in the exact order
+  // they checked in at the venue (earliest attended_at = position #1), so the
+  // admin list IS the running stage lineup. Not-yet-present rows stay below,
+  // stable by name. This drives both the on-screen order and the #N badge.
+  const sortedParticipants = useMemo(() => {
+    const idOf = (p: any) => String(p._id || p.registration_id || "");
+    const isPresentP = (p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT");
+    return [...filtered].sort((a: any, b: any) => {
+      const ap = isPresentP(a);
+      const bp = isPresentP(b);
+      if (ap !== bp) return ap ? -1 : 1; // present first
+      if (ap && bp) {
+        const ao = entryOrderMap.get(idOf(a)) ?? Number.MAX_SAFE_INTEGER;
+        const bo = entryOrderMap.get(idOf(b)) ?? Number.MAX_SAFE_INTEGER;
+        if (ao !== bo) return ao - bo; // earlier venue check-in first
+      }
+      return String(a.user_name || "").localeCompare(String(b.user_name || ""));
+    });
+  }, [filtered, entryOrderMap]);
+
   const participantColumns: Column<any>[] = [
   {
     key: "user",
@@ -3590,7 +3618,7 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
 
       {/* ── Participants Table with Rich Payment Badges & Actions ── */}
       <DataTable
-        rows={filtered}
+        rows={sortedParticipants}
         loading={loading}
         error={error}
         onRetry={reload}

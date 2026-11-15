@@ -23,12 +23,12 @@ export function CompetitionCard({ row, onOpen, onShare, onTogglePublish, onEdit,
   const entrants = row.participants_count ?? row.total_registered ?? row.registrations_count ?? row.total_participants;
 
   return (
-    <article className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-4 shadow-sm transition-colors hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)]">
+    <article className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-sm transition-all hover:border-[var(--brand)]/50 hover:shadow-md dark:hover:bg-[var(--surface-2)]">
       {/* ── Identity + primary entry point ── */}
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-[240px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-bold leading-tight text-white">
+            <h3 className="text-sm font-bold leading-tight text-[var(--fg)]">
               {row.title || row.name || "Untitled"}
             </h3>
             <span className="rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-1.5 py-0.5 text-[10.5px] font-semibold text-[var(--fg-muted)]">
@@ -55,7 +55,7 @@ export function CompetitionCard({ row, onOpen, onShare, onTogglePublish, onEdit,
               {row.categories.map((c: any, i: number) => (
                 <span
                   key={i}
-                  className="inline-flex items-center rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400"
+                  className="inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400"
                 >
                   {c.name}
                   {c.age_limit
@@ -74,7 +74,7 @@ export function CompetitionCard({ row, onOpen, onShare, onTogglePublish, onEdit,
           <span
             className={
               published
-                ? "inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-400"
+                ? "inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-400"
                 : "inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 text-[10.5px] font-semibold text-[var(--fg-muted)]"
             }
           >
@@ -96,7 +96,7 @@ export function CompetitionCard({ row, onOpen, onShare, onTogglePublish, onEdit,
             {row.registration_deadline ? (
               <span className="font-medium text-[var(--fg)]">{formatDate(row.registration_deadline, true)}</span>
             ) : (
-              <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-400">
+              <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">
                 Open / No deadline
               </span>
             )}
@@ -106,9 +106,9 @@ export function CompetitionCard({ row, onOpen, onShare, onTogglePublish, onEdit,
           <div className="flex items-center gap-1.5">
             <dt className="text-[var(--fg-subtle)]">Formats</dt>
             <dd className="flex items-center gap-1">
-              {hasLink && <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-sky-400">Link</span>}
-              {hasAudio && <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-violet-400">MP3</span>}
-              {hasFile && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-400">File</span>}
+              {hasLink && <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-sky-700 dark:text-sky-400">Link</span>}
+              {hasAudio && <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-violet-700 dark:text-violet-400">MP3</span>}
+              {hasFile && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-700 dark:text-amber-400">File</span>}
             </dd>
           </div>
         )}
@@ -120,19 +120,19 @@ export function CompetitionCard({ row, onOpen, onShare, onTogglePublish, onEdit,
           size="sm"
           variant="secondary"
           onClick={() => onOpen("stage")}
-          className="border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-white text-[11px] font-semibold"
+          className="border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 hover:text-rose-900 dark:hover:text-white text-[11px] font-semibold"
           title="Manage live stage performance and lineup queue"
         >
-          <Radio className="size-3.5 text-rose-500" aria-hidden /> Live Stage
+          <Radio className="size-3.5 text-rose-600 dark:text-rose-500" aria-hidden /> Live Stage
         </Button>
         <Button
           size="sm"
           variant="secondary"
           onClick={() => onOpen("results")}
-          className="border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:text-white text-[11px] font-semibold"
+          className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 hover:text-amber-900 dark:hover:text-white text-[11px] font-semibold"
           title="Official results, category winners and judge scores"
         >
-          <Trophy className="size-3.5 text-amber-400" aria-hidden /> Results
+          <Trophy className="size-3.5 text-amber-600 dark:text-amber-400" aria-hidden /> Results
         </Button>
         <Button
           size="sm"
@@ -156,7 +156,7 @@ export function CompetitionCard({ row, onOpen, onShare, onTogglePublish, onEdit,
           size="sm"
           variant="ghost"
           onClick={onShare}
-          className="border-sky-500/20 text-sky-400 hover:bg-sky-500/10 hover:text-sky-300 text-[11px] font-semibold"
+          className="border-sky-500/30 text-sky-700 dark:text-sky-400 hover:bg-sky-500/10 hover:text-sky-900 dark:hover:text-sky-300 text-[11px] font-semibold"
           title="Share and promote this competition"
         >
           <Share2 className="size-3.5" aria-hidden /> Share

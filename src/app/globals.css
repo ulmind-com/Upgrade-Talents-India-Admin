@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Theme is toggled manually via data-theme on <html>, not the OS.
+   Bind Tailwind's `dark:` variant to that attribute so dark: utilities
+   track the in-app toggle instead of prefers-color-scheme. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* ════════════════════════════════════════════════════════
    UPGRADE TALENTS — ADMIN CONTROL ROOM
    Light, calm, data-dense. Dark mode supported.
