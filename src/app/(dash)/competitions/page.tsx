@@ -1935,9 +1935,17 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
           </div>
         );
       }
+      const isPresent = Boolean(r.is_present || r.attendance_status === "PRESENT");
+      if (isPresent) {
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10.5px] font-bold text-emerald-300 whitespace-nowrap">
+            <CheckCircle2 className="size-2.5" /> Present
+          </span>
+        );
+      }
       return (
-        <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-0.5 text-[10.5px] font-medium text-[var(--fg-muted)] whitespace-nowrap">
-          <Clock className="size-2.5" /> In Lineup
+        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[10.5px] font-medium text-amber-300/80 whitespace-nowrap">
+          <Clock className="size-2.5" /> Waiting Check-In
         </span>
       );
     },
@@ -2704,6 +2712,11 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
         const ao = entryOrderMap.get(idOf(a)) ?? Number.MAX_SAFE_INTEGER;
         const bo = entryOrderMap.get(idOf(b)) ?? Number.MAX_SAFE_INTEGER;
         if (ao !== bo) return ao - bo; // earlier venue check-in first
+      }
+      if (!ap && !bp) {
+        const at = a.registered_at ? new Date(a.registered_at).getTime() : a.created_at ? new Date(a.created_at).getTime() : Number.MAX_SAFE_INTEGER;
+        const bt = b.registered_at ? new Date(b.registered_at).getTime() : b.created_at ? new Date(b.created_at).getTime() : Number.MAX_SAFE_INTEGER;
+        if (at !== bt) return at - bt; // earlier registration sequence first
       }
       return String(a.user_name || "").localeCompare(String(b.user_name || ""));
     });
