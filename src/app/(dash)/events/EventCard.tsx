@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, Users, ArrowUpRight, Share2, Crown, Ticket, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
+import { Calendar, Users, ArrowUpRight, Share2, Crown, Ticket, Eye, EyeOff, Pencil, Trash2, ShieldCheck } from "lucide-react";
 import { Button, StatusBadge } from "@/components/Kit";
 import { formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
 
@@ -8,6 +8,7 @@ type EventCardProps = {
   row: any;
   stats?: { bookings?: number; tickets?: number };
   onBookings: () => void;
+  onVolunteers?: () => void;
   onShare: () => void;
   onTogglePublish: () => void;
   onEdit: () => void;
@@ -18,6 +19,7 @@ export function EventCard({
   row,
   stats,
   onBookings,
+  onVolunteers,
   onShare,
   onTogglePublish,
   onEdit,
@@ -28,6 +30,7 @@ export function EventCard({
   const booked = stats?.bookings || 0;
   const tickets = stats?.tickets || 0;
   const cats: any[] = Array.isArray(row.categories) ? row.categories : [];
+  const volunteerCount = Array.isArray(row.volunteers) ? row.volunteers.length : 0;
 
   return (
     <article className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-4 shadow-sm transition-colors hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)]">
@@ -163,6 +166,20 @@ export function EventCard({
           className="text-[11px] font-semibold"
         >
           <Ticket className="size-3.5" aria-hidden /> Tiers
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onVolunteers}
+          title="Manage & assign volunteers for entrance gate scanning"
+          className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+        >
+          <ShieldCheck className="size-3.5 text-emerald-400" aria-hidden /> Volunteers
+          {volunteerCount > 0 && (
+            <span className="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
+              {volunteerCount}
+            </span>
+          )}
         </Button>
 
         <div className="ml-auto flex items-center gap-1.5">

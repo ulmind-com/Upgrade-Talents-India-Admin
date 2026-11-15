@@ -49,6 +49,7 @@ import { useToast } from "@/components/Providers";
 import { cmsApi, safe, toRows } from "@/lib/api";
 import { cn, formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
 import { EventCard } from "./EventCard";
+import { EventVolunteersModal } from "./EventVolunteersModal";
 
 /* ═══════════════════════════════════════════════════════════════════
    1. MAIN EVENTS MANAGEMENT DASHBOARD
@@ -66,6 +67,7 @@ export default function EventsPage() {
   // Modals
   const [modalEvent, setModalEvent] = useState<any | null>(null);
   const [shareEvent, setShareEvent] = useState<any | null>(null);
+  const [volunteersModalEvent, setVolunteersModalEvent] = useState<any | null>(null);
 
   // Load all bookings to provide live booking counts in the directory table
   const loadGlobalBookingStats = useCallback(async () => {
@@ -302,6 +304,7 @@ export default function EventsPage() {
                 row={row}
                 stats={bookingStatsMap[rowId(row)]}
                 onBookings={() => openEventBookingsModal(row)}
+                onVolunteers={() => setVolunteersModalEvent(row)}
                 onShare={() => setShareEvent(row)}
                 onTogglePublish={() => togglePublish(row, reload)}
                 onEdit={edit}
@@ -489,6 +492,17 @@ export default function EventsPage() {
         <EventShareModal
           event={shareEvent}
           onClose={() => setShareEvent(null)}
+        />
+      )}
+
+      {/* ── Event Volunteers & Gate Scanner Access Modal ── */}
+      {volunteersModalEvent && (
+        <EventVolunteersModal
+          event={volunteersModalEvent}
+          onClose={() => setVolunteersModalEvent(null)}
+          onUpdated={() => {
+            fetchEvents();
+          }}
         />
       )}
     </div>

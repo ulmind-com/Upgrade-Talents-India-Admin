@@ -392,6 +392,40 @@ export const volunteersApi = {
   remove: (email: string) => api<any>(`/api/admin/volunteers/${encodeURIComponent(email)}`, { method: "DELETE" }),
 };
 
+export const eventVolunteersApi = {
+  getEventVolunteers: (eventId: string) =>
+    api<any>(`/api/admin/events/${eventId}/volunteers`),
+  assignEventVolunteers: (
+    eventId: string,
+    body: {
+      volunteer_emails?: string[];
+      new_volunteers?: {
+        email: string;
+        name?: string;
+        phone?: string;
+        role?: string;
+        password?: string;
+      }[];
+      default_role?: string;
+    }
+  ) =>
+    api<any>(`/api/admin/events/${eventId}/volunteers`, {
+      method: "POST",
+      body,
+    }),
+  removeEventVolunteer: (eventId: string, email: string) =>
+    api<any>(`/api/admin/events/${eventId}/volunteers/${encodeURIComponent(email)}`, {
+      method: "DELETE",
+    }),
+  resendCredentials: (eventId: string, email: string) =>
+    api<any>(
+      `/api/admin/events/${eventId}/volunteers/${encodeURIComponent(email)}/resend-credentials`,
+      {
+        method: "POST",
+      }
+    ),
+};
+
 /* ═══════════════ COURSES / WORKSHOPS ═══════════════ */
 function learnApi(base: string) {
   return {
