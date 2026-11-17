@@ -20,6 +20,7 @@ import { CompetitionCard } from "./CompetitionCard";
 import { UserAvatar } from "./UserAvatar";
 import { RoundStandingCard, ResultStandingCard } from "./StandingCards";
 import { formatDate, formatINR, formatNumber, fromDateTimeInput, rowId, cn } from "@/lib/utils";
+import { useRealtimeSubscription } from "@/lib/realtime";
 
 function ImageUploaderField({
   label,
@@ -1129,6 +1130,20 @@ function CompetitionControls({
     [id]
   );
 
+  // Real-time synchronization for competition overview and progress
+  useRealtimeSubscription(
+    id ? [`competition:${id}`, "admin:competitions", "global"] : ["admin:competitions", "global"],
+    (evt) => {
+      const data = evt.data || {};
+      const targetCid = String(data.competition_id || evt.channel?.replace("competition:", "") || "");
+      if (id && targetCid && targetCid !== String(id)) {
+        return;
+      }
+      reload();
+    },
+    8000
+  );
+
   const [pin, setPin] = useState("");
   const [isScoresPublic, setIsScoresPublic] = useState<boolean>(
     Boolean(comp?.score_visible_for_public || comp?.results_published || comp?.result_status === "PUBLISHED")
@@ -1705,6 +1720,20 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const { data, loading, reload } = useResource(
     () => (!compId ? Promise.resolve(null) : competitionsApi.stageDashboard(compId)),
     [compId]
+  );
+
+  // Real-time synchronization for live stage performers
+  useRealtimeSubscription(
+    compId ? [`competition:${compId}`, "admin:competitions", "global"] : ["admin:competitions", "global"],
+    (evt) => {
+      const data = evt.data || {};
+      const targetCid = String(data.competition_id || evt.channel?.replace("competition:", "") || "");
+      if (compId && targetCid && targetCid !== String(compId)) {
+        return;
+      }
+      reload();
+    },
+    6000
   );
 
   const currentPerformer = data?.current_performer;
@@ -2495,6 +2524,20 @@ function CompetitionParticipantsPanel({ compId, compTitle }: { compId: string; c
   const { data, loading, error, reload } = useResource(
     () => (!compId ? Promise.resolve(null) : competitionsApi.participants(compId, { limit: 500 })),
     [compId]
+  );
+
+  // Real-time synchronization for participants and registrations
+  useRealtimeSubscription(
+    compId ? [`competition:${compId}`, "admin:competitions", "global"] : ["admin:competitions", "global"],
+    (evt) => {
+      const data = evt.data || {};
+      const targetCid = String(data.competition_id || evt.channel?.replace("competition:", "") || "");
+      if (compId && targetCid && targetCid !== String(compId)) {
+        return;
+      }
+      reload();
+    },
+    8000
   );
 
   const rawParticipants = useMemo(() => {
@@ -3804,6 +3847,20 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
     [compId]
   );
 
+  // Real-time synchronization for rounds and advancement
+  useRealtimeSubscription(
+    compId ? [`competition:${compId}`, "admin:competitions", "global"] : ["admin:competitions", "global"],
+    (evt) => {
+      const data = evt.data || {};
+      const targetCid = String(data.competition_id || evt.channel?.replace("competition:", "") || "");
+      if (compId && targetCid && targetCid !== String(compId)) {
+        return;
+      }
+      reloadRounds();
+    },
+    8000
+  );
+
   const roundsList: any[] = useMemo(() => {
     return Array.isArray(roundsData?.rounds) && roundsData.rounds.length > 0
       ? roundsData.rounds
@@ -3869,6 +3926,21 @@ function CompetitionRoundsPanel({ compId, compTitle }: { compId: string; compTit
             selectedCategory === "ALL" ? undefined : selectedCategory
           ),
     [compId, selectedRound, selectedCategory]
+  );
+
+  // Real-time synchronization for scores, leaderboards, and results
+  useRealtimeSubscription(
+    compId ? [`competition:${compId}`, "admin:competitions", "global"] : ["admin:competitions", "global"],
+    (evt) => {
+      const data = evt.data || {};
+      const targetCid = String(data.competition_id || evt.channel?.replace("competition:", "") || "");
+      if (compId && targetCid && targetCid !== String(compId)) {
+        return;
+      }
+      reloadRounds();
+      reloadLb();
+    },
+    6000
   );
 
   const participantsList = Array.isArray(lbData?.leaderboard) ? lbData.leaderboard : [];
@@ -4539,6 +4611,21 @@ function CompetitionResultsAdminPanel({
             selectedCategory === "ALL" ? undefined : selectedCategory
           ),
     [compId, selectedRound, selectedCategory]
+  );
+
+  // Real-time synchronization for scores, leaderboards, and results
+  useRealtimeSubscription(
+    compId ? [`competition:${compId}`, "admin:competitions", "global"] : ["admin:competitions", "global"],
+    (evt) => {
+      const data = evt.data || {};
+      const targetCid = String(data.competition_id || evt.channel?.replace("competition:", "") || "");
+      if (compId && targetCid && targetCid !== String(compId)) {
+        return;
+      }
+      reloadRounds();
+      reloadLb();
+    },
+    6000
   );
 
   const activeRoundConfig = roundsList.find((r) => r.round_number === selectedRound) || roundsList[0];
