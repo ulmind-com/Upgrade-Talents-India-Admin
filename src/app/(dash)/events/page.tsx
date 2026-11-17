@@ -35,6 +35,9 @@ import {
   Banknote,
   Coins,
   Wallet,
+  CreditCard,
+  ShieldCheck,
+  Filter,
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import {
@@ -307,7 +310,7 @@ export default function EventsPage() {
               <EventCard
                 row={row}
                 stats={bookingStatsMap[rowId(row)]}
-                onBookings={() => openEventBookingsModal(row)}
+                onBookings={() => openEventBookingsTab(row)}
                 onVolunteers={() => setVolunteersModalEvent(row)}
                 onShare={() => setShareEvent(row)}
                 onTogglePublish={() => togglePublish(row, reload)}
@@ -529,6 +532,7 @@ function EventBookingsInspector({
   const { push } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [attendanceFilter, setAttendanceFilter] = useState<"ALL" | "PRESENT" | "ABSENT">("ALL");
+  const [paymentFilter, setPaymentFilter] = useState<"ALL" | "ONLINE" | "CASH">("ALL");
   const [search, setSearch] = useState<string>("");
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
@@ -597,6 +601,72 @@ function EventBookingsInspector({
   const capacity = Number(currentEvent?.capacity || 0);
   const percentFilled = capacity > 0 ? Math.min(100, Math.round((totalTickets / capacity) * 100)) : 0;
 
+  // 1. Payment Summary: Online vs Cash Attendees & Amounts
+  const onlineBookings = useMemo(() => {
+    return rawBookings.filter((b: any) => {
+      const pm = (b.payment_method || "").toUpperCase();
+      return (
+        pm === "ONLINE" ||
+        (!pm && b.payment_status === "PAID") ||
+        (pm !== "CASH" && pm !== "OFFLINE")
+      );
+    });
+  }, [rawBookings]);
+
+  const onlineAttendeesCount = useMemo(() => {
+    return onlineBookings.reduce((sum: number, b: any) => sum + Number(b.quantity || 1), 0);
+  }, [onlineBookings]);
+
+  const onlineRevenue = useMemo(() => {
+    return onlineBookings.reduce(
+      (sum: number, b: any) =>
+        sum +
+        (b.booking_status === "CONFIRMED" || b.payment_status === "PAID"
+          ? Number(b.total_amount || 0)
+          : 0),
+      0
+    );
+  }, [onlineBookings]);
+
+  const cashBookings = useMemo(() => {
+    return rawBookings.filter((b: any) => {
+      const pm = (b.payment_method || "").toUpperCase();
+      return pm === "CASH" || pm === "OFFLINE" || b.cash_payment === true;
+    });
+  }, [rawBookings]);
+
+  const cashAttendeesCount = useMemo(() => {
+    return cashBookings.reduce((sum: number, b: any) => sum + Number(b.quantity || 1), 0);
+  }, [cashBookings]);
+
+  const cashRevenue = useMemo(() => {
+    return cashBookings.reduce(
+      (sum: number, b: any) => sum + Number(b.total_amount || 0),
+      0
+    );
+  }, [cashBookings]);
+
+  // 2. Assigned Volunteers & Volunteer-Wise Statistics
+  const assignedVolunteersList = useMemo(() => {
+    if (volunteerReport?.volunteers && volunteerReport.volunteers.length > 0) {
+      return volunteerReport.volunteers;
+    }
+    const evVols = Array.isArray(currentEvent?.volunteers) ? currentEvent.volunteers : [];
+    return evVols.map((v: any) => ({
+      volunteer_name: typeof v === "string" ? v : v.name || v.email,
+      volunteer_email: typeof v === "string" ? v : v.email,
+      role: typeof v === "string" ? "Gate Scanner" : v.role || "Gate Scanner",
+      phone: typeof v === "string" ? "" : v.phone || "",
+      total_entries: 0,
+      online_payments: 0,
+      cash_payments: 0,
+      cash_collected: 0,
+      attendees: [],
+    }));
+  }, [volunteerReport, currentEvent]);
+
+  const totalAssignedVolunteers = assignedVolunteersList.length;
+
   // Single-click manual Tick (✓) attendance handler
   const handleToggleAttendance = async (booking: any) => {
     if (!selectedEventId) return;
@@ -663,6 +733,14 @@ function EventBookingsInspector({
       if (attendanceFilter === "PRESENT") matchAtt = isP;
       if (attendanceFilter === "ABSENT") matchAtt = !isP;
 
+      const isCash =
+        (b.payment_method || "").toUpperCase() === "CASH" ||
+        (b.payment_method || "").toUpperCase() === "OFFLINE" ||
+        b.cash_payment === true;
+      let matchPay = true;
+      if (paymentFilter === "ONLINE") matchPay = !isCash;
+      if (paymentFilter === "CASH") matchPay = isCash;
+
       const s = search.toLowerCase().trim();
       const matchSearch =
         !s ||
@@ -685,9 +763,9 @@ function EventBookingsInspector({
           );
       }
 
-      return matchStatus && matchAtt && matchSearch && matchVolunteer;
+      return matchStatus && matchAtt && matchPay && matchSearch && matchVolunteer;
     });
-  }, [rawBookings, statusFilter, attendanceFilter, search, selectedVolunteerEmail]);
+  }, [rawBookings, statusFilter, attendanceFilter, paymentFilter, search, selectedVolunteerEmail]);
 
   const eventOptions = [
     { value: "", label: "— Select an Event —" },
@@ -763,24 +841,60 @@ function EventBookingsInspector({
   ),
 },
 {
-  key: "booking_status",
-  header: "Status",
-  render: (r: any) => (
-    <div className="flex flex-col gap-1">
-      <StatusBadge value={r.booking_status} />
-      <span
-        className={`text-[10px] font-bold uppercase ${
-          r.payment_status === "PAID" || r.payment_status === "NOT_REQUIRED"
-            ? "text-emerald-400"
-            : r.payment_method === "CASH"
-            ? "text-amber-400"
-            : "text-amber-400"
-        }`}
-      >
-        {r.payment_method === "CASH" ? "CASH PENDING" : r.payment_status}
-      </span>
-    </div>
-  ),
+  key: "payment_status",
+  header: "Payment Mode",
+  render: (r: any) => {
+    const isCash =
+      (r.payment_method || "").toUpperCase() === "CASH" ||
+      (r.payment_method || "").toUpperCase() === "OFFLINE" ||
+      r.cash_payment === true;
+    const isCollected = r.cash_status === "COLLECTED" || r.cash_collect_done === true;
+    return (
+      <div className="flex flex-col gap-1 text-xs">
+        {isCash ? (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase w-fit border",
+              isCollected
+                ? "border-amber-500/40 bg-amber-500/20 text-amber-300"
+                : "border-amber-400/30 bg-amber-400/10 text-amber-400"
+            )}
+          >
+            <Banknote className="size-3" />
+            {isCollected ? "Cash Collected" : "Cash At Gate"}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase w-fit">
+            <CreditCard className="size-3" /> Online Paid
+          </span>
+        )}
+        <span className="font-mono text-[10px] text-[var(--fg-muted)]">
+          {r.booking_status}
+        </span>
+      </div>
+    );
+  },
+},
+{
+  key: "admitted_by",
+  header: "Admitted By (Gate)",
+  render: (r: any) => {
+    const admittedBy =
+      r.checked_in_by ||
+      r.cash_collected_by ||
+      (r.tickets || []).find((t: any) => t.checked_in_by)?.checked_in_by;
+    if (!admittedBy) {
+      return <span className="text-[11px] text-[var(--fg-subtle)] font-mono italic">Awaiting Gate</span>;
+    }
+    return (
+      <div className="flex items-center gap-1.5 font-mono text-xs">
+        <ShieldCheck className="size-3.5 text-emerald-400 shrink-0" />
+        <span className="font-semibold text-emerald-300 truncate max-w-[130px]" title={admittedBy}>
+          {admittedBy}
+        </span>
+      </div>
+    );
+  },
 },
 {
   key: "attendance",
@@ -907,168 +1021,299 @@ function EventBookingsInspector({
         </div>
       ) : (
         <>
-          {/* ── Metric Stat Cards ── */}
+          {/* ── 1. Key Metric Stat Cards: Payment Summary & Assigned Volunteers ── */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              label="Total Registered"
-              value={formatNumber(totalCount)}
-              hint={`${totalTickets} passes issued across tiers`}
-              Icon={Users}
-              accent
-              index={0}
-            />
-            <StatCard
-              label="Present (Checked-In)"
-              value={formatNumber(presentCount)}
-              hint={`${turnoutPercent}% live turn-out at venue`}
-              Icon={CheckCircle2}
-              index={1}
-            />
-            <StatCard
-              label="Absent (Pending Gate)"
-              value={formatNumber(absentCount)}
-              hint="Awaiting arrival at entrance"
-              Icon={TrendingUp}
-              index={2}
-            />
-            <StatCard
-              label="Ticket Collections"
-              value={formatINR(totalRevenue)}
-              hint="Paid & confirmed bookings"
-              Icon={Ticket}
-              index={3}
-            />
-          </div>
-
-          {/* ── Volunteer-Wise Entry & Cash Collection Summary Banner ── */}
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/80 p-4 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="grid size-9 place-items-center rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
-                  <Receipt className="size-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2 flex-wrap">
-                    Volunteer-Wise Entry &amp; Cash Collection Tracking
-                    <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono text-emerald-300 font-bold">
-                      {volunteerReport?.total_admitted ?? 0} Admitted
-                    </span>
-                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-mono text-amber-300 font-bold">
-                      ₹{(volunteerReport?.total_cash_collected ?? 0).toLocaleString("en-IN")} Cash
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-[var(--fg-muted)]">
-                    Event-specific gate entry and spot cash collection breakdown per assigned volunteer.
-                  </p>
+            <div className="rounded-2xl border border-sky-500/25 bg-[var(--surface-2)] p-4 shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">Online Payments</span>
+                <div className="grid size-9 place-items-center rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-400">
+                  <CreditCard className="size-4" />
                 </div>
               </div>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-white">{formatNumber(onlineAttendeesCount)}</span>
+                <span className="text-xs font-semibold text-[var(--fg-muted)]">attendees</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-subtle)] border-t border-[var(--border)] pt-2">
+                <span>Total Online Revenue:</span>
+                <span className="font-mono font-bold text-sky-300">{formatINR(onlineRevenue)}</span>
+              </div>
+            </div>
 
-              <div className="flex items-center gap-2">
+            <div className="rounded-2xl border border-amber-500/25 bg-[var(--surface-2)] p-4 shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">Cash Spot Passes</span>
+                <div className="grid size-9 place-items-center rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
+                  <Banknote className="size-4" />
+                </div>
+              </div>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-white">{formatNumber(cashAttendeesCount)}</span>
+                <span className="text-xs font-semibold text-[var(--fg-muted)]">attendees</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-subtle)] border-t border-[var(--border)] pt-2">
+                <span>Collected at Venue:</span>
+                <span className="font-mono font-bold text-amber-300">{formatINR(cashRevenue)}</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-purple-500/25 bg-[var(--surface-2)] p-4 shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-400">Assigned Volunteers</span>
+                <div className="grid size-9 place-items-center rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-400">
+                  <ShieldCheck className="size-4" />
+                </div>
+              </div>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-white">{formatNumber(totalAssignedVolunteers)}</span>
+                <span className="text-xs font-semibold text-[var(--fg-muted)]">volunteers</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-subtle)] border-t border-[var(--border)] pt-2">
+                <span>Authorized Gate Scanners:</span>
+                <span className="font-mono font-bold text-purple-300">{assignedVolunteersList.length} staff</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-500/25 bg-[var(--surface-2)] p-4 shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Gate Admissions</span>
+                <div className="grid size-9 place-items-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                  <CheckCircle2 className="size-4" />
+                </div>
+              </div>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-white">
+                  {formatNumber(volunteerReport?.total_admitted ?? presentCount)}
+                </span>
+                <span className="text-xs font-semibold text-[var(--fg-muted)]">/ {totalTickets || totalCount}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-subtle)] border-t border-[var(--border)] pt-2">
+                <span>Verified Present:</span>
+                <span className="font-mono font-bold text-emerald-300">{turnoutPercent}% turn-out</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ── 2. Volunteer-Wise Entry & Cash Collection Table (In-Place) ── */}
+          <Panel
+            title={
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck className="size-4 text-purple-400" />
+                <span>Assigned Volunteers &amp; Gate Collections</span>
+                <Badge tone="primary">{totalAssignedVolunteers} Assigned</Badge>
+              </div>
+            }
+            subtitle="Volunteer-specific ticket admissions and spot cash collections recorded at the gate for this event."
+            action={
+              selectedVolunteerEmail !== "ALL" ? (
                 <Button
                   size="sm"
-                  variant="primary"
-                  onClick={() => setAuditModalOpen(true)}
-                  className="font-bold text-xs"
+                  variant="secondary"
+                  onClick={() => setSelectedVolunteerEmail("ALL")}
+                  className="text-xs"
                 >
-                  <Receipt className="size-3.5" /> Full Audit &amp; Cash Reconciliation
+                  ✕ Reset Volunteer Filter
                 </Button>
+              ) : undefined
+            }
+          >
+            {assignedVolunteersList.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center text-xs text-[var(--fg-muted)]">
+                No volunteers assigned to this event yet. Use the Volunteers button on the event card to assign gate staff.
               </div>
-            </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] bg-[var(--surface-3)] text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
+                      <th className="px-4 py-3">Assigned Volunteer</th>
+                      <th className="px-4 py-3">Gate Duty / Role</th>
+                      <th className="px-4 py-3 text-center">Attendees Admitted</th>
+                      <th className="px-4 py-3 text-center">Online Paid</th>
+                      <th className="px-4 py-3 text-center">Cash Spot Passes</th>
+                      <th className="px-4 py-3 text-right">Cash Collected</th>
+                      <th className="px-4 py-3 text-right">Attendee Roster</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {assignedVolunteersList.map((vol: any, idx: number) => {
+                      const isFiltered = selectedVolunteerEmail === vol.volunteer_email;
+                      const entries = Number(vol.total_entries || 0);
+                      const online = Number(vol.online_payments || 0);
+                      const cash = Number(vol.cash_payments || 0);
+                      const cashAmount = Number(vol.cash_collected || 0);
 
-            {/* Volunteer Filter Chips / Metrics */}
-            <div className="mt-3">
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--fg-subtle)] mb-2">
-                Filter Attendees by Admitting Volunteer:
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
+                      return (
+                        <tr
+                          key={vol.volunteer_email || idx}
+                          className={cn(
+                            "transition-colors hover:bg-[var(--surface-2)]/60",
+                            isFiltered && "bg-purple-500/10 font-medium"
+                          )}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="grid size-8 shrink-0 place-items-center rounded-full border border-purple-500/30 bg-purple-500/15 font-bold text-purple-300">
+                                {vol.volunteer_name ? vol.volunteer_name[0].toUpperCase() : "V"}
+                              </div>
+                              <div>
+                                <div className="font-semibold text-white">{vol.volunteer_name || "Volunteer"}</div>
+                                <div className="font-mono text-[11px] text-[var(--fg-muted)]">{vol.volunteer_email}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="rounded bg-[var(--surface-3)] px-2 py-0.5 font-mono text-[11px] text-[var(--fg-muted)]">
+                              {vol.role || "Gate Scanner"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-0.5 font-mono text-xs font-bold text-emerald-400">
+                              <CheckCircle2 className="size-3" />
+                              {entries} Admitted
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-sky-400">
+                              <CreditCard className="size-3" />
+                              {online} Online
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-amber-400">
+                              <Banknote className="size-3" />
+                              {cash} Cash
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span
+                              className={cn(
+                                "font-mono text-sm font-black",
+                                cashAmount > 0 ? "text-amber-400" : "text-[var(--fg-subtle)]"
+                              )}
+                            >
+                              ₹{cashAmount.toLocaleString("en-IN")}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              size="sm"
+                              variant={isFiltered ? "primary" : "secondary"}
+                              onClick={() =>
+                                setSelectedVolunteerEmail((prev) =>
+                                  prev === vol.volunteer_email ? "ALL" : vol.volunteer_email
+                                )
+                              }
+                              className="text-xs h-7 px-2.5"
+                            >
+                              {isFiltered ? (
+                                <>
+                                  <Filter className="size-3" /> Active Filter
+                                </>
+                              ) : (
+                                <>
+                                  <Users className="size-3" /> Filter Roster
+                                </>
+                              )}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+
+          {/* ── 3. Attendance & Payment Filter Controls ── */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3 pt-1">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Payment Filter */}
+              <div className="flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
+                <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--fg-subtle)] flex items-center gap-1">
+                  <CreditCard className="size-3" /> Payment:
+                </span>
                 <button
                   type="button"
-                  onClick={() => setSelectedVolunteerEmail("ALL")}
+                  onClick={() => setPaymentFilter("ALL")}
                   className={cn(
-                    "rounded-xl px-3 py-1.5 font-mono text-xs font-bold transition-all cursor-pointer",
-                    selectedVolunteerEmail === "ALL"
-                      ? "bg-white text-black shadow-md"
-                      : "border border-[var(--border)] bg-[var(--surface-3)] text-[var(--fg-muted)] hover:text-white"
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                    paymentFilter === "ALL"
+                      ? "bg-white text-black shadow-sm font-bold"
+                      : "text-[var(--fg-muted)] hover:text-white"
                   )}
                 >
-                  All Staff ({volunteerReport?.volunteers?.length || 0})
+                  All ({totalCount})
                 </button>
-
-                {(volunteerReport?.volunteers || []).map((vol: any, vIdx: number) => {
-                  const isSelected = selectedVolunteerEmail === vol.volunteer_email;
-                  return (
-                    <button
-                      key={vol.volunteer_email || vIdx}
-                      type="button"
-                      onClick={() =>
-                        setSelectedVolunteerEmail((prev) =>
-                          prev === vol.volunteer_email ? "ALL" : vol.volunteer_email
-                        )
-                      }
-                      className={cn(
-                        "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all cursor-pointer",
-                        isSelected
-                          ? "border-emerald-500 bg-emerald-500/15 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-                          : "border-[var(--border)] bg-[var(--surface-3)] text-[var(--fg-muted)] hover:border-emerald-500/40 hover:text-white"
-                      )}
-                    >
-                      <div className="grid size-5 place-items-center rounded-full bg-emerald-500/20 text-[9px] font-bold text-emerald-400">
-                        {vol.volunteer_name ? vol.volunteer_name.slice(0, 1).toUpperCase() : "V"}
-                      </div>
-                      <span className="font-bold text-white truncate max-w-[120px]">
-                        {vol.volunteer_name || vol.volunteer_email}
-                      </span>
-                      <span className="rounded bg-black/40 px-1.5 py-0.2 font-mono text-[10px] font-bold text-emerald-400">
-                        {vol.total_entries} Admitted
-                      </span>
-                      {vol.cash_collected > 0 && (
-                        <span className="rounded bg-amber-500/20 px-1.5 py-0.2 font-mono text-[10px] font-extrabold text-amber-300">
-                          ₹{vol.cash_collected.toLocaleString("en-IN")}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                <button
+                  type="button"
+                  onClick={() => setPaymentFilter("ONLINE")}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all flex items-center gap-1",
+                    paymentFilter === "ONLINE"
+                      ? "bg-sky-500 text-black shadow-sm font-bold"
+                      : "text-sky-400 hover:text-sky-300"
+                  )}
+                >
+                  Online ({onlineAttendeesCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentFilter("CASH")}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all flex items-center gap-1",
+                    paymentFilter === "CASH"
+                      ? "bg-amber-500 text-black shadow-sm font-bold"
+                      : "text-amber-400 hover:text-amber-300"
+                  )}
+                >
+                  Cash ({cashAttendeesCount})
+                </button>
               </div>
-            </div>
-          </div>
 
-          {/* ── Attendance Filter Tabs ── */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-2">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setAttendanceFilter("ALL")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                  attendanceFilter === "ALL"
-                    ? "bg-[var(--brand)] text-[var(--on-brand)]"
-                    : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-white"
-                }`}
-              >
-                All Attendees ({totalCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setAttendanceFilter("PRESENT")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                  attendanceFilter === "PRESENT"
-                    ? "bg-emerald-500 text-black font-bold shadow-sm"
-                    : "border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                }`}
-              >
-                <Check className="size-3" /> Present ({presentCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setAttendanceFilter("ABSENT")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                  attendanceFilter === "ABSENT"
-                    ? "bg-amber-500 text-black font-bold shadow-sm"
-                    : "border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
-                }`}
-              >
-                Absent ({absentCount})
-              </button>
+              {/* Attendance Filter */}
+              <div className="flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
+                <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--fg-subtle)] flex items-center gap-1">
+                  <CheckCircle2 className="size-3" /> Gate:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAttendanceFilter("ALL")}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                    attendanceFilter === "ALL"
+                      ? "bg-[var(--brand)] text-[var(--on-brand)] font-bold"
+                      : "text-[var(--fg-muted)] hover:text-white"
+                  )}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttendanceFilter("PRESENT")}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all flex items-center gap-1",
+                    attendanceFilter === "PRESENT"
+                      ? "bg-emerald-500 text-black font-bold shadow-sm"
+                      : "text-emerald-400 hover:text-emerald-300"
+                  )}
+                >
+                  Present ({presentCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttendanceFilter("ABSENT")}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                    attendanceFilter === "ABSENT"
+                      ? "bg-amber-500 text-black font-bold shadow-sm"
+                      : "text-amber-400 hover:text-amber-300"
+                  )}
+                >
+                  Absent ({absentCount})
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1093,6 +1338,24 @@ function EventBookingsInspector({
               </Button>
             </div>
           </div>
+
+          {/* Active volunteer filter indicator bar */}
+          {selectedVolunteerEmail !== "ALL" && (
+            <div className="flex items-center justify-between rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-xs">
+              <div className="flex items-center gap-2">
+                <Filter className="size-3.5 text-purple-400" />
+                <span className="text-[var(--fg-muted)]">Filtering attendee roster admitted by:</span>
+                <span className="font-semibold text-purple-300 font-mono">{selectedVolunteerEmail}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedVolunteerEmail("ALL")}
+                className="text-[11px] font-bold text-purple-400 hover:text-white underline cursor-pointer"
+              >
+                Show All Attendees
+              </button>
+            </div>
+          )}
 
           {/* ── Main Bookings Panel ── */}
           <Panel
