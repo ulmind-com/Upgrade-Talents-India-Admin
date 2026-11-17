@@ -425,6 +425,8 @@ export const eventVolunteersApi = {
         method: "POST",
       }
     ),
+  getEventVolunteerReport: (eventId: string) =>
+    api<any>(`/api/admin/events/${eventId}/volunteer-report`),
 };
 
 /* ═══════════════ COURSES / WORKSHOPS ═══════════════ */

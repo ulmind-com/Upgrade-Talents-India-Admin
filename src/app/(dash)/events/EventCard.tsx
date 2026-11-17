@@ -171,12 +171,12 @@ export function EventCard({
           size="sm"
           variant="ghost"
           onClick={onVolunteers}
-          title="Manage & assign volunteers for entrance gate scanning"
+          title="Gate squad admissions, cash collection audit & scanner access"
           className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
         >
-          <ShieldCheck className="size-3.5 text-emerald-400" aria-hidden /> Volunteers
+          <ShieldCheck className="size-3.5 text-emerald-400" aria-hidden /> Gate Audit &amp; Staff
           {volunteerCount > 0 && (
-            <span className="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
+            <span className="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300 font-bold">
               {volunteerCount}
             </span>
           )}

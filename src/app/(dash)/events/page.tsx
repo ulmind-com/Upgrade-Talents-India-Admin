@@ -31,6 +31,10 @@ import {
   Upload,
   Loader2,
   ImageIcon,
+  Receipt,
+  Banknote,
+  Coins,
+  Wallet,
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import {
@@ -46,7 +50,7 @@ import {
   type Column,
 } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
-import { cmsApi, safe, toRows } from "@/lib/api";
+import { cmsApi, eventVolunteersApi, safe, toRows } from "@/lib/api";
 import { cn, formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
 import { EventCard } from "./EventCard";
 import { EventVolunteersModal } from "./EventVolunteersModal";
@@ -529,6 +533,10 @@ function EventBookingsInspector({
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
 
+  const [volunteerReport, setVolunteerReport] = useState<any>(null);
+  const [selectedVolunteerEmail, setSelectedVolunteerEmail] = useState<string>("ALL");
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
@@ -536,13 +544,18 @@ function EventBookingsInspector({
   const loadBookings = useCallback(async () => {
     if (!selectedEventId) {
       setData(null);
+      setVolunteerReport(null);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const res = await cmsApi.listEventBookings(selectedEventId, { limit: 500 });
+      const [res, rep] = await Promise.all([
+        cmsApi.listEventBookings(selectedEventId, { limit: 500 }),
+        eventVolunteersApi.getEventVolunteerReport(selectedEventId).catch(() => null),
+      ]);
       setData(res);
+      setVolunteerReport(rep);
     } catch (e: any) {
       setError(e?.message || "Failed to load bookings for the selected event.");
     } finally {
@@ -658,9 +671,23 @@ function EventBookingsInspector({
         (b.user_name || "").toLowerCase().includes(s) ||
         (b.user_phone || "").toLowerCase().includes(s) ||
         (b.holder_names || []).some((h: string) => h.toLowerCase().includes(s));
-      return matchStatus && matchAtt && matchSearch;
+
+      let matchVolunteer = true;
+      if (selectedVolunteerEmail !== "ALL") {
+        const vEmail = selectedVolunteerEmail.toLowerCase();
+        matchVolunteer =
+          (b.checked_in_by || "").toLowerCase() === vEmail ||
+          (b.cash_collected_by || "").toLowerCase() === vEmail ||
+          (b.tickets || []).some(
+            (t: any) =>
+              (t.checked_in_by || "").toLowerCase() === vEmail ||
+              (t.cash_collected_by || "").toLowerCase() === vEmail
+          );
+      }
+
+      return matchStatus && matchAtt && matchSearch && matchVolunteer;
     });
-  }, [rawBookings, statusFilter, attendanceFilter, search]);
+  }, [rawBookings, statusFilter, attendanceFilter, search, selectedVolunteerEmail]);
 
   const eventOptions = [
     { value: "", label: "— Select an Event —" },
@@ -913,6 +940,99 @@ function EventBookingsInspector({
             />
           </div>
 
+          {/* ── Volunteer-Wise Entry & Cash Collection Summary Banner ── */}
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/80 p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="grid size-9 place-items-center rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
+                  <Receipt className="size-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2 flex-wrap">
+                    Volunteer-Wise Entry &amp; Cash Collection Tracking
+                    <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono text-emerald-300 font-bold">
+                      {volunteerReport?.total_admitted ?? 0} Admitted
+                    </span>
+                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-mono text-amber-300 font-bold">
+                      ₹{(volunteerReport?.total_cash_collected ?? 0).toLocaleString("en-IN")} Cash
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-[var(--fg-muted)]">
+                    Event-specific gate entry and spot cash collection breakdown per assigned volunteer.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => setAuditModalOpen(true)}
+                  className="font-bold text-xs"
+                >
+                  <Receipt className="size-3.5" /> Full Audit &amp; Cash Reconciliation
+                </Button>
+              </div>
+            </div>
+
+            {/* Volunteer Filter Chips / Metrics */}
+            <div className="mt-3">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--fg-subtle)] mb-2">
+                Filter Attendees by Admitting Volunteer:
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedVolunteerEmail("ALL")}
+                  className={cn(
+                    "rounded-xl px-3 py-1.5 font-mono text-xs font-bold transition-all cursor-pointer",
+                    selectedVolunteerEmail === "ALL"
+                      ? "bg-white text-black shadow-md"
+                      : "border border-[var(--border)] bg-[var(--surface-3)] text-[var(--fg-muted)] hover:text-white"
+                  )}
+                >
+                  All Staff ({volunteerReport?.volunteers?.length || 0})
+                </button>
+
+                {(volunteerReport?.volunteers || []).map((vol: any, vIdx: number) => {
+                  const isSelected = selectedVolunteerEmail === vol.volunteer_email;
+                  return (
+                    <button
+                      key={vol.volunteer_email || vIdx}
+                      type="button"
+                      onClick={() =>
+                        setSelectedVolunteerEmail((prev) =>
+                          prev === vol.volunteer_email ? "ALL" : vol.volunteer_email
+                        )
+                      }
+                      className={cn(
+                        "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all cursor-pointer",
+                        isSelected
+                          ? "border-emerald-500 bg-emerald-500/15 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                          : "border-[var(--border)] bg-[var(--surface-3)] text-[var(--fg-muted)] hover:border-emerald-500/40 hover:text-white"
+                      )}
+                    >
+                      <div className="grid size-5 place-items-center rounded-full bg-emerald-500/20 text-[9px] font-bold text-emerald-400">
+                        {vol.volunteer_name ? vol.volunteer_name.slice(0, 1).toUpperCase() : "V"}
+                      </div>
+                      <span className="font-bold text-white truncate max-w-[120px]">
+                        {vol.volunteer_name || vol.volunteer_email}
+                      </span>
+                      <span className="rounded bg-black/40 px-1.5 py-0.2 font-mono text-[10px] font-bold text-emerald-400">
+                        {vol.total_entries} Admitted
+                      </span>
+                      {vol.cash_collected > 0 && (
+                        <span className="rounded bg-amber-500/20 px-1.5 py-0.2 font-mono text-[10px] font-extrabold text-amber-300">
+                          ₹{vol.cash_collected.toLocaleString("en-IN")}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* ── Attendance Filter Tabs ── */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-2">
             <div className="flex items-center gap-2">
@@ -1061,6 +1181,16 @@ function EventBookingsInspector({
           booking={selectedBooking}
           open={detailModalOpen}
           onClose={() => setDetailModalOpen(false)}
+        />
+      )}
+
+      {/* ── Event Volunteer Entry & Cash Audit Modal ── */}
+      {auditModalOpen && currentEvent && (
+        <EventVolunteersModal
+          event={currentEvent}
+          initialTab="report"
+          onClose={() => setAuditModalOpen(false)}
+          onUpdated={loadBookings}
         />
       )}
     </div>

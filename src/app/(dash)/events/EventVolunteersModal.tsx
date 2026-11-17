@@ -21,11 +21,20 @@ import {
   X,
   CheckSquare,
   Square,
+  Banknote,
+  Coins,
+  Receipt,
+  ChevronDown,
+  ChevronUp,
+  FileSpreadsheet,
+  Wallet,
+  ArrowRight,
+  TrendingUp,
 } from "lucide-react";
 import { Modal, Button, Badge } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
 import { eventVolunteersApi } from "@/lib/api";
-import { formatDate, rowId } from "@/lib/utils";
+import { formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
 
 interface Volunteer {
   user_id?: string;
@@ -48,8 +57,52 @@ interface AvailableVolunteer {
   is_assigned: boolean;
 }
 
+interface VolunteerReportData {
+  event_id: string;
+  event_title: string;
+  total_admitted: number;
+  total_online_admitted: number;
+  total_cash_admitted: number;
+  total_cash_collected: number;
+  volunteers: {
+    volunteer_name: string;
+    volunteer_email: string;
+    role: string;
+    phone: string;
+    is_assigned: boolean;
+    total_entries: number;
+    online_payments: number;
+    cash_payments: number;
+    cash_collected: number;
+    attendees: {
+      attendee_name: string;
+      attendee_email: string;
+      attendee_phone: string;
+      booking_reference: string;
+      ticket_ref: string;
+      seat: string;
+      seats: string[];
+      category: string;
+      payment_method: string;
+      cash_status: string;
+      cash_collect_done: boolean;
+      amount: number;
+      checked_in_at: string;
+    }[];
+  }[];
+  reconciliation: {
+    volunteer_name: string;
+    volunteer_email: string;
+    cash_pass_count: number;
+    cash_collected: number;
+    cash_status: string;
+    status: string;
+  }[];
+}
+
 interface EventVolunteersModalProps {
   event: any;
+  initialTab?: "report" | "assigned" | "assign" | "create";
   onClose: () => void;
   onUpdated?: () => void;
 }
@@ -65,18 +118,22 @@ const COMMON_ROLES = [
 
 export function EventVolunteersModal({
   event,
+  initialTab = "report",
   onClose,
   onUpdated,
 }: EventVolunteersModalProps) {
   const { push } = useToast();
   const eventId = String(rowId(event) || event.id || "");
 
-  const [activeTab, setActiveTab] = useState<"assigned" | "assign" | "create">("assigned");
+  const [activeTab, setActiveTab] = useState<"report" | "assigned" | "assign" | "create">(initialTab);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [assignedVolunteers, setAssignedVolunteers] = useState<Volunteer[]>([]);
   const [availableVolunteers, setAvailableVolunteers] = useState<AvailableVolunteer[]>([]);
+  const [report, setReport] = useState<VolunteerReportData | null>(null);
+  const [expandedVolunteers, setExpandedVolunteers] = useState<Record<string, boolean>>({});
+  const [reconciledVolunteers, setReconciledVolunteers] = useState<Record<string, boolean>>({});
 
   // Search & Multi-selection for Assign tab
   const [searchQuery, setSearchQuery] = useState("");
@@ -102,11 +159,19 @@ export function EventVolunteersModal({
     else setLoading(true);
 
     try {
-      const res = await eventVolunteersApi.getEventVolunteers(eventId);
-      setAssignedVolunteers(res.assigned_volunteers || []);
-      setAvailableVolunteers(res.available_volunteers || []);
+      const [volRes, repRes] = await Promise.all([
+        eventVolunteersApi.getEventVolunteers(eventId).catch(() => null),
+        eventVolunteersApi.getEventVolunteerReport(eventId).catch(() => null),
+      ]);
+      if (volRes) {
+        setAssignedVolunteers(volRes.assigned_volunteers || []);
+        setAvailableVolunteers(volRes.available_volunteers || []);
+      }
+      if (repRes) {
+        setReport(repRes);
+      }
     } catch (err: any) {
-      push("error", err?.message || "Failed to load event volunteers");
+      push("error", err?.message || "Failed to load event volunteers and report");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -264,14 +329,37 @@ export function EventVolunteersModal({
     <Modal
       open={true}
       onClose={onClose}
-      size="2xl"
-      title="Event Volunteers & Gate Scanner Access"
+      size="3xl"
+      title="Event Volunteers, Entry & Cash Audit"
       subtitle={`${event.title} • ${formatDate(event.date)} ${event.time ? `• ${event.time}` : ""} • ${event.venue || "Venue"}`}
     >
       <div className="flex flex-col gap-5">
         {/* ── Top Bar: Tabs & Quick Refresh ── */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
           <div className="flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
+            <button
+              onClick={() => setActiveTab("report")}
+              className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === "report"
+                  ? "bg-[var(--brand)] text-black shadow-sm"
+                  : "text-[var(--fg-muted)] hover:text-white"
+              }`}
+            >
+              <Receipt className="size-3.5" />
+              Entry &amp; Cash Audit
+              {report && (
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
+                    activeTab === "report"
+                      ? "bg-black/20 text-black font-bold"
+                      : "bg-[var(--surface-3)] text-amber-300 font-bold"
+                  }`}
+                >
+                  ₹{(report.total_cash_collected || 0).toLocaleString("en-IN")}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={() => setActiveTab("assigned")}
               className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
@@ -330,13 +418,330 @@ export function EventVolunteersModal({
           <button
             onClick={() => loadData(true)}
             disabled={refreshing || loading}
-            title="Refresh volunteer list"
+            title="Refresh volunteer list and report"
             className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-medium text-[var(--fg-muted)] transition-colors hover:text-white"
           >
             <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin text-[var(--brand)]" : ""}`} />
             Refresh
           </button>
         </div>
+
+        {/* ── TAB 0: ENTRY & CASH AUDIT REPORT ── */}
+        {activeTab === "report" && (
+          <div className="flex flex-col gap-5">
+            {/* Top Stat KPI Grid */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
+                <div className="flex items-center justify-between text-emerald-400">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">Total Admitted</span>
+                  <CheckCircle2 className="size-4" />
+                </div>
+                <p className="mt-1.5 font-mono text-2xl font-bold text-white">
+                  {report?.total_admitted ?? 0}
+                </p>
+                <span className="text-[10px] text-emerald-300 font-mono">Verified gate entries</span>
+              </div>
+
+              <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3.5">
+                <div className="flex items-center justify-between text-sky-400">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">Online Paid</span>
+                  <Receipt className="size-4" />
+                </div>
+                <p className="mt-1.5 font-mono text-2xl font-bold text-white">
+                  {report?.total_online_admitted ?? 0}
+                </p>
+                <span className="text-[10px] text-sky-300 font-mono">Pre-paid passes</span>
+              </div>
+
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5">
+                <div className="flex items-center justify-between text-amber-400">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">Cash Spot Passes</span>
+                  <Coins className="size-4" />
+                </div>
+                <p className="mt-1.5 font-mono text-2xl font-bold text-white">
+                  {report?.total_cash_admitted ?? 0}
+                </p>
+                <span className="text-[10px] text-amber-300 font-mono">Paid cash at venue</span>
+              </div>
+
+              <div className="rounded-xl border border-amber-400/50 bg-amber-400/15 p-3.5 shadow-[0_0_20px_rgba(251,191,36,0.15)]">
+                <div className="flex items-center justify-between text-amber-400">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">Total Cash Collected</span>
+                  <Banknote className="size-4" />
+                </div>
+                <p className="mt-1.5 font-mono text-2xl font-extrabold text-amber-300">
+                  ₹{(report?.total_cash_collected ?? 0).toLocaleString("en-IN")}
+                </p>
+                <span className="text-[10px] text-amber-200/70 font-mono">Physical cash at gate</span>
+              </div>
+            </div>
+
+            {/* Volunteer-Wise Entry & Cash Breakdown */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                    Volunteer-Specific Entry &amp; Cash Breakdown
+                  </h4>
+                  <p className="text-[11px] text-[var(--fg-muted)]">
+                    Event-specific admittance and cash collection tracking per assigned volunteer.
+                  </p>
+                </div>
+                <span className="rounded-full bg-[var(--surface-3)] px-2 py-0.5 font-mono text-[10px] text-[var(--fg-muted)]">
+                  {report?.volunteers?.length || 0} Gate Staff
+                </span>
+              </div>
+
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-10 text-[var(--fg-muted)]">
+                  <RefreshCw className="size-6 animate-spin text-[var(--brand)] mb-2" />
+                  <span className="text-xs">Compiling event volunteer audit report...</span>
+                </div>
+              ) : !report?.volunteers || report.volunteers.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[var(--border)] p-8 text-center text-xs text-[var(--fg-muted)]">
+                  <Users className="mx-auto size-8 text-[var(--fg-subtle)] mb-2" />
+                  No volunteer admissions recorded for this event yet.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 max-h-[460px] overflow-y-auto pr-1">
+                  {report.volunteers.map((vol, vIdx) => {
+                    const isExpanded = !!expandedVolunteers[vol.volunteer_email];
+                    const attendeeList = vol.attendees || [];
+
+                    return (
+                      <div
+                        key={vol.volunteer_email || vIdx}
+                        className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/80 p-4 transition-all hover:border-[var(--brand)]/40"
+                      >
+                        {/* Volunteer Header Info */}
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-[200px]">
+                            <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs font-bold text-emerald-400">
+                              {vol.volunteer_name ? vol.volunteer_name.slice(0, 2).toUpperCase() : "VL"}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-white">
+                                  {vol.volunteer_name || "Volunteer"}
+                                </span>
+                                <span className="rounded border border-[var(--border)] bg-[var(--surface-3)] px-1.5 py-0.2 font-mono text-[9px] text-[var(--fg-muted)]">
+                                  {vol.role || "Gate Scanner"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-[var(--fg-muted)] font-mono mt-0.5">
+                                <span>{vol.volunteer_email}</span>
+                                {vol.phone && <span>• {vol.phone}</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Metric Badges for this Volunteer */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-mono text-xs font-bold text-emerald-400">
+                              {vol.total_entries} Admitted
+                            </span>
+                            <span className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 font-mono text-xs text-sky-300">
+                              {vol.online_payments} Online
+                            </span>
+                            <span className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 font-mono text-xs text-amber-300">
+                              {vol.cash_payments} Cash
+                            </span>
+                            <span className="rounded-lg border border-amber-400/60 bg-amber-400/20 px-3 py-1 font-mono text-xs font-extrabold text-amber-300 shadow-sm">
+                              ₹{vol.cash_collected.toLocaleString("en-IN")} Cash
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedVolunteers((prev) => ({
+                                  ...prev,
+                                  [vol.volunteer_email]: !prev[vol.volunteer_email],
+                                }))
+                              }
+                              className="ml-1 flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-white/10 cursor-pointer"
+                            >
+                              <span>{isExpanded ? "Hide" : "View"} Attendees ({attendeeList.length})</span>
+                              {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Collapsible Attendee Ledger */}
+                        {isExpanded && (
+                          <div className="mt-4 border-t border-[var(--border)] pt-3">
+                            <h5 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
+                              Attendees Admitted by {vol.volunteer_name || vol.volunteer_email}:
+                            </h5>
+                            {attendeeList.length === 0 ? (
+                              <p className="text-xs text-[var(--fg-subtle)] italic">
+                                No check-in records found for this volunteer.
+                              </p>
+                            ) : (
+                              <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-black/40">
+                                <table className="w-full text-left font-mono text-xs">
+                                  <thead className="border-b border-[var(--border)] bg-[var(--surface-3)]/60 text-[10px] uppercase text-[var(--fg-muted)]">
+                                    <tr>
+                                      <th className="py-2 px-3">Attendee</th>
+                                      <th className="py-2 px-3">Booking / Seats</th>
+                                      <th className="py-2 px-3">Tier</th>
+                                      <th className="py-2 px-3">Payment Mode</th>
+                                      <th className="py-2 px-3">Amount</th>
+                                      <th className="py-2 px-3">Admitted At</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-[var(--border)]/50 text-[11px]">
+                                    {attendeeList.map((att, aIdx) => (
+                                      <tr key={aIdx} className="hover:bg-white/5 transition-colors">
+                                        <td className="py-2 px-3">
+                                          <p className="font-semibold text-white">
+                                            {att.attendee_name || "Attendee"}
+                                          </p>
+                                          {att.attendee_phone && (
+                                            <span className="text-[10px] text-[var(--fg-subtle)]">
+                                              {att.attendee_phone}
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          <span className="font-bold text-[var(--brand)]">
+                                            {att.booking_reference}
+                                          </span>
+                                          {(att.seats?.length || att.seat) && (
+                                            <span className="block text-[10px] text-white/60">
+                                              Seats: {att.seats?.length ? att.seats.join(", ") : att.seat}
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3 text-[var(--fg-muted)]">
+                                          {att.category || "General"}
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          {att.payment_method === "CASH" ? (
+                                            <span className="rounded bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+                                              CASH COLLECTED
+                                            </span>
+                                          ) : (
+                                            <span className="rounded bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                                              ONLINE PAID
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3 font-bold text-white">
+                                          {att.amount ? `₹${att.amount.toLocaleString("en-IN")}` : "Free"}
+                                        </td>
+                                        <td className="py-2 px-3 text-[10px] text-[var(--fg-subtle)]">
+                                          {att.checked_in_at ? formatDate(att.checked_in_at, true) : "Just now"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* End-of-Event Physical Cash Reconciliation Section */}
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 pb-3">
+                <div className="flex items-center gap-2">
+                  <Wallet className="size-5 text-amber-400" />
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                      End-of-Event Physical Cash Handover Reconciliation
+                    </h4>
+                    <p className="text-[11px] text-[var(--fg-muted)]">
+                      Reconcile and collect the exact physical cash amount collected by each gate volunteer.
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-1 font-mono text-xs font-bold text-amber-300">
+                  Total Cash to Hand Over: ₹{(report?.total_cash_collected ?? 0).toLocaleString("en-IN")}
+                </div>
+              </div>
+
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-left font-mono text-xs">
+                  <thead className="border-b border-[var(--border)] text-[10px] uppercase text-[var(--fg-muted)]">
+                    <tr>
+                      <th className="py-2 px-3">Gate Volunteer</th>
+                      <th className="py-2 px-3">Cash Passes Admitted</th>
+                      <th className="py-2 px-3">Physical Cash Owed</th>
+                      <th className="py-2 px-3">Handover Audit Status</th>
+                      <th className="py-2 px-3 text-right">Reconciliation Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]/40 text-[11px]">
+                    {(report?.reconciliation || []).map((rec, rIdx) => {
+                      const isDone = !!reconciledVolunteers[rec.volunteer_email];
+                      return (
+                        <tr key={rIdx} className="hover:bg-white/5 transition-colors">
+                          <td className="py-2.5 px-3">
+                            <span className="font-bold text-white block">{rec.volunteer_name || rec.volunteer_email}</span>
+                            <span className="text-[10px] text-[var(--fg-subtle)]">{rec.volunteer_email}</span>
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-white">
+                            {rec.cash_pass_count} cash pass{rec.cash_pass_count !== 1 ? "es" : ""}
+                          </td>
+                          <td className="py-2.5 px-3 font-extrabold text-amber-300">
+                            ₹{rec.cash_collected.toLocaleString("en-IN")}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            {rec.cash_collected === 0 ? (
+                              <span className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--fg-muted)]">
+                                No Cash Due
+                              </span>
+                            ) : isDone ? (
+                              <span className="rounded border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 flex items-center gap-1 w-fit">
+                                <Check className="size-3" /> Cash Handed Over
+                              </span>
+                            ) : (
+                              <span className="rounded border border-amber-500/40 bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300 flex items-center gap-1 w-fit animate-pulse">
+                                <AlertCircle className="size-3" /> Handover Pending
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {rec.cash_collected > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReconciledVolunteers((prev) => {
+                                    const next = { ...prev, [rec.volunteer_email]: !prev[rec.volunteer_email] };
+                                    push(
+                                      next[rec.volunteer_email] ? "success" : "info",
+                                      next[rec.volunteer_email]
+                                        ? `Verified cash handover of ₹${rec.cash_collected.toLocaleString("en-IN")} from ${rec.volunteer_name || rec.volunteer_email}`
+                                        : `Handover status reset for ${rec.volunteer_name || rec.volunteer_email}`
+                                    );
+                                    return next;
+                                  });
+                                }}
+                                className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                  isDone
+                                    ? "border border-[var(--border)] bg-[var(--surface-3)] text-[var(--fg-muted)] hover:text-white"
+                                    : "border border-amber-400 bg-amber-400 text-neutral-950 hover:bg-amber-300 shadow-sm"
+                                }`}
+                              >
+                                {isDone ? "Reset Status" : "Mark Cash Received (✓)"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── TAB 1: ASSIGNED VOLUNTEERS ── */}
         {activeTab === "assigned" && (
