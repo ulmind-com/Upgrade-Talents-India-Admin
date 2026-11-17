@@ -34,6 +34,7 @@ import {
 import { Modal, Button, Badge } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
 import { eventVolunteersApi } from "@/lib/api";
+import { useRealtimeSubscription } from "@/lib/realtime";
 import { formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
 
 interface Volunteer {
@@ -181,6 +182,15 @@ export function EventVolunteersModal({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Real-time synchronization: automatically updates volunteer assignments and entry reports
+  useRealtimeSubscription(
+    eventId ? [`event:${eventId}`, "admin:volunteers", "admin:events"] : ["admin:volunteers"],
+    () => {
+      loadData(true);
+    },
+    7000
+  );
 
   // Filter unassigned volunteers for search
   const filteredAvailable = useMemo(() => {

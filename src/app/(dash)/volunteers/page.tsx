@@ -14,6 +14,7 @@ import { StatCard } from "@/components/Dash";
 import { useToast } from "@/components/Providers";
 import { volunteersApi, toRows } from "@/lib/api";
 import { formatDate, formatINR, formatNumber } from "@/lib/utils";
+import { useRealtimeSubscription } from "@/lib/realtime";
 
 interface Volunteer {
   _id: string;
@@ -41,6 +42,11 @@ export default function VolunteersPage() {
     () => volunteersApi.list({ limit: 200 }),
     []
   );
+
+  // Real-time synchronization for volunteer duty statistics & live check-in counts
+  useRealtimeSubscription(["admin:volunteers", "admin:events"], () => {
+    reload();
+  }, 10000);
 
   const volunteers: Volunteer[] = useMemo(() => {
     return toRows(rawVolunteers);

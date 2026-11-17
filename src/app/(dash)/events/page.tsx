@@ -61,6 +61,7 @@ import { cmsApi, eventVolunteersApi, safe, toRows } from "@/lib/api";
 import { cn, formatDate, formatINR, formatNumber, rowId } from "@/lib/utils";
 import { EventCard } from "./EventCard";
 import { EventVolunteersModal } from "./EventVolunteersModal";
+import { useRealtimeSubscription } from "@/lib/realtime";
 
 /* ═══════════════════════════════════════════════════════════════════
    1. MAIN EVENTS MANAGEMENT DASHBOARD
@@ -121,6 +122,12 @@ export default function EventsPage() {
   useEffect(() => {
     loadGlobalBookingStats();
   }, [loadGlobalBookingStats]);
+
+  // Real-time synchronization: automatically refreshes event list and stats on live changes
+  useRealtimeSubscription(["admin:events", "admin:all"], () => {
+    loadGlobalBookingStats();
+    fetchEvents();
+  }, 10000);
 
   const togglePublish = async (row: any, reload: () => void) => {
     try {
@@ -575,6 +582,15 @@ function EventBookingsInspector({
   useEffect(() => {
     loadBookings();
   }, [loadBookings]);
+
+  // Real-time synchronization: instantly updates booking lists, admission stats, and volunteer metrics
+  useRealtimeSubscription(
+    selectedEventId ? [`event:${selectedEventId}`, "admin:events", "admin:volunteers"] : ["admin:events"],
+    () => {
+      loadBookings();
+    },
+    6000
+  );
 
   const currentEvent = useMemo(() => {
     return events.find((e) => String(rowId(e)) === selectedEventId) || null;
@@ -1628,6 +1644,15 @@ function EventBookingsModal({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Real-time synchronization
+  useRealtimeSubscription(
+    eventId ? [`event:${eventId}`, "admin:events"] : ["admin:events"],
+    () => {
+      loadData();
+    },
+    8000
+  );
 
   const rawBookings: any[] = data?.bookings || toRows(data) || [];
   const totalCount = data?.total ?? rawBookings.length;
