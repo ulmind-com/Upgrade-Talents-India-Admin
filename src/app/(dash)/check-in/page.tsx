@@ -36,8 +36,9 @@ export default function CheckInPage() {
             gate_id: gate,
           });
       setResult(res);
-      const allowed = res?.allowed ?? res?.valid ?? res?.success;
-      push(allowed ? "success" : "error", res?.message || (allowed ? "Pass is valid." : "Pass rejected."));
+      const allowed = res?.allowed ?? res?.valid ?? res?.success ?? res?.is_valid;
+      const msg = res?.message || (allowed ? "Pass is valid." : (res?.already_checked_in ? "Ticket Already Scanned — Already Checked In!" : "Pass rejected."));
+      push(allowed ? "success" : "error", msg);
     } catch (e: any) {
       setResult({ allowed: false, message: e?.message || "Verification failed." });
       push("error", e?.message || "Verification failed.");
@@ -55,7 +56,7 @@ export default function CheckInPage() {
     finally { setBusy(false); }
   };
 
-  const allowed = result ? (result.allowed ?? result.valid ?? result.success) : null;
+  const allowed = result ? (result.allowed ?? result.valid ?? result.success ?? result.is_valid) : null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
@@ -136,8 +137,14 @@ export default function CheckInPage() {
             >
               {allowed ? <CheckCircle2 className="size-6 shrink-0" aria-hidden /> : <XCircle className="size-6 shrink-0" aria-hidden />}
               <div className="min-w-0">
-                <p className="text-[15px] font-bold">{allowed ? "Entry allowed" : "Entry refused"}</p>
-                <p className="text-[12.5px] opacity-90">{result.message || result.outcome || "—"}</p>
+                <p className="text-[15px] font-bold">
+                  {allowed
+                    ? "Entry allowed"
+                    : result?.already_checked_in || result?.ticket?.is_checked_in
+                    ? "Already Checked In — Ticket Already Scanned"
+                    : "Entry refused"}
+                </p>
+                <p className="text-[12.5px] opacity-90">{result?.message || result?.outcome || "—"}</p>
               </div>
             </div>
 

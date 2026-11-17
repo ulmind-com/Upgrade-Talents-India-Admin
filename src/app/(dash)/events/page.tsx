@@ -38,6 +38,10 @@ import {
   CreditCard,
   ShieldCheck,
   Filter,
+  ChevronDown,
+  ChevronUp,
+  UserCheck,
+  Clock,
 } from "lucide-react";
 import { CrudPage } from "@/components/Crud";
 import {
@@ -539,6 +543,7 @@ function EventBookingsInspector({
 
   const [volunteerReport, setVolunteerReport] = useState<any>(null);
   const [selectedVolunteerEmail, setSelectedVolunteerEmail] = useState<string>("ALL");
+  const [expandedVolunteerEmail, setExpandedVolunteerEmail] = useState<string | null>(null);
   const [auditModalOpen, setAuditModalOpen] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -576,10 +581,16 @@ function EventBookingsInspector({
   }, [events, selectedEventId]);
 
   const rawBookings: any[] = data?.bookings || toRows(data) || [];
+  // 1. Order/Booking counts (people/groups who placed bookings)
+  const totalBookingsCount = rawBookings.length;
   const totalCount = data?.total ?? rawBookings.length;
-  const totalTickets =
+
+  // 2. Ticket counts (total individual seats / gate passes issued)
+  const totalTicketsCount =
     data?.total_tickets ??
     rawBookings.reduce((s: number, b: any) => s + Number(b.quantity || 1), 0);
+  const totalTickets = totalTicketsCount;
+
   const totalRevenue =
     data?.total_revenue ??
     rawBookings.reduce(
@@ -591,17 +602,31 @@ function EventBookingsInspector({
       0
     );
 
-  // Present and Absent calculations
-  const presentCount = rawBookings.filter(
-    (b: any) => Boolean(b.is_present || b.attendance_status === "PRESENT" || (b.tickets || []).some((t: any) => t.is_checked_in))
-  ).length;
-  const absentCount = Math.max(0, totalCount - presentCount);
-  const turnoutPercent = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+  // Distinguishes Bookings (Orders) from Tickets (Individual Passes)
+  const isPresentBooking = (b: any) =>
+    Boolean(b.is_present || b.attendance_status === "PRESENT" || (b.tickets || []).some((t: any) => t.is_checked_in));
+
+  const presentBookingsCount = rawBookings.filter(isPresentBooking).length;
+  const absentBookingsCount = Math.max(0, totalBookingsCount - presentBookingsCount);
+  const presentCount = presentBookingsCount;
+  const absentCount = absentBookingsCount;
+
+  // Tickets Admitted at venue entrance
+  const admittedTicketsCount =
+    volunteerReport?.total_admitted ??
+    rawBookings.reduce((s: number, b: any) => {
+      const isP = isPresentBooking(b);
+      return s + (isP ? Number(b.checked_in_count || b.quantity || 1) : 0);
+    }, 0);
+  const pendingTicketsCount = Math.max(0, totalTicketsCount - admittedTicketsCount);
+  const ticketTurnoutPercent =
+    totalTicketsCount > 0 ? Math.min(100, Math.round((admittedTicketsCount / totalTicketsCount) * 100)) : 0;
+  const turnoutPercent = ticketTurnoutPercent;
 
   const capacity = Number(currentEvent?.capacity || 0);
-  const percentFilled = capacity > 0 ? Math.min(100, Math.round((totalTickets / capacity) * 100)) : 0;
+  const percentFilled = capacity > 0 ? Math.min(100, Math.round((totalTicketsCount / capacity) * 100)) : 0;
 
-  // 1. Payment Summary: Online vs Cash Attendees & Amounts
+  // Online vs Cash breakdown: computes both Bookings count and individual Tickets count
   const onlineBookings = useMemo(() => {
     return rawBookings.filter((b: any) => {
       const pm = (b.payment_method || "").toUpperCase();
@@ -612,10 +637,12 @@ function EventBookingsInspector({
       );
     });
   }, [rawBookings]);
+  const onlineBookingsCount = onlineBookings.length;
 
-  const onlineAttendeesCount = useMemo(() => {
+  const onlineTicketsCount = useMemo(() => {
     return onlineBookings.reduce((sum: number, b: any) => sum + Number(b.quantity || 1), 0);
   }, [onlineBookings]);
+  const onlineAttendeesCount = onlineTicketsCount;
 
   const onlineRevenue = useMemo(() => {
     return onlineBookings.reduce(
@@ -634,10 +661,12 @@ function EventBookingsInspector({
       return pm === "CASH" || pm === "OFFLINE" || b.cash_payment === true;
     });
   }, [rawBookings]);
+  const cashBookingsCount = cashBookings.length;
 
-  const cashAttendeesCount = useMemo(() => {
+  const cashTicketsCount = useMemo(() => {
     return cashBookings.reduce((sum: number, b: any) => sum + Number(b.quantity || 1), 0);
   }, [cashBookings]);
+  const cashAttendeesCount = cashTicketsCount;
 
   const cashRevenue = useMemo(() => {
     return cashBookings.reduce(
@@ -1023,6 +1052,7 @@ function EventBookingsInspector({
         <>
           {/* ── 1. Key Metric Stat Cards: Payment Summary & Assigned Volunteers ── */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {/* Card 1: Online Tickets */}
             <div className="rounded-2xl border border-sky-500/25 bg-[var(--surface-2)] p-4 shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">Online Payments</span>
@@ -1031,15 +1061,16 @@ function EventBookingsInspector({
                 </div>
               </div>
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl font-black text-white">{formatNumber(onlineAttendeesCount)}</span>
-                <span className="text-xs font-semibold text-[var(--fg-muted)]">attendees</span>
+                <span className="text-2xl font-black text-white">{formatNumber(onlineTicketsCount)}</span>
+                <span className="text-xs font-bold text-sky-300">Online Tickets</span>
               </div>
               <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-subtle)] border-t border-[var(--border)] pt-2">
-                <span>Total Online Revenue:</span>
+                <span>{onlineBookingsCount} Bookings (Orders)</span>
                 <span className="font-mono font-bold text-sky-300">{formatINR(onlineRevenue)}</span>
               </div>
             </div>
 
+            {/* Card 2: Cash Tickets */}
             <div className="rounded-2xl border border-amber-500/25 bg-[var(--surface-2)] p-4 shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">Cash Spot Passes</span>
@@ -1048,15 +1079,16 @@ function EventBookingsInspector({
                 </div>
               </div>
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl font-black text-white">{formatNumber(cashAttendeesCount)}</span>
-                <span className="text-xs font-semibold text-[var(--fg-muted)]">attendees</span>
+                <span className="text-2xl font-black text-white">{formatNumber(cashTicketsCount)}</span>
+                <span className="text-xs font-bold text-amber-300">Cash Tickets</span>
               </div>
               <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-subtle)] border-t border-[var(--border)] pt-2">
-                <span>Collected at Venue:</span>
+                <span>{cashBookingsCount} Bookings (Gate Passes)</span>
                 <span className="font-mono font-bold text-amber-300">{formatINR(cashRevenue)}</span>
               </div>
             </div>
 
+            {/* Card 3: Assigned Volunteers */}
             <div className="rounded-2xl border border-purple-500/25 bg-[var(--surface-2)] p-4 shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-purple-400">Assigned Volunteers</span>
@@ -1066,14 +1098,15 @@ function EventBookingsInspector({
               </div>
               <div className="mt-3 flex items-baseline gap-2">
                 <span className="text-2xl font-black text-white">{formatNumber(totalAssignedVolunteers)}</span>
-                <span className="text-xs font-semibold text-[var(--fg-muted)]">volunteers</span>
+                <span className="text-xs font-bold text-purple-300">Volunteers Assigned</span>
               </div>
               <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-subtle)] border-t border-[var(--border)] pt-2">
-                <span>Authorized Gate Scanners:</span>
+                <span>Authorized Gate Staff:</span>
                 <span className="font-mono font-bold text-purple-300">{assignedVolunteersList.length} staff</span>
               </div>
             </div>
 
+            {/* Card 4: Gate Admissions */}
             <div className="rounded-2xl border border-emerald-500/25 bg-[var(--surface-2)] p-4 shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Gate Admissions</span>
@@ -1083,27 +1116,29 @@ function EventBookingsInspector({
               </div>
               <div className="mt-3 flex items-baseline gap-2">
                 <span className="text-2xl font-black text-white">
-                  {formatNumber(volunteerReport?.total_admitted ?? presentCount)}
+                  {formatNumber(admittedTicketsCount)}
                 </span>
-                <span className="text-xs font-semibold text-[var(--fg-muted)]">/ {totalTickets || totalCount}</span>
+                <span className="text-xs font-semibold text-[var(--fg-muted)]">
+                  of {totalTicketsCount} Tickets Admitted
+                </span>
               </div>
               <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-subtle)] border-t border-[var(--border)] pt-2">
-                <span>Verified Present:</span>
-                <span className="font-mono font-bold text-emerald-300">{turnoutPercent}% turn-out</span>
+                <span>{turnoutPercent}% Ticket Turnout</span>
+                <span className="font-mono font-bold text-amber-300">{pendingTicketsCount} pending gate</span>
               </div>
             </div>
           </div>
 
-          {/* ── 2. Volunteer-Wise Entry & Cash Collection Table (In-Place) ── */}
+          {/* ── 2. Individual Volunteer-Wise Entry & Cash Collection Section ── */}
           <Panel
             title={
               <div className="flex items-center gap-2.5">
                 <ShieldCheck className="size-4 text-purple-400" />
-                <span>Assigned Volunteers &amp; Gate Collections</span>
-                <Badge tone="primary">{totalAssignedVolunteers} Assigned</Badge>
+                <span>Assigned Volunteers &amp; Gate Activity</span>
+                <Badge tone="primary">{totalAssignedVolunteers} Volunteers Assigned</Badge>
               </div>
             }
-            subtitle="Volunteer-specific ticket admissions and spot cash collections recorded at the gate for this event."
+            subtitle="Click on any assigned volunteer below to inspect their individual gate admissions, cash collections, and admitted attendee roster."
             action={
               selectedVolunteerEmail !== "ALL" ? (
                 <Button
@@ -1112,90 +1147,123 @@ function EventBookingsInspector({
                   onClick={() => setSelectedVolunteerEmail("ALL")}
                   className="text-xs"
                 >
-                  ✕ Reset Volunteer Filter
+                  ✕ Clear Volunteer Roster Filter
                 </Button>
               ) : undefined
             }
           >
             {assignedVolunteersList.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center text-xs text-[var(--fg-muted)]">
-                No volunteers assigned to this event yet. Use the Volunteers button on the event card to assign gate staff.
+                No volunteers currently assigned to this event. You can assign gate volunteers using the "Volunteers" button on the event card.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] bg-[var(--surface-3)] text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
-                      <th className="px-4 py-3">Assigned Volunteer</th>
-                      <th className="px-4 py-3">Gate Duty / Role</th>
-                      <th className="px-4 py-3 text-center">Attendees Admitted</th>
-                      <th className="px-4 py-3 text-center">Online Paid</th>
-                      <th className="px-4 py-3 text-center">Cash Spot Passes</th>
-                      <th className="px-4 py-3 text-right">Cash Collected</th>
-                      <th className="px-4 py-3 text-right">Attendee Roster</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)]">
-                    {assignedVolunteersList.map((vol: any, idx: number) => {
-                      const isFiltered = selectedVolunteerEmail === vol.volunteer_email;
-                      const entries = Number(vol.total_entries || 0);
-                      const online = Number(vol.online_payments || 0);
-                      const cash = Number(vol.cash_payments || 0);
-                      const cashAmount = Number(vol.cash_collected || 0);
+              <div className="space-y-3">
+                {assignedVolunteersList.map((vol: any, idx: number) => {
+                  const isExpanded = expandedVolunteerEmail === vol.volunteer_email;
+                  const isFiltered = selectedVolunteerEmail === vol.volunteer_email;
+                  const entries = Number(vol.total_entries || 0);
+                  const cashAttendees = Number(vol.cash_payments || 0);
+                  const cashAmount = Number(vol.cash_collected || 0);
+                  const onlineAttendees = Number(vol.online_payments || 0);
+                  const attendeesList: any[] = vol.attendees || [];
 
-                      return (
-                        <tr
-                          key={vol.volunteer_email || idx}
-                          className={cn(
-                            "transition-colors hover:bg-[var(--surface-2)]/60",
-                            isFiltered && "bg-purple-500/10 font-medium"
-                          )}
-                        >
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className="grid size-8 shrink-0 place-items-center rounded-full border border-purple-500/30 bg-purple-500/15 font-bold text-purple-300">
-                                {vol.volunteer_name ? vol.volunteer_name[0].toUpperCase() : "V"}
-                              </div>
+                  return (
+                    <div
+                      key={vol.volunteer_email || idx}
+                      className={cn(
+                        "rounded-xl border transition-all overflow-hidden",
+                        isFiltered
+                          ? "border-purple-500/60 bg-purple-500/10 shadow-md"
+                          : isExpanded
+                          ? "border-[var(--border)] bg-[var(--surface-3)]/90"
+                          : "border-[var(--border)] bg-[var(--surface-2)]/60 hover:border-purple-500/40"
+                      )}
+                    >
+                      {/* Volunteer Header Bar (Clickable) */}
+                      <div
+                        onClick={() =>
+                          setExpandedVolunteerEmail((prev) =>
+                            prev === vol.volunteer_email ? null : vol.volunteer_email
+                          )
+                        }
+                        className="flex flex-wrap items-center justify-between gap-3 p-3.5 cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-3 min-w-[220px]">
+                          <div className="grid size-9 shrink-0 place-items-center rounded-xl border border-purple-500/30 bg-purple-500/20 font-bold text-purple-300 text-xs">
+                            {vol.volunteer_name ? vol.volunteer_name[0].toUpperCase() : "V"}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white text-xs">{vol.volunteer_name || "Volunteer"}</span>
+                              <span className="rounded bg-[var(--surface-3)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--fg-muted)] border border-[var(--border)]">
+                                {vol.role || "Gate Scanner"}
+                              </span>
+                            </div>
+                            <div className="font-mono text-[11px] text-[var(--fg-muted)]">
+                              {vol.volunteer_email} {vol.phone ? `· ${vol.phone}` : ""}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3 Dedicated Volunteer Metrics */}
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
+                          {/* Admitted Count */}
+                          <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-400 font-medium">
+                            <CheckCircle2 className="size-3.5 text-emerald-400" />
+                            <span>
+                              <strong className="font-bold">{entries}</strong> Admitted
+                            </span>
+                          </div>
+
+                          {/* Cash Attendees */}
+                          <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-amber-300 font-medium">
+                            <Banknote className="size-3.5 text-amber-400" />
+                            <span>
+                              <strong className="font-bold">{cashAttendees}</strong> Cash Attendees
+                            </span>
+                          </div>
+
+                          {/* Cash Amount */}
+                          <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-amber-200 font-medium">
+                            <span>Collected:</span>
+                            <strong className="font-mono font-bold text-amber-300">
+                              ₹{cashAmount.toLocaleString("en-IN")}
+                            </strong>
+                          </div>
+
+                          {/* Expand/Collapse Chevron Button */}
+                          <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--fg-muted)] hover:text-white pl-1">
+                            <span>{isExpanded ? "Hide Details" : "View Details"}</span>
+                            {isExpanded ? (
+                              <ChevronUp className="size-3.5" />
+                            ) : (
+                              <ChevronDown className="size-3.5" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expandable Volunteer Details Section */}
+                      {isExpanded && (
+                        <div className="border-t border-[var(--border)] bg-[var(--surface-1)]/60 p-4 space-y-3 animate-in fade-in duration-150">
+                          <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--surface-2)] p-3 rounded-xl border border-[var(--border)] text-xs">
+                            <div className="flex flex-wrap items-center gap-4">
                               <div>
-                                <div className="font-semibold text-white">{vol.volunteer_name || "Volunteer"}</div>
-                                <div className="font-mono text-[11px] text-[var(--fg-muted)]">{vol.volunteer_email}</div>
+                                <span className="text-[10px] uppercase font-bold text-[var(--fg-subtle)] block">Admitted by {vol.volunteer_name}:</span>
+                                <span className="text-sm font-bold text-emerald-400 font-mono">{entries} Attendees</span>
+                              </div>
+                              <div className="h-6 w-px bg-[var(--border)]" />
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-[var(--fg-subtle)] block">Cash Collected:</span>
+                                <span className="text-sm font-bold text-amber-300 font-mono">₹{cashAmount.toLocaleString("en-IN")} ({cashAttendees} attendees)</span>
+                              </div>
+                              <div className="h-6 w-px bg-[var(--border)]" />
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-[var(--fg-subtle)] block">Online Paid Admitted:</span>
+                                <span className="text-sm font-bold text-sky-400 font-mono">{onlineAttendees} Attendees</span>
                               </div>
                             </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="rounded bg-[var(--surface-3)] px-2 py-0.5 font-mono text-[11px] text-[var(--fg-muted)]">
-                              {vol.role || "Gate Scanner"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-0.5 font-mono text-xs font-bold text-emerald-400">
-                              <CheckCircle2 className="size-3" />
-                              {entries} Admitted
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-sky-400">
-                              <CreditCard className="size-3" />
-                              {online} Online
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-amber-400">
-                              <Banknote className="size-3" />
-                              {cash} Cash
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span
-                              className={cn(
-                                "font-mono text-sm font-black",
-                                cashAmount > 0 ? "text-amber-400" : "text-[var(--fg-subtle)]"
-                              )}
-                            >
-                              ₹{cashAmount.toLocaleString("en-IN")}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
+
                             <Button
                               size="sm"
                               variant={isFiltered ? "primary" : "secondary"}
@@ -1204,24 +1272,85 @@ function EventBookingsInspector({
                                   prev === vol.volunteer_email ? "ALL" : vol.volunteer_email
                                 )
                               }
-                              className="text-xs h-7 px-2.5"
+                              className="text-xs h-8"
                             >
-                              {isFiltered ? (
-                                <>
-                                  <Filter className="size-3" /> Active Filter
-                                </>
-                              ) : (
-                                <>
-                                  <Users className="size-3" /> Filter Roster
-                                </>
-                              )}
+                              <Filter className="size-3" />
+                              {isFiltered ? "Clear Volunteer Filter" : `Filter Master Roster to ${vol.volunteer_name || "this Volunteer"}`}
                             </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+
+                          {/* Detailed Attendee Ledger for this Volunteer */}
+                          {attendeesList.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-[var(--border)] p-4 text-center text-xs text-[var(--fg-muted)]">
+                              No ticket scans or cash collections recorded yet by {vol.volunteer_name} for this event.
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
+                              <table className="w-full text-left text-xs">
+                                <thead>
+                                  <tr className="border-b border-[var(--border)] bg-[var(--surface-3)] text-[10px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">
+                                    <th className="px-3 py-2.5">Attendee / Pass Holder</th>
+                                    <th className="px-3 py-2.5">Seat(s)</th>
+                                    <th className="px-3 py-2.5 text-center">Qty</th>
+                                    <th className="px-3 py-2.5">Payment Method</th>
+                                    <th className="px-3 py-2.5 text-right">Cash Collected</th>
+                                    <th className="px-3 py-2.5">Admitted Time</th>
+                                    <th className="px-3 py-2.5">Ticket Ref</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[var(--border)]">
+                                  {attendeesList.map((att: any, aIdx: number) => {
+                                    const isCash =
+                                      (att.payment_method || "").toUpperCase() === "CASH" ||
+                                      (att.payment_method || "").toUpperCase() === "OFFLINE";
+                                    return (
+                                      <tr key={att.ticket_ref || aIdx} className="hover:bg-[var(--surface-3)]/50">
+                                        <td className="px-3 py-2">
+                                          <div className="font-semibold text-white">{att.attendee_name || "Attendee"}</div>
+                                          <div className="font-mono text-[10px] text-[var(--fg-muted)]">{att.attendee_email || att.attendee_phone || "—"}</div>
+                                        </td>
+                                        <td className="px-3 py-2 font-mono text-purple-300 font-medium">
+                                          {att.seat || (att.seats && att.seats.length ? att.seats.join(", ") : "—")}
+                                        </td>
+                                        <td className="px-3 py-2 text-center font-mono font-bold">
+                                          {att.quantity || 1}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {isCash ? (
+                                            <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+                                              <Banknote className="size-2.5" /> Cash Spot
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 rounded bg-sky-500/15 border border-sky-500/30 px-1.5 py-0.5 text-[10px] font-bold text-sky-400">
+                                              <CreditCard className="size-2.5" /> Online
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-mono font-bold">
+                                          {isCash ? (
+                                            <span className="text-amber-300">₹{Number(att.amount || 0).toLocaleString("en-IN")}</span>
+                                          ) : (
+                                            <span className="text-[var(--fg-subtle)]">—</span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-2 font-mono text-[11px] text-[var(--fg-muted)]">
+                                          {att.checked_in_at ? formatDate(att.checked_in_at, true) : "—"}
+                                        </td>
+                                        <td className="px-3 py-2 font-mono text-[10px] text-[var(--fg-subtle)]">
+                                          {att.ticket_ref || att.booking_reference || "—"}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Panel>
@@ -1238,37 +1367,37 @@ function EventBookingsInspector({
                   type="button"
                   onClick={() => setPaymentFilter("ALL")}
                   className={cn(
-                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
                     paymentFilter === "ALL"
                       ? "bg-white text-black shadow-sm font-bold"
                       : "text-[var(--fg-muted)] hover:text-white"
                   )}
                 >
-                  All ({totalCount})
+                  All ({totalBookingsCount} Bookings · {totalTicketsCount} Tickets)
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentFilter("ONLINE")}
                   className={cn(
-                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all flex items-center gap-1",
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer",
                     paymentFilter === "ONLINE"
                       ? "bg-sky-500 text-black shadow-sm font-bold"
                       : "text-sky-400 hover:text-sky-300"
                   )}
                 >
-                  Online ({onlineAttendeesCount})
+                  {onlineTicketsCount} Online Tickets
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentFilter("CASH")}
                   className={cn(
-                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all flex items-center gap-1",
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer",
                     paymentFilter === "CASH"
                       ? "bg-amber-500 text-black shadow-sm font-bold"
                       : "text-amber-400 hover:text-amber-300"
                   )}
                 >
-                  Cash ({cashAttendeesCount})
+                  {cashTicketsCount} Cash Tickets
                 </button>
               </div>
 
@@ -1281,37 +1410,37 @@ function EventBookingsInspector({
                   type="button"
                   onClick={() => setAttendanceFilter("ALL")}
                   className={cn(
-                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
                     attendanceFilter === "ALL"
                       ? "bg-[var(--brand)] text-[var(--on-brand)] font-bold"
                       : "text-[var(--fg-muted)] hover:text-white"
                   )}
                 >
-                  All
+                  All ({totalBookingsCount} Bookings)
                 </button>
                 <button
                   type="button"
                   onClick={() => setAttendanceFilter("PRESENT")}
                   className={cn(
-                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all flex items-center gap-1",
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer",
                     attendanceFilter === "PRESENT"
                       ? "bg-emerald-500 text-black font-bold shadow-sm"
                       : "text-emerald-400 hover:text-emerald-300"
                   )}
                 >
-                  Present ({presentCount})
+                  {presentBookingsCount} Present ({admittedTicketsCount} Tickets Admitted)
                 </button>
                 <button
                   type="button"
                   onClick={() => setAttendanceFilter("ABSENT")}
                   className={cn(
-                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
                     attendanceFilter === "ABSENT"
-                      ? "bg-amber-500 text-black font-bold shadow-sm"
-                      : "text-amber-400 hover:text-amber-300"
+                      ? "bg-rose-500 text-white font-bold shadow-sm"
+                      : "text-[var(--fg-muted)] hover:text-rose-400"
                   )}
                 >
-                  Absent ({absentCount})
+                  {absentBookingsCount} Absent ({pendingTicketsCount} Tickets Pending Gate)
                 </button>
               </div>
             </div>
@@ -1330,7 +1459,7 @@ function EventBookingsInspector({
                 size="sm"
                 variant="secondary"
                 onClick={handleExportFinalPresent}
-                disabled={presentCount === 0}
+                disabled={presentBookingsCount === 0}
                 title="Export only present attendees for official closing records and certificates"
                 className="border-emerald-500/40 text-emerald-400"
               >
@@ -1362,10 +1491,10 @@ function EventBookingsInspector({
             title={
               <div className="flex items-center gap-2">
                 <span>Attendee Ticket Roster &amp; Gate Verification</span>
-                <Badge tone="neutral">{filteredBookings.length}</Badge>
+                <Badge tone="neutral">{filteredBookings.length} Bookings</Badge>
               </div>
             }
-            subtitle={`Showing registered attendees for "${currentEvent?.title || "Selected Event"}"`}
+            subtitle={`Showing ${filteredBookings.length} bookings (${filteredBookings.reduce((s, b) => s + Number(b.quantity || 1), 0)} tickets) for "${currentEvent?.title || "Selected Event"}"`}
             action={
               <div className="flex flex-wrap items-center gap-2.5">
                 <Select
