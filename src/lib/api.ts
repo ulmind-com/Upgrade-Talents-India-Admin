@@ -390,6 +390,7 @@ export const volunteersApi = {
   list: (q?: any) => api<any>("/api/admin/volunteers/", { query: q }),
   create: (body: any) => api<any>("/api/admin/volunteers/", { method: "POST", body }),
   remove: (email: string) => api<any>(`/api/admin/volunteers/${encodeURIComponent(email)}`, { method: "DELETE" }),
+  getCheckins: (email: string) => api<any>(`/api/admin/volunteers/${encodeURIComponent(email)}/checkins`),
 };
 
 export const eventVolunteersApi = {

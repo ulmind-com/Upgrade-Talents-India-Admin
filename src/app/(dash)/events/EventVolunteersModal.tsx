@@ -34,6 +34,10 @@ interface Volunteer {
   phone?: string;
   role?: string;
   assigned_at?: string;
+  total_checkins?: number;
+  cash_collected_count?: number;
+  online_checkins_count?: number;
+  total_cash_collected?: number;
 }
 
 interface AvailableVolunteer {
@@ -402,6 +406,16 @@ export function EventVolunteersModal({
                                 {vol.phone}
                               </span>
                             )}
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-400">
+                              {vol.total_checkins ?? 0} Admitted
+                            </span>
+                            {(vol.total_cash_collected ?? 0) > 0 ? (
+                              <span className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-300">
+                                ₹{vol.total_cash_collected?.toLocaleString("en-IN")} Cash ({vol.cash_collected_count ?? 0})
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                       </div>
