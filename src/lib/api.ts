@@ -400,6 +400,7 @@ export const eventVolunteersApi = {
     eventId: string,
     body: {
       volunteer_emails?: string[];
+      assignments?: { email: string; role?: string }[];
       new_volunteers?: {
         email: string;
         name?: string;

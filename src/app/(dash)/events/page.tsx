@@ -232,14 +232,18 @@ export default function EventsPage() {
                       {/* Seating Categories pill badges */}
                       {Array.isArray(r.categories) && r.categories.length > 0 && (
                         <div className="mt-1 flex flex-wrap items-center gap-1">
-                          {r.categories.slice(0, 3).map((c: any, i: number) => (
-                            <span
-                              key={i}
-                              className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 text-[9.5px] font-mono text-[var(--brand)] border border-[var(--border)]"
-                            >
-                              {c.name}: {c.price === 0 ? "Free" : `₹${c.price}`}
-                            </span>
-                          ))}
+                          {r.categories.slice(0, 3).map((c: any, i: number) => {
+                            const cName = typeof c === "string" ? c : (c?.name || "Tier");
+                            const cPrice = typeof c === "string" ? 0 : Number(c?.price ?? 0);
+                            return (
+                              <span
+                                key={i}
+                                className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 text-[9.5px] font-mono text-[var(--brand)] border border-[var(--border)]"
+                              >
+                                {cName}: {cPrice === 0 ? "Free" : `₹${cPrice}`}
+                              </span>
+                            );
+                          })}
                           {r.categories.length > 3 && (
                             <span className="text-[9.5px] font-mono text-[var(--fg-subtle)]">
                               +{r.categories.length - 3} more
@@ -445,25 +449,26 @@ export default function EventsPage() {
                 ),
               },
             ],
-            toForm: (r: any) => ({
-              ...r,
-              image_url: r.image_url || r.card_image_url || "",
-              banner_url: r.banner_url || r.banner_image_url || "",
-              categories: Array.isArray(r.categories) ? r.categories : [],
-            }),
-            toBody: (v) => ({
-              title: v.title,
-              description: v.description,
-              image_url: v.image_url ? String(v.image_url).trim() : null,
-              card_image_url: v.image_url ? String(v.image_url).trim() : null,
-              banner_url: v.banner_url ? String(v.banner_url).trim() : null,
-              banner_image_url: v.banner_url ? String(v.banner_url).trim() : null,
-              date: v.date,
-              time: v.time || null,
-              venue: v.venue,
-              capacity: Number(v.capacity) || 0,
-              price: Number(v.price) || 0,
-              categories: Array.isArray(v.categories)
+            toForm: (r: any) => {
+              let parsedCategories: any[] = [];
+              if (Array.isArray(r.categories)) {
+                parsedCategories = r.categories;
+              } else if (typeof r.categories === "string") {
+                try {
+                  parsedCategories = JSON.parse(r.categories);
+                } catch {
+                  parsedCategories = [];
+                }
+              }
+              return {
+                ...r,
+                image_url: r.image_url || r.card_image_url || "",
+                banner_url: r.banner_url || r.banner_image_url || "",
+                categories: parsedCategories,
+              };
+            },
+            toBody: (v) => {
+              const cleanCategories = Array.isArray(v.categories)
                 ? v.categories
                     .map((c: any) => ({
                       name: String(c.name || "").trim(),
@@ -472,15 +477,33 @@ export default function EventsPage() {
                       description: c.description ? String(c.description).trim() : null,
                     }))
                     .filter((c: any) => c.name)
-                : [],
-              registration_deadline: v.registration_deadline || null,
-              event_status: v.event_status,
-              is_published: !!v.is_published,
-              is_visible: !!v.is_visible,
-              registration_enabled: !!v.registration_enabled,
-              ticket_enabled: !!v.ticket_enabled,
-              display_order: Number(v.display_order) || 0,
-            }),
+                : [];
+
+              const totalCatCap = cleanCategories.reduce((sum: number, c: any) => sum + (c.capacity ? Number(c.capacity) : 0), 0);
+              const firstCatPrice = cleanCategories.length > 0 ? cleanCategories[0].price : 0;
+
+              return {
+                title: v.title,
+                description: v.description,
+                image_url: v.image_url ? String(v.image_url).trim() : null,
+                card_image_url: v.image_url ? String(v.image_url).trim() : null,
+                banner_url: v.banner_url ? String(v.banner_url).trim() : null,
+                banner_image_url: v.banner_url ? String(v.banner_url).trim() : null,
+                date: v.date,
+                time: v.time || null,
+                venue: v.venue,
+                capacity: totalCatCap > 0 ? totalCatCap : (Number(v.capacity) || 0),
+                price: Number(v.price) > 0 ? Number(v.price) : firstCatPrice,
+                categories: cleanCategories,
+                registration_deadline: v.registration_deadline || null,
+                event_status: v.event_status,
+                is_published: !!v.is_published,
+                is_visible: !!v.is_visible,
+                registration_enabled: !!v.registration_enabled,
+                ticket_enabled: !!v.ticket_enabled,
+                display_order: Number(v.display_order) || 0,
+              };
+            },
           }}
         />
       ) : (
@@ -2475,7 +2498,7 @@ function EventCategoriesEditor({
     onChange(categories.filter((_, i) => i !== idx));
   };
 
-  const addItem = (cat: CategoryItem = { name: "", price: 500, capacity: 100, description: "" }) => {
+  const addItem = (cat: CategoryItem = { name: "", price: 0, capacity: 50, description: "" }) => {
     onChange([...categories, cat]);
   };
 
@@ -2489,23 +2512,23 @@ function EventCategoriesEditor({
         <div>
           <div className="flex items-center gap-1.5 font-semibold text-xs text-[var(--fg)]">
             <Armchair className="size-4 text-[var(--brand)]" />
-            BookMyShow Seating Categories &amp; Ticket Tiers
+            Dynamic Seating Categories &amp; Ticket Tiers (100% Dynamic)
           </div>
           <p className="text-[11px] text-[var(--fg-muted)]">
-            Configure tiered seating (e.g. Platinum Front Row, Gold Center Arena, Silver Balcony). Ticket tiers auto-sync with these prices.
+            Configure dynamic seating zones (Platinum, Gold, Silver, VIP, General, etc.) with custom prices and seat capacities.
           </p>
         </div>
 
-        {/* Quick Presets */}
+        {/* Quick Presets / Templates */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-mono text-[var(--fg-muted)] uppercase">Presets:</span>
+          <span className="text-[10px] font-mono text-[var(--fg-muted)] uppercase">Templates:</span>
           <button
             type="button"
             onClick={() =>
               applyPreset([
-                { name: "Platinum", price: 1500, capacity: 50, description: "Front Row VIP Lounge with refreshments" },
-                { name: "Gold", price: 800, capacity: 150, description: "Center Arena Elevated Eye-Level Seating" },
-                { name: "Silver", price: 400, capacity: 300, description: "Balcony / Standard General Admission" },
+                { name: "Platinum", price: 399, capacity: 50, description: "Front Row VIP Lounge" },
+                { name: "Gold", price: 299, capacity: 100, description: "Center Arena Elevated Seating" },
+                { name: "Silver", price: 199, capacity: 150, description: "Standard General Admission" },
               ])
             }
             className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
@@ -2516,34 +2539,20 @@ function EventCategoriesEditor({
             type="button"
             onClick={() =>
               applyPreset([
-                { name: "VIP Platinum", price: 2500, capacity: 50, description: "VIP Front Stage Recliner Seating" },
-                { name: "Gold Field", price: 500, capacity: 300, description: "Center Arena Seating" },
-                { name: "General", price: 0, capacity: 50, description: "Complimentary Free Entry Pass" },
+                { name: "VIP", price: 499, capacity: 50, description: "VIP Front Stage Lounge" },
+                { name: "General Pass", price: 0, capacity: 100, description: "Complimentary Free Entry Pass" },
               ])
             }
             className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
           >
-            VIP, Gold &amp; Free Pass
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              applyPreset([
-                { name: "VIP Platinum", price: 2500, capacity: 50, description: "VIP Front Stage Recliner Seating" },
-                { name: "Gold Field", price: 800, capacity: 150, description: "Center Arena Seating" },
-                { name: "General Field", price: 300, capacity: 300, description: "Standard General Admission" },
-              ])
-            }
-            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
-          >
-            VIP, Gold &amp; General
+            VIP &amp; Free Pass
           </button>
           <button
             type="button"
             onClick={() => addItem()}
-            className="inline-flex items-center gap-1 rounded-lg bg-[var(--brand)] px-2.5 py-1 text-[11px] font-bold text-[var(--on-brand)] shadow-sm hover:opacity-90"
+            className="inline-flex items-center gap-1 rounded-lg bg-[var(--brand)] px-2.5 py-1 text-[11px] font-bold text-[var(--on-brand)] shadow-sm hover:opacity-90 cursor-pointer"
           >
-            <Plus className="size-3" /> Add Tier
+            <Plus className="size-3" /> Add Custom Tier
           </button>
         </div>
       </div>

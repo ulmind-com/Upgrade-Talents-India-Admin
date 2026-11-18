@@ -30,6 +30,8 @@ import {
   Wallet,
   ArrowRight,
   TrendingUp,
+  Lock,
+  Filter,
 } from "lucide-react";
 import { Modal, Button, Badge } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
@@ -56,6 +58,7 @@ interface AvailableVolunteer {
   name: string;
   phone: string;
   is_assigned: boolean;
+  assigned_role?: string | null;
 }
 
 interface VolunteerReportData {
@@ -94,10 +97,12 @@ interface VolunteerReportData {
   reconciliation: {
     volunteer_name: string;
     volunteer_email: string;
-    cash_pass_count: number;
-    cash_collected: number;
-    cash_status: string;
-    status: string;
+    cash_pass_count?: number;
+    cash_passes?: number;
+    cash_collected?: number;
+    cash_amount_due?: number;
+    cash_status?: string;
+    status?: string;
   }[];
 }
 
@@ -109,10 +114,14 @@ interface EventVolunteersModalProps {
 }
 
 const COMMON_ROLES = [
+  "Gate 1 Scanner",
+  "Gate 2 Scanner",
+  "Gate 3 Scanner",
   "Entrance Gate Scanner",
   "Main Gate Scanner",
   "North Gate Scanner",
   "VIP Gate Scanner",
+  "Backstage Gate Scanner",
   "Lineup & Backstage Manager",
   "Spot Registration & Helpdesk",
 ];
@@ -140,6 +149,8 @@ export function EventVolunteersModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState(COMMON_ROLES[0]);
+  const [volunteerRoles, setVolunteerRoles] = useState<Record<string, string>>({});
+  const [filterStatus, setFilterStatus] = useState<"all" | "available" | "assigned">("all");
   const [assigning, setAssigning] = useState(false);
 
   // Quick Create Form
@@ -192,18 +203,26 @@ export function EventVolunteersModal({
     7000
   );
 
-  // Filter unassigned volunteers for search
-  const filteredAvailable = useMemo(() => {
-    const unassigned = availableVolunteers.filter((v) => !v.is_assigned);
+  // Volunteer counts
+  const totalCount = availableVolunteers.length;
+  const assignedCount = availableVolunteers.filter((v) => v.is_assigned).length;
+  const availableCount = totalCount - assignedCount;
+
+  // Filter volunteers for search & active sub-filter
+  const filteredVolunteers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return unassigned;
-    return unassigned.filter(
-      (v) =>
+    return availableVolunteers.filter((v) => {
+      if (filterStatus === "available" && v.is_assigned) return false;
+      if (filterStatus === "assigned" && !v.is_assigned) return false;
+      if (!q) return true;
+      return (
         v.email.toLowerCase().includes(q) ||
         (v.name && v.name.toLowerCase().includes(q)) ||
-        (v.phone && v.phone.includes(q))
-    );
-  }, [availableVolunteers, searchQuery]);
+        (v.phone && v.phone.includes(q)) ||
+        (v.assigned_role && v.assigned_role.toLowerCase().includes(q))
+      );
+    });
+  }, [availableVolunteers, searchQuery, filterStatus]);
 
   const toggleSelectEmail = (email: string) => {
     setSelectedEmails((prev) =>
@@ -211,13 +230,28 @@ export function EventVolunteersModal({
     );
   };
 
-  const selectAllFiltered = () => {
-    const filteredEmails = filteredAvailable.map((v) => v.email);
-    setSelectedEmails((prev) => Array.from(new Set([...prev, ...filteredEmails])));
+  const selectAllAvailable = () => {
+    const availFiltered = filteredVolunteers.filter((v) => !v.is_assigned).map((v) => v.email);
+    setSelectedEmails((prev) => Array.from(new Set([...prev, ...availFiltered])));
   };
 
   const deselectAll = () => {
     setSelectedEmails([]);
+  };
+
+  const setRoleForVolunteer = (email: string, role: string) => {
+    setVolunteerRoles((prev) => ({ ...prev, [email]: role }));
+  };
+
+  const applyRoleToAllSelected = (role: string) => {
+    setSelectedRole(role);
+    setVolunteerRoles((prev) => {
+      const next = { ...prev };
+      for (const e of selectedEmails) {
+        next[e] = role;
+      }
+      return next;
+    });
   };
 
   // Submit Multi-Volunteer Assignment
@@ -229,14 +263,20 @@ export function EventVolunteersModal({
 
     setAssigning(true);
     try {
+      const assignments = selectedEmails.map((email) => ({
+        email,
+        role: volunteerRoles[email] || selectedRole || COMMON_ROLES[0],
+      }));
+
       await eventVolunteersApi.assignEventVolunteers(eventId, {
+        assignments,
         volunteer_emails: selectedEmails,
         default_role: selectedRole,
       });
 
       push(
         "success",
-        `${selectedEmails.length} volunteer(s) assigned. Credentials emailed!`
+        `${selectedEmails.length} volunteer(s) assigned to designated gates. Credentials emailed!`
       );
 
       setSelectedEmails([]);
@@ -365,7 +405,7 @@ export function EventVolunteersModal({
                       : "bg-[var(--surface-3)] text-amber-300 font-bold"
                   }`}
                 >
-                  ₹{(report.total_cash_collected || 0).toLocaleString("en-IN")}
+                  {formatINR(report.total_cash_collected || 0)}
                 </span>
               )}
             </button>
@@ -408,7 +448,7 @@ export function EventVolunteersModal({
                     : "bg-[var(--surface-3)] text-[var(--fg-muted)]"
                 }`}
               >
-                {filteredAvailable.length}
+                {availableCount} Available
               </span>
             </button>
 
@@ -480,7 +520,7 @@ export function EventVolunteersModal({
                   <Banknote className="size-4" />
                 </div>
                 <p className="mt-1.5 font-mono text-2xl font-extrabold text-amber-300">
-                  ₹{(report?.total_cash_collected ?? 0).toLocaleString("en-IN")}
+                  {formatINR(report?.total_cash_collected ?? 0)}
                 </p>
                 <span className="text-[10px] text-amber-200/70 font-mono">Physical cash at gate</span>
               </div>
@@ -557,7 +597,7 @@ export function EventVolunteersModal({
                               {vol.cash_payments} Cash
                             </span>
                             <span className="rounded-lg border border-amber-400/60 bg-amber-400/20 px-3 py-1 font-mono text-xs font-extrabold text-amber-300 shadow-sm">
-                              ₹{(vol.cash_collected ?? 0).toLocaleString("en-IN")} Cash
+                              {formatINR(vol.cash_collected ?? 0)} Cash
                             </span>
 
                             <button
@@ -637,7 +677,7 @@ export function EventVolunteersModal({
                                           )}
                                         </td>
                                         <td className="py-2 px-3 font-bold text-white">
-                                          {att.amount ? `₹${att.amount.toLocaleString("en-IN")}` : "Free"}
+                                          {att.amount != null ? formatINR(att.amount) : "Free"}
                                         </td>
                                         <td className="py-2 px-3 text-[10px] text-[var(--fg-subtle)]">
                                           {att.checked_in_at ? formatDate(att.checked_in_at, true) : "Just now"}
@@ -672,7 +712,7 @@ export function EventVolunteersModal({
                   </div>
                 </div>
                 <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-1 font-mono text-xs font-bold text-amber-300">
-                  Total Cash to Hand Over: ₹{(report?.total_cash_collected ?? 0).toLocaleString("en-IN")}
+                  Total Cash to Hand Over: {formatINR(report?.total_cash_collected ?? 0)}
                 </div>
               </div>
 
@@ -690,6 +730,8 @@ export function EventVolunteersModal({
                   <tbody className="divide-y divide-[var(--border)]/40 text-[11px]">
                     {(report?.reconciliation || []).map((rec, rIdx) => {
                       const isDone = !!reconciledVolunteers[rec.volunteer_email];
+                      const passCount = rec.cash_pass_count ?? rec.cash_passes ?? 0;
+                      const cashDue = Number(rec.cash_collected ?? rec.cash_amount_due ?? 0);
                       return (
                         <tr key={rIdx} className="hover:bg-white/5 transition-colors">
                           <td className="py-2.5 px-3">
@@ -697,13 +739,13 @@ export function EventVolunteersModal({
                             <span className="text-[10px] text-[var(--fg-subtle)]">{rec.volunteer_email}</span>
                           </td>
                           <td className="py-2.5 px-3 font-semibold text-white">
-                            {rec.cash_pass_count} cash pass{rec.cash_pass_count !== 1 ? "es" : ""}
+                            {passCount} cash pass{passCount !== 1 ? "es" : ""}
                           </td>
                           <td className="py-2.5 px-3 font-extrabold text-amber-300">
-                            ₹{(rec.cash_collected ?? 0).toLocaleString("en-IN")}
+                            {formatINR(cashDue)}
                           </td>
                           <td className="py-2.5 px-3">
-                            {rec.cash_collected === 0 ? (
+                            {cashDue === 0 ? (
                               <span className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--fg-muted)]">
                                 No Cash Due
                               </span>
@@ -718,7 +760,7 @@ export function EventVolunteersModal({
                             )}
                           </td>
                           <td className="py-2.5 px-3 text-right">
-                            {rec.cash_collected > 0 && (
+                            {cashDue > 0 && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -727,7 +769,7 @@ export function EventVolunteersModal({
                                     push(
                                       next[rec.volunteer_email] ? "success" : "info",
                                       next[rec.volunteer_email]
-                                        ? `Verified cash handover of ₹${(rec.cash_collected ?? 0).toLocaleString("en-IN")} from ${rec.volunteer_name || rec.volunteer_email}`
+                                        ? `Verified cash handover of ${formatINR(cashDue)} from ${rec.volunteer_name || rec.volunteer_email}`
                                         : `Handover status reset for ${rec.volunteer_name || rec.volunteer_email}`
                                     );
                                     return next;
@@ -828,7 +870,7 @@ export function EventVolunteersModal({
                             </span>
                             {(vol.total_cash_collected ?? 0) > 0 ? (
                               <span className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-300">
-                                ₹{vol.total_cash_collected?.toLocaleString("en-IN")} Cash ({vol.cash_collected_count ?? 0})
+                                {formatINR(vol.total_cash_collected ?? 0)} Cash ({vol.cash_collected_count ?? 0})
                               </span>
                             ) : null}
                           </div>
@@ -867,50 +909,91 @@ export function EventVolunteersModal({
 
         {/* ── TAB 2: SEARCH & ASSIGN EXISTING VOLUNTEERS (MULTI-SELECT) ── */}
         {activeTab === "assign" && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3.5">
+            {/* Header info */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-[var(--fg-muted)]">
-                Select registered volunteers to assign to this event. An email with login credentials will be dispatched automatically.
+                Select registered volunteers to assign to specific gates for this event. Assigned volunteers receive automated login credentials &amp; gate pass links via email.
               </span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={selectAllFiltered}
-                  disabled={filteredAvailable.length === 0}
-                  className="text-[11px] font-semibold text-[var(--brand)] hover:underline disabled:opacity-50"
+                  onClick={selectAllAvailable}
+                  disabled={availableCount === 0}
+                  className="text-[11px] font-semibold text-[var(--brand)] hover:underline disabled:opacity-50 cursor-pointer"
                 >
-                  Select All Filtered ({filteredAvailable.length})
+                  Select All Available ({availableCount})
                 </button>
                 {selectedEmails.length > 0 && (
                   <button
                     type="button"
                     onClick={deselectAll}
-                    className="text-[11px] font-semibold text-[var(--fg-muted)] hover:text-white"
+                    className="text-[11px] font-semibold text-[var(--fg-muted)] hover:text-white cursor-pointer"
                   >
-                    Clear ({selectedEmails.length})
+                    Clear Selected ({selectedEmails.length})
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Search Input & Role Selection */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div className="relative sm:col-span-2">
+            {/* Sub-Filter Tabs (All / Available / Assigned) */}
+            <div className="flex items-center gap-2 border-b border-[var(--border)] pb-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setFilterStatus("all")}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                  filterStatus === "all"
+                    ? "bg-[var(--surface-3)] text-white shadow-xs"
+                    : "text-[var(--fg-muted)] hover:text-white"
+                }`}
+              >
+                All Registered Squad ({totalCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus("available")}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                  filterStatus === "available"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                    : "text-[var(--fg-muted)] hover:text-emerald-300"
+                }`}
+              >
+                <Check className="size-3" />
+                Available to Assign ({availableCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus("assigned")}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                  filterStatus === "assigned"
+                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                    : "text-[var(--fg-muted)] hover:text-purple-300"
+                }`}
+              >
+                <Lock className="size-3" />
+                Already Assigned ({assignedCount})
+              </button>
+            </div>
+
+            {/* Search Input & Role Batch Selection */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+              <div className="relative sm:col-span-6">
                 <Search className="absolute left-3 top-2.5 size-4 text-[var(--fg-subtle)]" />
                 <input
                   type="text"
-                  placeholder="Search volunteer by name, email, or phone..."
+                  placeholder="Search volunteer by name, email, phone, or gate..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-2 pl-9 pr-3 text-xs text-white placeholder-[var(--fg-subtle)] focus:border-[var(--brand)] focus:outline-none"
                 />
               </div>
 
-              <div>
+              <div className="sm:col-span-4">
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-2 px-3 text-xs text-white focus:border-[var(--brand)] focus:outline-none"
+                  title="Default gate/duty applied to assigned volunteers"
                 >
                   {COMMON_ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -919,61 +1002,149 @@ export function EventVolunteersModal({
                   ))}
                 </select>
               </div>
+
+              <div className="sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => applyRoleToAllSelected(selectedRole)}
+                  disabled={selectedEmails.length === 0}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-3)] py-2 px-2 text-[11px] font-bold text-white hover:bg-white/10 disabled:opacity-40 transition-colors cursor-pointer"
+                  title="Apply selected gate/role to all currently checked volunteers"
+                >
+                  Apply Role
+                </button>
+              </div>
             </div>
 
-            {/* Multi-Select Volunteer List */}
-            {filteredAvailable.length === 0 ? (
+            {/* Multi-Select Volunteer Roster List */}
+            {filteredVolunteers.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/30 p-8 text-center">
                 <Users className="mx-auto size-8 text-[var(--fg-subtle)]/60 mb-2" />
                 <p className="text-xs text-[var(--fg-muted)]">
                   {searchQuery
-                    ? `No unassigned volunteers found matching "${searchQuery}".`
-                    : "All registered volunteers are already assigned to this event!"}
+                    ? `No volunteers found matching "${searchQuery}".`
+                    : filterStatus === "available"
+                    ? "All registered volunteers are already assigned to this event!"
+                    : filterStatus === "assigned"
+                    ? "No volunteers have been assigned to this event yet."
+                    : "No volunteers registered in the system."}
                 </p>
                 <div className="mt-3">
                   <Button size="sm" variant="secondary" onClick={() => setActiveTab("create")}>
-                    <UserPlus className="size-3.5" /> Add New Volunteer
+                    <UserPlus className="size-3.5" /> Quick Add New Volunteer
                   </Button>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-1.5 max-h-[380px] overflow-y-auto pr-1">
-                {filteredAvailable.map((vol) => {
+              <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1">
+                {filteredVolunteers.map((vol) => {
+                  const isAssigned = !!vol.is_assigned;
                   const isSelected = selectedEmails.includes(vol.email);
+                  const currentRole = volunteerRoles[vol.email] || vol.assigned_role || selectedRole || COMMON_ROLES[0];
+
                   return (
                     <div
                       key={vol.email}
-                      onClick={() => toggleSelectEmail(vol.email)}
-                      className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 transition-all ${
-                        isSelected
+                      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 transition-all ${
+                        isAssigned
+                          ? "border-purple-500/30 bg-purple-500/5 hover:border-purple-500/50"
+                          : isSelected
                           ? "border-[var(--brand)] bg-[var(--brand)]/10 shadow-sm"
                           : "border-[var(--border)] bg-[var(--surface-2)]/50 hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]"
                       }`}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      {/* Left: Checkbox & Name/Contact Info */}
+                      <div
+                        onClick={() => {
+                          if (!isAssigned) {
+                            toggleSelectEmail(vol.email);
+                          }
+                        }}
+                        className={`flex items-center gap-3 min-w-[240px] flex-1 ${
+                          isAssigned ? "cursor-default" : "cursor-pointer"
+                        }`}
+                      >
                         <div
-                          className={`grid size-5 place-items-center rounded-md border ${
-                            isSelected
+                          className={`grid size-5 shrink-0 place-items-center rounded-md border ${
+                            isAssigned
+                              ? "border-purple-500/40 bg-purple-500/20 text-purple-300 cursor-not-allowed"
+                              : isSelected
                               ? "border-[var(--brand)] bg-[var(--brand)] text-black"
                               : "border-[var(--border)] bg-[var(--surface-3)] text-transparent"
                           }`}
                         >
-                          <Check className="size-3.5 stroke-[3]" />
+                          {isAssigned ? (
+                            <Lock className="size-3" />
+                          ) : (
+                            <Check className="size-3.5 stroke-[3]" />
+                          )}
                         </div>
+
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-white truncate">
-                            {vol.name || "Volunteer"}
-                          </p>
-                          <p className="font-mono text-[11px] text-[var(--fg-muted)] truncate">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-white truncate">
+                              {vol.name || "Volunteer"}
+                            </span>
+                            {isAssigned && (
+                              <span className="flex items-center gap-1 rounded border border-purple-500/40 bg-purple-500/20 px-1.5 py-0.2 font-mono text-[9px] font-bold text-purple-300">
+                                <Lock className="size-2.5" /> Already Assigned
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-mono text-[11px] text-[var(--fg-muted)] truncate mt-0.5">
                             {vol.email}
                             {vol.phone ? ` • ${vol.phone}` : ""}
                           </p>
                         </div>
                       </div>
 
-                      <Badge tone={isSelected ? "success" : "neutral"}>
-                        {isSelected ? "Selected" : "Available"}
-                      </Badge>
+                      {/* Right: Duty / Gate Selector & Status Badge */}
+                      <div className="flex items-center gap-2">
+                        {isAssigned ? (
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-purple-200">
+                              Gate: <strong className="text-purple-300 font-bold">{vol.assigned_role || "Entrance Gate Scanner"}</strong>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Allow re-assigning/changing gate for already assigned volunteer
+                                if (!isSelected) {
+                                  toggleSelectEmail(vol.email);
+                                }
+                              }}
+                              className="text-[11px] font-semibold text-[var(--brand)] hover:underline cursor-pointer"
+                              title="Select this volunteer to re-assign or update their gate"
+                            >
+                              {isSelected ? "Re-assign Selected" : "Change Gate"}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={currentRole}
+                              onChange={(e) => {
+                                setRoleForVolunteer(vol.email, e.target.value);
+                                if (!isSelected) {
+                                  toggleSelectEmail(vol.email);
+                                }
+                              }}
+                              className="rounded-lg border border-[var(--border)] bg-[var(--surface-3)] py-1 px-2.5 text-xs text-white focus:border-[var(--brand)] focus:outline-none"
+                              title="Assign specific gate or role to this volunteer"
+                            >
+                              {COMMON_ROLES.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
+                              ))}
+                            </select>
+
+                            <Badge tone={isSelected ? "success" : "neutral"}>
+                              {isSelected ? "Selected" : "Available"}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -983,7 +1154,7 @@ export function EventVolunteersModal({
             {/* Bottom Assignment Action */}
             <div className="mt-2 flex items-center justify-between border-t border-[var(--border)] pt-3">
               <span className="text-xs text-[var(--fg-muted)]">
-                Selected: <strong className="text-white">{selectedEmails.length}</strong> volunteer(s)
+                Selected: <strong className="text-white font-bold">{selectedEmails.length}</strong> volunteer(s)
               </span>
               <Button
                 variant="primary"
