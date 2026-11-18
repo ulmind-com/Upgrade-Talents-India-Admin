@@ -591,12 +591,24 @@ export function useResource<T>(loader: () => Promise<T>, deps: any[] = []) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    // Only show full loading spinner on initial load when data is not yet present
+    if (data === null) {
+      setLoading(true);
+    }
     setError(null);
     loader()
-      .then((d) => { if (!cancelled) setData(d); })
-      .catch((e) => { if (!cancelled) setError(e?.message || "Could not load this data."); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .then((d) => {
+        if (!cancelled) {
+          setData(d);
+          setError(null);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled && data === null) setError(e?.message || "Could not load this data.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick]);

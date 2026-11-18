@@ -144,6 +144,10 @@ class AdminRealtimeClient {
     });
   }
 
+  public isConnected(): boolean {
+    return Boolean(this.eventSource && this.eventSource.readyState === EventSource.OPEN);
+  }
+
   public subscribe(channel: string, callback: EventCallback): () => void {
     if (!this.listeners.has(channel)) {
       this.listeners.set(channel, new Set());
@@ -172,7 +176,7 @@ export const adminRealtime = new AdminRealtimeClient();
 export function useRealtimeSubscription(
   channels: string | string[],
   onEvent: (event: RealtimeEvent) => void,
-  fallbackIntervalMs: number = 8000
+  fallbackIntervalMs: number = 0
 ) {
   const cbRef = useRef(onEvent);
   cbRef.current = onEvent;
@@ -183,11 +187,11 @@ export function useRealtimeSubscription(
       adminRealtime.subscribe(ch, (e) => cbRef.current(e))
     );
 
-    // Fallback sync polling if tab is active (ensures 100% guarantee across network disconnects)
+    // Fallback sync polling only when disconnected
     let interval: any = null;
     if (fallbackIntervalMs > 0) {
       interval = setInterval(() => {
-        if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        if (!adminRealtime.isConnected() && typeof document !== "undefined" && document.visibilityState === "visible") {
           cbRef.current({
             channel: "poll:fallback",
             event: "SYNC_PULSE",

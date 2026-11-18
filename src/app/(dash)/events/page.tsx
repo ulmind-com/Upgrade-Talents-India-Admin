@@ -557,14 +557,15 @@ function EventBookingsInspector({
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
 
-  const loadBookings = useCallback(async () => {
+  const loadBookings = useCallback(async (isSilent = false) => {
     if (!selectedEventId) {
       setData(null);
       setVolunteerReport(null);
       return;
     }
-    setLoading(true);
-    setError(null);
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const [res, rep] = await Promise.all([
         cmsApi.listEventBookings(selectedEventId, { limit: 500 }),
@@ -572,10 +573,11 @@ function EventBookingsInspector({
       ]);
       setData(res);
       setVolunteerReport(rep);
+      setError(null);
     } catch (e: any) {
-      setError(e?.message || "Failed to load bookings for the selected event.");
+      if (!isSilent) setError(e?.message || "Failed to load bookings for the selected event.");
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, [selectedEventId]);
 
@@ -587,9 +589,9 @@ function EventBookingsInspector({
   useRealtimeSubscription(
     selectedEventId ? [`event:${selectedEventId}`, "admin:events", "admin:volunteers"] : ["admin:events"],
     () => {
-      loadBookings();
+      loadBookings(true);
     },
-    6000
+    0
   );
 
   const currentEvent = useMemo(() => {
@@ -1628,16 +1630,16 @@ function EventBookingsModal({
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     setError(null);
     try {
       const res = await cmsApi.listEventBookings(eventId, { limit: 500 });
       setData(res);
     } catch (e: any) {
-      setError(e?.message || "Failed to load bookings for this event.");
+      if (!isSilent) setError(e?.message || "Failed to load bookings for this event.");
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, [eventId]);
 
@@ -1649,9 +1651,9 @@ function EventBookingsModal({
   useRealtimeSubscription(
     eventId ? [`event:${eventId}`, "admin:events"] : ["admin:events"],
     () => {
-      loadData();
+      loadData(true);
     },
-    8000
+    0
   );
 
   const rawBookings: any[] = data?.bookings || toRows(data) || [];
