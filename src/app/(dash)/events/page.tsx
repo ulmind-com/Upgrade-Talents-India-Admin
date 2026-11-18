@@ -693,6 +693,46 @@ function EventBookingsInspector({
     );
   }, [cashBookings]);
 
+  const cashCollectedBookings = useMemo(() => {
+    return cashBookings.filter((b: any) => {
+      return (
+        b.cash_collected === true ||
+        b.cash_collect_done === true ||
+        b.cash_status === "COLLECTED" ||
+        b.cash_status === "APPROVED" ||
+        b.payment_status === "PAID"
+      );
+    });
+  }, [cashBookings]);
+
+  const cashPendingBookings = useMemo(() => {
+    return cashBookings.filter((b: any) => {
+      return !(
+        b.cash_collected === true ||
+        b.cash_collect_done === true ||
+        b.cash_status === "COLLECTED" ||
+        b.cash_status === "APPROVED" ||
+        b.payment_status === "PAID"
+      );
+    });
+  }, [cashBookings]);
+
+  const cashCollectedRevenue = useMemo(() => {
+    return cashCollectedBookings.reduce((sum: number, b: any) => sum + Number(b.total_amount || 0), 0);
+  }, [cashCollectedBookings]);
+
+  const cashPendingRevenue = useMemo(() => {
+    return cashPendingBookings.reduce((sum: number, b: any) => sum + Number(b.total_amount || 0), 0);
+  }, [cashPendingBookings]);
+
+  const cashCollectedTicketsCount = useMemo(() => {
+    return cashCollectedBookings.reduce((sum: number, b: any) => sum + Number(b.quantity || 1), 0);
+  }, [cashCollectedBookings]);
+
+  const cashPendingTicketsCount = useMemo(() => {
+    return cashPendingBookings.reduce((sum: number, b: any) => sum + Number(b.quantity || 1), 0);
+  }, [cashPendingBookings]);
+
   // 2. Assigned Volunteers & Volunteer-Wise Statistics
   const assignedVolunteersList = useMemo(() => {
     if (volunteerReport?.volunteers && volunteerReport.volunteers.length > 0) {
@@ -1101,8 +1141,12 @@ function EventBookingsInspector({
                 <span className="text-xs font-bold text-amber-300">Cash Tickets</span>
               </div>
               <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-subtle)] border-t border-[var(--border)] pt-2">
-                <span>{cashBookingsCount} Bookings (Gate Passes)</span>
-                <span className="font-mono font-bold text-amber-300">{formatINR(cashRevenue)}</span>
+                <span>
+                  <strong className="text-emerald-400 font-mono">{formatINR(cashCollectedRevenue)}</strong> collected · <span className="text-amber-300 font-mono">{formatINR(cashPendingRevenue)}</span> pending
+                </span>
+                <span className="font-mono text-[10px] text-[var(--fg-muted)]">
+                  {cashCollectedTicketsCount}/{cashTicketsCount} paid
+                </span>
               </div>
             </div>
 
