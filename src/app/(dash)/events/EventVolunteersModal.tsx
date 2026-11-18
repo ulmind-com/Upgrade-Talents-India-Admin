@@ -557,7 +557,7 @@ export function EventVolunteersModal({
                               {vol.cash_payments} Cash
                             </span>
                             <span className="rounded-lg border border-amber-400/60 bg-amber-400/20 px-3 py-1 font-mono text-xs font-extrabold text-amber-300 shadow-sm">
-                              ₹{vol.cash_collected.toLocaleString("en-IN")} Cash
+                              ₹{(vol.cash_collected ?? 0).toLocaleString("en-IN")} Cash
                             </span>
 
                             <button
@@ -700,7 +700,7 @@ export function EventVolunteersModal({
                             {rec.cash_pass_count} cash pass{rec.cash_pass_count !== 1 ? "es" : ""}
                           </td>
                           <td className="py-2.5 px-3 font-extrabold text-amber-300">
-                            ₹{rec.cash_collected.toLocaleString("en-IN")}
+                            ₹{(rec.cash_collected ?? 0).toLocaleString("en-IN")}
                           </td>
                           <td className="py-2.5 px-3">
                             {rec.cash_collected === 0 ? (
@@ -727,7 +727,7 @@ export function EventVolunteersModal({
                                     push(
                                       next[rec.volunteer_email] ? "success" : "info",
                                       next[rec.volunteer_email]
-                                        ? `Verified cash handover of ₹${rec.cash_collected.toLocaleString("en-IN")} from ${rec.volunteer_name || rec.volunteer_email}`
+                                        ? `Verified cash handover of ₹${(rec.cash_collected ?? 0).toLocaleString("en-IN")} from ${rec.volunteer_name || rec.volunteer_email}`
                                         : `Handover status reset for ${rec.volunteer_name || rec.volunteer_email}`
                                     );
                                     return next;
