@@ -32,6 +32,7 @@ import {
   TrendingUp,
   Lock,
   Filter,
+  AlertTriangle,
 } from "lucide-react";
 import { Modal, Button, Badge } from "@/components/Kit";
 import { useToast } from "@/components/Providers";
@@ -59,6 +60,19 @@ interface AvailableVolunteer {
   phone: string;
   is_assigned: boolean;
   assigned_role?: string | null;
+  already_assigned_elsewhere?: boolean;
+  assigned_other_title?: string | null;
+  assigned_other_role?: string | null;
+  assigned_other_type?: string | null;
+  assigned_other_id?: string | null;
+  other_assignments?: {
+    id: string;
+    title: string;
+    date?: string;
+    venue?: string;
+    role: string;
+    type: "event" | "competition";
+  }[];
 }
 
 interface VolunteerReportData {
@@ -113,17 +127,14 @@ interface EventVolunteersModalProps {
   onUpdated?: () => void;
 }
 
-const COMMON_ROLES = [
-  "Gate 1 Scanner",
-  "Gate 2 Scanner",
-  "Gate 3 Scanner",
-  "Entrance Gate Scanner",
-  "Main Gate Scanner",
-  "North Gate Scanner",
-  "VIP Gate Scanner",
-  "Backstage Gate Scanner",
-  "Lineup & Backstage Manager",
-  "Spot Registration & Helpdesk",
+const GATE_SUGGESTIONS = [
+  "Gate 1",
+  "Gate 2",
+  "Gate 3",
+  "Main Entrance Gate",
+  "VIP Gate",
+  "Backstage Gate",
+  "Cash & Spot Registration Desk",
 ];
 
 export function EventVolunteersModal({
@@ -148,16 +159,16 @@ export function EventVolunteersModal({
   // Search & Multi-selection for Assign tab
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
-  const [selectedRole, setSelectedRole] = useState(COMMON_ROLES[0]);
+  const [selectedRole, setSelectedRole] = useState("Gate 1");
   const [volunteerRoles, setVolunteerRoles] = useState<Record<string, string>>({});
-  const [filterStatus, setFilterStatus] = useState<"all" | "available" | "assigned">("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "available" | "assigned" | "other">("all");
   const [assigning, setAssigning] = useState(false);
 
   // Quick Create Form
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
-  const [newRole, setNewRole] = useState(COMMON_ROLES[0]);
+  const [newRole, setNewRole] = useState("Gate 1");
   const [newPassword, setNewPassword] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -205,21 +216,29 @@ export function EventVolunteersModal({
 
   // Volunteer counts
   const totalCount = availableVolunteers.length;
-  const assignedCount = availableVolunteers.filter((v) => v.is_assigned).length;
-  const availableCount = totalCount - assignedCount;
+  const assignedHereCount = availableVolunteers.filter((v) => v.is_assigned).length;
+  const assignedElsewhereCount = availableVolunteers.filter(
+    (v) => !v.is_assigned && v.already_assigned_elsewhere
+  ).length;
+  const availableCount = availableVolunteers.filter(
+    (v) => !v.is_assigned && !v.already_assigned_elsewhere
+  ).length;
 
   // Filter volunteers for search & active sub-filter
   const filteredVolunteers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     return availableVolunteers.filter((v) => {
-      if (filterStatus === "available" && v.is_assigned) return false;
+      if (filterStatus === "available" && (v.is_assigned || v.already_assigned_elsewhere)) return false;
       if (filterStatus === "assigned" && !v.is_assigned) return false;
+      if (filterStatus === "other" && (v.is_assigned || !v.already_assigned_elsewhere)) return false;
       if (!q) return true;
       return (
         v.email.toLowerCase().includes(q) ||
         (v.name && v.name.toLowerCase().includes(q)) ||
         (v.phone && v.phone.includes(q)) ||
-        (v.assigned_role && v.assigned_role.toLowerCase().includes(q))
+        (v.assigned_role && v.assigned_role.toLowerCase().includes(q)) ||
+        (v.assigned_other_title && v.assigned_other_title.toLowerCase().includes(q)) ||
+        (v.assigned_other_role && v.assigned_other_role.toLowerCase().includes(q))
       );
     });
   }, [availableVolunteers, searchQuery, filterStatus]);
@@ -231,7 +250,9 @@ export function EventVolunteersModal({
   };
 
   const selectAllAvailable = () => {
-    const availFiltered = filteredVolunteers.filter((v) => !v.is_assigned).map((v) => v.email);
+    const availFiltered = filteredVolunteers
+      .filter((v) => !v.is_assigned && !v.already_assigned_elsewhere)
+      .map((v) => v.email);
     setSelectedEmails((prev) => Array.from(new Set([...prev, ...availFiltered])));
   };
 
@@ -244,11 +265,13 @@ export function EventVolunteersModal({
   };
 
   const applyRoleToAllSelected = (role: string) => {
-    setSelectedRole(role);
+    const trimmed = (role || "").trim();
+    if (!trimmed) return;
+    setSelectedRole(trimmed);
     setVolunteerRoles((prev) => {
       const next = { ...prev };
       for (const e of selectedEmails) {
-        next[e] = role;
+        next[e] = trimmed;
       }
       return next;
     });
@@ -265,18 +288,18 @@ export function EventVolunteersModal({
     try {
       const assignments = selectedEmails.map((email) => ({
         email,
-        role: volunteerRoles[email] || selectedRole || COMMON_ROLES[0],
+        role: (volunteerRoles[email] || selectedRole || "Gate 1").trim(),
       }));
 
       await eventVolunteersApi.assignEventVolunteers(eventId, {
         assignments,
         volunteer_emails: selectedEmails,
-        default_role: selectedRole,
+        default_role: (selectedRole || "Gate 1").trim(),
       });
 
       push(
         "success",
-        `${selectedEmails.length} volunteer(s) assigned to designated gates. Credentials emailed!`
+        `${selectedEmails.length} volunteer(s) assigned to designated gate duties. Credentials emailed!`
       );
 
       setSelectedEmails([]);
@@ -299,6 +322,8 @@ export function EventVolunteersModal({
       return;
     }
 
+    const assignedDuty = (newRole || "Gate 1").trim();
+
     setCreating(true);
     try {
       await eventVolunteersApi.assignEventVolunteers(eventId, {
@@ -307,21 +332,22 @@ export function EventVolunteersModal({
             name: newName.trim(),
             email: cleanEmail,
             phone: newPhone.trim(),
-            role: newRole,
+            role: assignedDuty,
             password: newPassword.trim() || undefined,
           },
         ],
-        default_role: newRole,
+        default_role: assignedDuty,
       });
 
       push(
         "success",
-        `Registered & assigned ${cleanEmail}. Credentials sent to their inbox!`
+        `Registered & assigned ${cleanEmail} to ${assignedDuty}. Credentials sent to their inbox!`
       );
 
       setNewName("");
       setNewEmail("");
       setNewPhone("");
+      setNewRole("Gate 1");
       setNewPassword("");
       await loadData(true);
       if (onUpdated) onUpdated();
@@ -936,8 +962,8 @@ export function EventVolunteersModal({
               </div>
             </div>
 
-            {/* Sub-Filter Tabs (All / Available / Assigned) */}
-            <div className="flex items-center gap-2 border-b border-[var(--border)] pb-2 text-xs">
+            {/* Sub-Filter Tabs (All / Available / Assigned / Other) */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] pb-2 text-xs">
               <button
                 type="button"
                 onClick={() => setFilterStatus("all")}
@@ -947,7 +973,7 @@ export function EventVolunteersModal({
                     : "text-[var(--fg-muted)] hover:text-white"
                 }`}
               >
-                All Registered Squad ({totalCount})
+                All Squad ({totalCount})
               </button>
               <button
                 type="button"
@@ -971,7 +997,19 @@ export function EventVolunteersModal({
                 }`}
               >
                 <Lock className="size-3" />
-                Already Assigned ({assignedCount})
+                Assigned to This Event ({assignedHereCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus("other")}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                  filterStatus === "other"
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                    : "text-[var(--fg-muted)] hover:text-amber-300"
+                }`}
+              >
+                <AlertTriangle className="size-3" />
+                Assigned Elsewhere ({assignedElsewhereCount})
               </button>
             </div>
 
@@ -989,29 +1027,31 @@ export function EventVolunteersModal({
               </div>
 
               <div className="sm:col-span-4">
-                <select
+                <input
+                  type="text"
+                  list="gate-suggestions-list"
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-2 px-3 text-xs text-white focus:border-[var(--brand)] focus:outline-none"
-                  title="Default gate/duty applied to assigned volunteers"
-                >
-                  {COMMON_ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
+                  placeholder="Gate / Duty (e.g. Gate 1, VIP Scanner)..."
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-2 px-3 text-xs text-white placeholder:text-[var(--fg-subtle)] focus:border-[var(--brand)] focus:outline-none"
+                  title="Super Admin can enter any custom gate name or scanner role"
+                />
+                <datalist id="gate-suggestions-list">
+                  {GATE_SUGGESTIONS.map((g) => (
+                    <option key={g} value={g} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div className="sm:col-span-2">
                 <button
                   type="button"
                   onClick={() => applyRoleToAllSelected(selectedRole)}
-                  disabled={selectedEmails.length === 0}
+                  disabled={selectedEmails.length === 0 || !selectedRole.trim()}
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-3)] py-2 px-2 text-[11px] font-bold text-white hover:bg-white/10 disabled:opacity-40 transition-colors cursor-pointer"
-                  title="Apply selected gate/role to all currently checked volunteers"
+                  title="Apply typed gate to all currently selected volunteers"
                 >
-                  Apply Role
+                  Apply Gate
                 </button>
               </div>
             </div>
@@ -1024,9 +1064,11 @@ export function EventVolunteersModal({
                   {searchQuery
                     ? `No volunteers found matching "${searchQuery}".`
                     : filterStatus === "available"
-                    ? "All registered volunteers are already assigned to this event!"
+                    ? "All available volunteers are currently assigned to events!"
                     : filterStatus === "assigned"
                     ? "No volunteers have been assigned to this event yet."
+                    : filterStatus === "other"
+                    ? "No registered volunteers are assigned to other events."
                     : "No volunteers registered in the system."}
                 </p>
                 <div className="mt-3">
@@ -1038,16 +1080,19 @@ export function EventVolunteersModal({
             ) : (
               <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1">
                 {filteredVolunteers.map((vol) => {
-                  const isAssigned = !!vol.is_assigned;
+                  const isAssignedHere = !!vol.is_assigned;
+                  const isAssignedElsewhere = !isAssignedHere && !!vol.already_assigned_elsewhere;
                   const isSelected = selectedEmails.includes(vol.email);
-                  const currentRole = volunteerRoles[vol.email] || vol.assigned_role || selectedRole || COMMON_ROLES[0];
+                  const currentRole = volunteerRoles[vol.email] ?? (isAssignedHere ? vol.assigned_role || "" : selectedRole || "Gate 1");
 
                   return (
                     <div
                       key={vol.email}
                       className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 transition-all ${
-                        isAssigned
+                        isAssignedHere
                           ? "border-purple-500/30 bg-purple-500/5 hover:border-purple-500/50"
+                          : isAssignedElsewhere
+                          ? "border-amber-500/40 bg-amber-500/5 hover:border-amber-500/60"
                           : isSelected
                           ? "border-[var(--brand)] bg-[var(--brand)]/10 shadow-sm"
                           : "border-[var(--border)] bg-[var(--surface-2)]/50 hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]"
@@ -1056,38 +1101,50 @@ export function EventVolunteersModal({
                       {/* Left: Checkbox & Name/Contact Info */}
                       <div
                         onClick={() => {
-                          if (!isAssigned) {
+                          if (!isAssignedHere) {
                             toggleSelectEmail(vol.email);
                           }
                         }}
                         className={`flex items-center gap-3 min-w-[240px] flex-1 ${
-                          isAssigned ? "cursor-default" : "cursor-pointer"
+                          isAssignedHere ? "cursor-default" : "cursor-pointer"
                         }`}
                       >
                         <div
                           className={`grid size-5 shrink-0 place-items-center rounded-md border ${
-                            isAssigned
+                            isAssignedHere
                               ? "border-purple-500/40 bg-purple-500/20 text-purple-300 cursor-not-allowed"
                               : isSelected
                               ? "border-[var(--brand)] bg-[var(--brand)] text-black"
+                              : isAssignedElsewhere
+                              ? "border-amber-500/50 bg-amber-500/15 text-amber-400"
                               : "border-[var(--border)] bg-[var(--surface-3)] text-transparent"
                           }`}
                         >
-                          {isAssigned ? (
+                          {isAssignedHere ? (
                             <Lock className="size-3" />
+                          ) : isAssignedElsewhere && !isSelected ? (
+                            <AlertTriangle className="size-3 text-amber-400" />
                           ) : (
                             <Check className="size-3.5 stroke-[3]" />
                           )}
                         </div>
 
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs font-bold text-white truncate">
                               {vol.name || "Volunteer"}
                             </span>
-                            {isAssigned && (
-                              <span className="flex items-center gap-1 rounded border border-purple-500/40 bg-purple-500/20 px-1.5 py-0.2 font-mono text-[9px] font-bold text-purple-300">
-                                <Lock className="size-2.5" /> Already Assigned
+                            {isAssignedHere && (
+                              <span className="flex items-center gap-1 rounded border border-purple-500/40 bg-purple-500/20 px-1.5 py-0.5 font-mono text-[9px] font-bold text-purple-300">
+                                <Lock className="size-2.5" /> Already Assigned (This Event)
+                              </span>
+                            )}
+                            {isAssignedElsewhere && (
+                              <span
+                                className="flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/20 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300"
+                                title={`Already assigned to ${vol.assigned_other_title || "another event"} (${vol.assigned_other_role || "Scanner"})`}
+                              >
+                                <AlertTriangle className="size-2.5" /> Already Assigned
                               </span>
                             )}
                           </div>
@@ -1095,20 +1152,28 @@ export function EventVolunteersModal({
                             {vol.email}
                             {vol.phone ? ` • ${vol.phone}` : ""}
                           </p>
+                          {isAssignedElsewhere && (
+                            <p className="font-mono text-[10px] text-amber-300/90 mt-0.5 flex flex-wrap items-center gap-1">
+                              <span>Currently assigned at:</span>
+                              <strong className="text-amber-200">{vol.assigned_other_title || "Other Event"}</strong>
+                              {vol.assigned_other_role && (
+                                <span className="text-amber-400 font-semibold">({vol.assigned_other_role})</span>
+                              )}
+                            </p>
+                          )}
                         </div>
                       </div>
 
-                      {/* Right: Duty / Gate Selector & Status Badge */}
+                      {/* Right: Duty / Gate Input Box & Status Badge */}
                       <div className="flex items-center gap-2">
-                        {isAssigned ? (
+                        {isAssignedHere ? (
                           <div className="flex items-center gap-2">
                             <span className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-purple-200">
-                              Gate: <strong className="text-purple-300 font-bold">{vol.assigned_role || "Entrance Gate Scanner"}</strong>
+                              Gate: <strong className="text-purple-300 font-bold">{vol.assigned_role || "Gate 1"}</strong>
                             </span>
                             <button
                               type="button"
                               onClick={() => {
-                                // Allow re-assigning/changing gate for already assigned volunteer
                                 if (!isSelected) {
                                   toggleSelectEmail(vol.email);
                                 }
@@ -1121,26 +1186,24 @@ export function EventVolunteersModal({
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <select
+                            <input
+                              type="text"
+                              list="gate-suggestions-list"
                               value={currentRole}
                               onChange={(e) => {
-                                setRoleForVolunteer(vol.email, e.target.value);
-                                if (!isSelected) {
+                                const val = e.target.value;
+                                setRoleForVolunteer(vol.email, val);
+                                if (!isSelected && val.trim()) {
                                   toggleSelectEmail(vol.email);
                                 }
                               }}
-                              className="rounded-lg border border-[var(--border)] bg-[var(--surface-3)] py-1 px-2.5 text-xs text-white focus:border-[var(--brand)] focus:outline-none"
-                              title="Assign specific gate or role to this volunteer"
-                            >
-                              {COMMON_ROLES.map((r) => (
-                                <option key={r} value={r}>
-                                  {r}
-                                </option>
-                              ))}
-                            </select>
+                              placeholder="Gate (e.g. Gate 1)..."
+                              className="rounded-lg border border-[var(--border)] bg-[var(--surface-3)] py-1 px-2.5 text-xs text-white placeholder:text-[var(--fg-subtle)] focus:border-[var(--brand)] focus:outline-none w-36"
+                              title="Type specific gate or duty for this volunteer"
+                            />
 
-                            <Badge tone={isSelected ? "success" : "neutral"}>
-                              {isSelected ? "Selected" : "Available"}
+                            <Badge tone={isSelected ? "success" : isAssignedElsewhere ? "warning" : "neutral"}>
+                              {isSelected ? "Selected" : isAssignedElsewhere ? "Assigned Elsewhere" : "Available"}
                             </Badge>
                           </div>
                         )}
@@ -1221,19 +1284,16 @@ export function EventVolunteersModal({
 
               <div>
                 <label className="block text-xs font-semibold text-[var(--fg-muted)] mb-1">
-                  Assigned Gate / Duty
+                  Assigned Gate / Duty <span className="font-normal text-[var(--fg-subtle)]">(e.g. Gate 1, VIP Scanner)</span>
                 </label>
-                <select
+                <input
+                  type="text"
+                  list="gate-suggestions-list"
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-2 px-3 text-xs text-white focus:border-[var(--brand)] focus:outline-none"
-                >
-                  {COMMON_ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Enter Gate or Duty (e.g. Gate 1, VIP Scanner)..."
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-2 px-3 text-xs text-white placeholder-[var(--fg-subtle)] focus:border-[var(--brand)] focus:outline-none"
+                />
               </div>
 
               <div className="sm:col-span-2">
