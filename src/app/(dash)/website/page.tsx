@@ -2501,13 +2501,9 @@ function PartnersSectionEditor() {
 interface SponsorBannerItem {
   id: string;
   sponsor_name: string;
-  badge_text: string;
-  title: string;
-  subtitle: string;
   banner_image_url: string;
   mobile_image_url?: string;
-  cta_text: string;
-  cta_link: string;
+  cta_link?: string;
   is_active: boolean;
   display_order: number;
 }
@@ -2522,12 +2518,8 @@ const DEFAULT_POPUP_CONFIG = {
     {
       id: "sponsor_1",
       sponsor_name: "Red Bull",
-      badge_text: "Grand Title Partner",
-      title: "Red Bull Dance Your Style India",
-      subtitle: "Fueling national breakers and street dancers across 28 cities.",
       banner_image_url: "https://images.unsplash.com/photo-1547153760-18fc86324498?q=80&w=1920&auto=format&fit=crop",
       mobile_image_url: "",
-      cta_text: "Explore Exclusive Offer",
       cta_link: "/competitions",
       is_active: true,
       display_order: 1,
@@ -2535,12 +2527,8 @@ const DEFAULT_POPUP_CONFIG = {
     {
       id: "sponsor_2",
       sponsor_name: "Nike Dance",
-      badge_text: "Official Apparel Partner",
-      title: "Streetwear & Performance Collection 2026",
-      subtitle: "Exclusive dancer footwear and gear for Upgrade Talents contenders.",
       banner_image_url: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=1920&auto=format&fit=crop",
       mobile_image_url: "",
-      cta_text: "Shop Partner Gear",
       cta_link: "/shop",
       is_active: true,
       display_order: 2,
@@ -2548,12 +2536,8 @@ const DEFAULT_POPUP_CONFIG = {
     {
       id: "sponsor_3",
       sponsor_name: "Pioneer DJ",
-      badge_text: "Arena Audio Partner",
-      title: "Pro Arena Soundstages & Battle Acoustics",
-      subtitle: "Powering high-octane battle rhythms and national finals.",
       banner_image_url: "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1920&auto=format&fit=crop",
       mobile_image_url: "",
-      cta_text: "View Arena Setup",
       cta_link: "/events",
       is_active: true,
       display_order: 3,
@@ -2583,18 +2567,13 @@ function SponsorPopupEditor() {
       let banners: SponsorBannerItem[] = [];
       if (Array.isArray(data.banners) && data.banners.length > 0) {
         banners = data.banners;
-      } else if (data.banner_image_url || data.title) {
-        // Migrate legacy single banner
+      } else if (data.banner_image_url) {
         banners = [
           {
             id: "legacy_1",
             sponsor_name: data.sponsor_name || "Official Partner",
-            badge_text: data.badge_text || "OFFICIAL TITLE SPONSOR",
-            title: data.title || "Grand National Championship 2026",
-            subtitle: data.subtitle || "",
             banner_image_url: data.banner_image_url || "",
             mobile_image_url: data.mobile_image_url || "",
-            cta_text: data.cta_text || "Explore Exclusive Offer",
             cta_link: data.cta_link || "/competitions",
             is_active: true,
             display_order: 1,
@@ -2621,7 +2600,7 @@ function SponsorPopupEditor() {
 
   // Active banners list for preview and validation
   const activeBanners: SponsorBannerItem[] = (config.banners || []).filter(
-    (b: SponsorBannerItem) => b.is_active !== false && Boolean(b.banner_image_url || b.title)
+    (b: SponsorBannerItem) => b.is_active !== false && Boolean(b.banner_image_url)
   );
 
   // Auto-scroll loop for preview
@@ -2708,12 +2687,8 @@ function SponsorPopupEditor() {
     setEditingBanner({
       id: newId,
       sponsor_name: "",
-      badge_text: "OFFICIAL PARTNER",
-      title: "",
-      subtitle: "",
       banner_image_url: "",
       mobile_image_url: "",
-      cta_text: "Learn More",
       cta_link: "/competitions",
       is_active: true,
       display_order: nextOrder,
@@ -2730,8 +2705,8 @@ function SponsorPopupEditor() {
   // Save Banner Modal Form
   const handleSaveModalBanner = () => {
     if (!editingBanner) return;
-    if (!editingBanner.banner_image_url && !editingBanner.title) {
-      push("error", "Please provide at least a banner image URL or title.");
+    if (!editingBanner.banner_image_url) {
+      push("error", "Please upload or provide a desktop banner image.");
       return;
     }
 
@@ -2759,16 +2734,12 @@ function SponsorPopupEditor() {
       const payload = {
         ...config,
         sponsor_name: primary.sponsor_name || "Official Partner",
-        badge_text: primary.badge_text || "OFFICIAL TITLE SPONSOR",
-        title: primary.title || "Grand National Championship 2026",
-        subtitle: primary.subtitle || "",
         banner_image_url: primary.banner_image_url || "",
         mobile_image_url: primary.mobile_image_url || "",
-        cta_text: primary.cta_text || "Explore Exclusive Offer",
-        cta_link: primary.cta_link || "/competitions",
+        cta_link: primary.cta_link || "",
       };
       await cmsApi.updateSponsorPopup(payload);
-      push("success", "Grand Sponsor Pop-up multi-banner carousel saved successfully!");
+      push("success", "Grand Sponsor Pop-up banners saved successfully!");
       reload();
     } catch (e: any) {
       push("error", e?.message || "Could not save sponsor pop-up settings.");
@@ -2792,7 +2763,7 @@ function SponsorPopupEditor() {
   return (
     <Panel
       title="💎 Grand Sponsor Pop-up (Multi-Banner Website Opening Modal)"
-      subtitle="Ultra-premium, centered pop-up modal shown to visitors when landing on the website. Features auto-scrolling sponsor banners, customizable intervals, and direct brand links."
+      subtitle="Centered sponsor banner pop-up modal shown when opening the website. Displays pure sponsor banner images with smooth auto-scroll and direct click navigation."
       action={
         <Button size="sm" onClick={handleSaveAll} loading={busy}>
           <Save className="size-3.5" aria-hidden /> Save All Settings
@@ -2822,7 +2793,7 @@ function SponsorPopupEditor() {
               </span>
             </div>
             <p className="text-xs text-[var(--fg-subtle)] leading-relaxed">
-              When enabled, visitors will see this centered luxury modal with auto-scrolling sponsor cards upon opening the website.
+              When enabled, visitors will see this centered popup banner modal upon opening the website.
             </p>
           </div>
 
@@ -2865,13 +2836,13 @@ function SponsorPopupEditor() {
                 label="Auto-Scroll Sponsor Banners"
               />
               <span className="text-xs font-medium text-amber-300">
-                {config.auto_scroll_enabled !== false ? "🔄 Auto-Scrolling Enabled" : "⏸ Manual Swipe Only"}
+                {config.auto_scroll_enabled !== false ? "🔄 Auto-Scrolling Enabled" : "⏸ Manual Navigation Only"}
               </span>
             </div>
 
             <div className="flex items-center gap-3">
               <label className="text-xs font-semibold text-[var(--fg)] whitespace-nowrap">
-                Scroll Speed: <span className="text-amber-400 font-bold">{config.auto_scroll_interval || 4}s</span> per card
+                Scroll Speed: <span className="text-amber-400 font-bold">{config.auto_scroll_interval || 4}s</span> per banner
               </label>
               <input
                 type="range"
@@ -2892,10 +2863,10 @@ function SponsorPopupEditor() {
             <div>
               <h3 className="text-sm font-bold text-[var(--fg)] flex items-center gap-2">
                 <Sparkles className="size-4 text-amber-400" />
-                Sponsor Banner Cards ({activeBanners.length} Active / {config.banners?.length || 0} Total)
+                Sponsor Banner Images ({activeBanners.length} Active / {config.banners?.length || 0} Total)
               </h3>
               <p className="text-xs text-[var(--fg-subtle)] mt-0.5">
-                Add sponsor banners below. When multiple banners are active, they will automatically scroll in the middle pop-up.
+                Upload sponsor banner images below. In the popup, only the banner graphics will be displayed with auto-scrolling.
               </p>
             </div>
 
@@ -2912,7 +2883,7 @@ function SponsorPopupEditor() {
           <div className="flex flex-col gap-3">
             {(!config.banners || config.banners.length === 0) ? (
               <div className="rounded-xl border border-dashed border-[var(--border)] p-8 text-center text-xs text-[var(--fg-muted)]">
-                No sponsor banners added yet. Click &quot;Add Sponsor Banner&quot; above to add your first sponsor card.
+                No sponsor banners added yet. Click &quot;Add Sponsor Banner&quot; above to add your first sponsor image.
               </div>
             ) : (
               config.banners.map((banner: SponsorBannerItem, idx: number) => (
@@ -2952,7 +2923,7 @@ function SponsorPopupEditor() {
                       {banner.banner_image_url ? (
                         <img
                           src={banner.banner_image_url}
-                          alt={banner.sponsor_name || banner.title}
+                          alt={banner.sponsor_name || "Sponsor Banner"}
                           className="size-full object-cover"
                         />
                       ) : (
@@ -2968,13 +2939,8 @@ function SponsorPopupEditor() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-xs sm:text-sm text-[var(--fg)] truncate">
-                          {banner.sponsor_name || "Unnamed Sponsor"}
+                          {banner.sponsor_name || `Sponsor Banner #${idx + 1}`}
                         </span>
-                        {banner.badge_text && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-400/10 text-amber-400 border border-amber-400/30">
-                            {banner.badge_text}
-                          </span>
-                        )}
                         <span
                           className={cn(
                             "px-2 py-0.5 rounded-full text-[10px] font-semibold",
@@ -2986,14 +2952,9 @@ function SponsorPopupEditor() {
                           {banner.is_active !== false ? "Active" : "Paused"}
                         </span>
                       </div>
-                      <p className="text-xs font-semibold text-[var(--fg-muted)] truncate mt-1">
-                        {banner.title || "(No headline provided)"}
+                      <p className="text-xs text-[var(--fg-muted)] truncate mt-1">
+                        {banner.cta_link ? `Click Target: ${banner.cta_link}` : "No click link set (Image display only)"}
                       </p>
-                      {banner.cta_text && (
-                        <p className="text-[11px] text-[var(--fg-subtle)] truncate mt-0.5">
-                          Button: {banner.cta_text} → {banner.cta_link || "#"}
-                        </p>
-                      )}
                     </div>
                   </div>
 
@@ -3035,7 +2996,7 @@ function SponsorPopupEditor() {
           </div>
         </div>
 
-        {/* 4. Live Interactive Modal Carousel Preview */}
+        {/* 4. Live Interactive Pure Image Pop-up Carousel Preview */}
         <div
           className="rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] p-6"
           onMouseEnter={() => setPreviewPaused(true)}
@@ -3044,10 +3005,10 @@ function SponsorPopupEditor() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
               <h4 className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--fg-muted)]">
-                Live Interactive Pop-up Carousel Preview
+                Live Interactive Sponsor Banner Pop-up Preview
               </h4>
               <p className="text-[11px] text-[var(--fg-subtle)]">
-                This exact centered pop-up modal will appear on the homepage with smooth auto-scroll.
+                Clean, pure image banner pop-up with auto-scroll and top close button.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -3057,47 +3018,36 @@ function SponsorPopupEditor() {
                 </span>
               )}
               <span className="text-xs font-semibold text-amber-400 bg-amber-400/10 px-3 py-0.5 rounded-full border border-amber-400/20">
-                Interactive Preview
+                Pure Image Mode
               </span>
             </div>
           </div>
 
           {/* Centered Modal Simulation */}
-          <div className="relative mx-auto max-w-xl rounded-2xl overflow-hidden border border-amber-500/40 bg-[#07090E] shadow-[0_25px_70px_-15px_rgba(245,158,11,0.35)]">
+          <div className="relative mx-auto max-w-2xl rounded-2xl sm:rounded-3xl overflow-hidden border border-amber-500/40 bg-[#07090E] shadow-[0_25px_70px_-10px_rgba(245,158,11,0.4)]">
             {/* Top Close Cross Button Simulation */}
-            <div className="absolute top-3 right-3 z-30 size-8 rounded-full bg-black/80 border border-white/20 grid place-items-center text-white/80 text-xs shadow-lg backdrop-blur-md">
+            <div className="absolute top-3 right-3 z-30 size-8 sm:size-9 rounded-full bg-black/80 border border-white/20 grid place-items-center text-white/90 text-xs shadow-lg backdrop-blur-md">
               <X className="size-4" />
             </div>
 
             {/* Slide Counter Badge */}
             {activeBanners.length > 1 && (
-              <div className="absolute top-3 right-13 z-30 px-2.5 py-1 rounded-full bg-black/80 border border-white/10 text-[10px] font-mono font-bold text-amber-400/90 shadow-md backdrop-blur-md">
+              <div className="absolute top-3 left-3 z-30 px-3 py-1 rounded-full bg-black/80 border border-white/15 text-[10px] font-mono font-bold text-amber-400 shadow-md backdrop-blur-md">
                 {previewIdx + 1} / {activeBanners.length}
               </div>
             )}
 
-            {/* Banner Image Stage */}
-            <div className="relative aspect-[16/9] w-full overflow-hidden bg-black/90">
+            {/* Pure Banner Image Stage */}
+            <div className="relative aspect-[16/8.5] w-full overflow-hidden bg-black flex items-center justify-center">
               {currentPreviewBanner?.banner_image_url ? (
                 <img
                   src={currentPreviewBanner.banner_image_url}
-                  alt={currentPreviewBanner.title}
+                  alt={currentPreviewBanner.sponsor_name || "Sponsor Banner"}
                   className="size-full object-cover transition-all duration-500"
                 />
               ) : (
                 <div className="size-full grid place-items-center text-white/30 text-xs">
                   Sponsor Banner Image
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#07090E] via-transparent to-black/50" />
-
-              {/* Sponsor Ribbon Badge */}
-              {currentPreviewBanner?.badge_text && (
-                <div className="absolute top-3 left-3 z-20">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/85 text-amber-400 border border-amber-400/50 shadow-xl backdrop-blur-md">
-                    <Sparkles className="size-3" />
-                    {currentPreviewBanner.badge_text}
-                  </span>
                 </div>
               )}
 
@@ -3107,67 +3057,38 @@ function SponsorPopupEditor() {
                   <button
                     type="button"
                     onClick={() => setPreviewIdx((prev) => (prev - 1 + activeBanners.length) % activeBanners.length)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 size-8 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
                     title="Previous Sponsor"
                   >
-                    <ChevronLeft className="size-4" />
+                    <ChevronLeft className="size-4 sm:size-5" />
                   </button>
                   <button
                     type="button"
                     onClick={() => setPreviewIdx((prev) => (prev + 1) % activeBanners.length)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 size-8 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
                     title="Next Sponsor"
                   >
-                    <ChevronRight className="size-4" />
+                    <ChevronRight className="size-4 sm:size-5" />
                   </button>
+
+                  {/* Pagination Dots at Bottom */}
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
+                    {activeBanners.map((_, dotIdx) => (
+                      <button
+                        key={dotIdx}
+                        type="button"
+                        onClick={() => setPreviewIdx(dotIdx)}
+                        className={cn(
+                          "h-1.5 rounded-full transition-all cursor-pointer",
+                          dotIdx === previewIdx
+                            ? "w-6 bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]"
+                            : "w-1.5 bg-white/30 hover:bg-white/50"
+                        )}
+                        title={`Go to banner ${dotIdx + 1}`}
+                      />
+                    ))}
+                  </div>
                 </>
-              )}
-            </div>
-
-            {/* Content Details */}
-            <div className="p-6 flex flex-col gap-2 text-center">
-              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-amber-400 font-bold">
-                {currentPreviewBanner?.sponsor_name || "Official Grand Sponsor"}
-              </span>
-              <h3 className="text-xl sm:text-2xl font-bold font-display text-white leading-tight">
-                {currentPreviewBanner?.title || "Sponsor Title"}
-              </h3>
-              {currentPreviewBanner?.subtitle && (
-                <p className="text-xs text-white/70 leading-relaxed max-w-md mx-auto">
-                  {currentPreviewBanner.subtitle}
-                </p>
-              )}
-
-              {/* CTA Action Button */}
-              <div className="mt-3 flex items-center justify-center gap-3">
-                <a
-                  href={currentPreviewBanner?.cta_link || "#"}
-                  onClick={(e) => e.preventDefault()}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.5)] transition-transform hover:scale-105"
-                >
-                  <span>{currentPreviewBanner?.cta_text || "Explore Exclusive Offer"}</span>
-                  <ExternalLink className="size-3.5" />
-                </a>
-              </div>
-
-              {/* Carousel Pagination Indicator Dots */}
-              {activeBanners.length > 1 && (
-                <div className="mt-4 flex items-center justify-center gap-2">
-                  {activeBanners.map((_, dotIdx) => (
-                    <button
-                      key={dotIdx}
-                      type="button"
-                      onClick={() => setPreviewIdx(dotIdx)}
-                      className={cn(
-                        "h-1.5 rounded-full transition-all cursor-pointer",
-                        dotIdx === previewIdx
-                          ? "w-7 bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]"
-                          : "w-2 bg-white/20 hover:bg-white/40"
-                      )}
-                      title={`Go to slide ${dotIdx + 1}`}
-                    />
-                  ))}
-                </div>
               )}
             </div>
           </div>
@@ -3184,7 +3105,7 @@ function SponsorPopupEditor() {
       {/* 6. Floating Modal Dialog for Add / Edit Sponsor Banner */}
       {editingBanner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="relative w-full max-w-xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl my-8">
+          <div className="relative w-full max-w-lg rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl my-8">
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-4 mb-5">
               <div className="flex items-center gap-2.5">
                 <div className="size-8 rounded-lg bg-amber-400/20 text-amber-400 grid place-items-center">
@@ -3192,10 +3113,10 @@ function SponsorPopupEditor() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-[var(--fg)]">
-                    {isAddingNew ? "Add New Sponsor Banner" : "Edit Sponsor Banner"}
+                    {isAddingNew ? "Add Sponsor Banner Image" : "Edit Sponsor Banner"}
                   </h3>
                   <p className="text-xs text-[var(--fg-subtle)]">
-                    Configure this sponsor&apos;s brand, media, and promotional message.
+                    Upload the sponsor graphic banner. In the pop-up, only the banner will be displayed.
                   </p>
                 </div>
               </div>
@@ -3209,57 +3130,16 @@ function SponsorPopupEditor() {
             </div>
 
             <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
-                    Sponsor Brand Name <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={editingBanner.sponsor_name || ""}
-                    onChange={(e) => setEditingBanner({ ...editingBanner, sponsor_name: e.target.value })}
-                    placeholder="e.g. Red Bull / Tata Motors / Nike"
-                    className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
-                    Ribbon Badge Tag
-                  </label>
-                  <input
-                    type="text"
-                    value={editingBanner.badge_text || ""}
-                    onChange={(e) => setEditingBanner({ ...editingBanner, badge_text: e.target.value })}
-                    placeholder="e.g. GRAND TITLE PARTNER"
-                    className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
-                  />
-                </div>
-              </div>
-
               <div>
                 <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
-                  Modal Headline / Title <span className="text-rose-400">*</span>
+                  Sponsor Brand / Label (For identification) <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
-                  value={editingBanner.title || ""}
-                  onChange={(e) => setEditingBanner({ ...editingBanner, title: e.target.value })}
-                  placeholder="e.g. Red Bull Dance Your Style India 2026"
+                  value={editingBanner.sponsor_name || ""}
+                  onChange={(e) => setEditingBanner({ ...editingBanner, sponsor_name: e.target.value })}
+                  placeholder="e.g. Red Bull / Tata Motors / Nike"
                   className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
-                  Tagline / Subtitle
-                </label>
-                <textarea
-                  value={editingBanner.subtitle || ""}
-                  onChange={(e) => setEditingBanner({ ...editingBanner, subtitle: e.target.value })}
-                  placeholder="e.g. Fueling street dancers and breakers with cash prizes and global visibility."
-                  rows={2}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-xs text-[var(--fg)] outline-none"
                 />
               </div>
 
@@ -3267,7 +3147,7 @@ function SponsorPopupEditor() {
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold text-[var(--fg)]">
-                    Desktop Banner Image (16:9 Landscape) <span className="text-rose-400">*</span>
+                    Sponsor Banner Image (16:9 / Landscape) <span className="text-rose-400">*</span>
                   </label>
                   <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-cyan-400 hover:border-cyan-400 cursor-pointer transition-colors">
                     <Upload className="size-3" />
@@ -3294,7 +3174,7 @@ function SponsorPopupEditor() {
                   ) : (
                     <div className="text-center text-xs text-white/40">
                       <ImageIcon className="size-6 mx-auto mb-1 opacity-50" />
-                      Upload image or paste direct URL below
+                      Upload sponsor banner image or paste direct URL below
                     </div>
                   )}
                   {uploadingDesktop && (
@@ -3308,7 +3188,7 @@ function SponsorPopupEditor() {
                   type="text"
                   value={editingBanner.banner_image_url || ""}
                   onChange={(e) => setEditingBanner({ ...editingBanner, banner_image_url: e.target.value })}
-                  placeholder="https://images.unsplash.com/... or uploaded Cloudinary URL"
+                  placeholder="https://... or uploaded Cloudinary URL"
                   className="w-full h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--fg)] outline-none"
                 />
               </div>
@@ -3343,41 +3223,26 @@ function SponsorPopupEditor() {
                 />
               </div>
 
-              {/* CTA Details */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
-                    CTA Button Text
-                  </label>
-                  <input
-                    type="text"
-                    value={editingBanner.cta_text || ""}
-                    onChange={(e) => setEditingBanner({ ...editingBanner, cta_text: e.target.value })}
-                    placeholder="e.g. Explore Exclusive Offer"
-                    className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
-                    CTA Target URL
-                  </label>
-                  <input
-                    type="text"
-                    value={editingBanner.cta_link || ""}
-                    onChange={(e) => setEditingBanner({ ...editingBanner, cta_link: e.target.value })}
-                    placeholder="e.g. /competitions or https://..."
-                    className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
-                  />
-                </div>
+              {/* Click Redirect Link */}
+              <div>
+                <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
+                  Click Redirect URL (Optional — when visitor clicks the banner)
+                </label>
+                <input
+                  type="text"
+                  value={editingBanner.cta_link || ""}
+                  onChange={(e) => setEditingBanner({ ...editingBanner, cta_link: e.target.value })}
+                  placeholder="e.g. /competitions or https://sponsor-website.com"
+                  className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
+                />
               </div>
 
               {/* Active Toggle */}
               <div className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]">
                 <div>
-                  <span className="text-xs font-bold text-[var(--fg)] block">Active in Pop-up Carousel</span>
+                  <span className="text-xs font-bold text-[var(--fg)] block">Active in Pop-up</span>
                   <span className="text-[11px] text-[var(--fg-subtle)]">
-                    When active, this banner will be included in the auto-scrolling pop-up.
+                    When active, this banner image will be shown in the pop-up.
                   </span>
                 </div>
                 <Toggle
