@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2, Plus, Trash2, RotateCcw, Sparkles, ExternalLink, Zap, ArrowUp, ArrowDown, Linkedin, ChevronLeft, ChevronRight, X, Edit2, Sliders, Layers } from "lucide-react";
+import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2, Plus, Trash2, RotateCcw, Sparkles, ExternalLink, Zap, ArrowUp, ArrowDown, Linkedin, ChevronLeft, ChevronRight, X, Edit2, Sliders, Layers, Smartphone, Monitor } from "lucide-react";
 import {
   SiInstagram,
   SiYoutube,
@@ -2555,6 +2555,7 @@ function SponsorPopupEditor() {
   const [busy, setBusy] = useState(false);
   const [previewIdx, setPreviewIdx] = useState(0);
   const [previewPaused, setPreviewPaused] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   
   // Banner Add / Edit Modal State
   const [editingBanner, setEditingBanner] = useState<SponsorBannerItem | null>(null);
@@ -2996,102 +2997,232 @@ function SponsorPopupEditor() {
           </div>
         </div>
 
-        {/* 4. Live Interactive Pure Image Pop-up Carousel Preview */}
+        {/* 4. Live Interactive Pure Image Pop-up Carousel Preview with Mobile & Desktop Toggle */}
         <div
           className="rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] p-6"
           onMouseEnter={() => setPreviewPaused(true)}
           onMouseLeave={() => setPreviewPaused(false)}
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
               <h4 className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--fg-muted)]">
-                Live Interactive Sponsor Banner Pop-up Preview
+                Live Interactive Sponsor Pop-up Preview
               </h4>
               <p className="text-[11px] text-[var(--fg-subtle)]">
-                Clean, pure image banner pop-up with auto-scroll and top close button.
+                Preview how the pop-up modal appears on Desktop and Mobile devices.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Desktop / Mobile Switcher */}
+              <div className="flex items-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
+                <button
+                  type="button"
+                  onClick={() => setPreviewDevice("desktop")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                    previewDevice === "desktop"
+                      ? "bg-[var(--brand)] text-[var(--on-brand)] shadow-sm"
+                      : "text-[var(--fg-muted)] hover:text-[var(--fg)]"
+                  )}
+                >
+                  <Monitor className="size-3.5" /> Desktop View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDevice("mobile")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                    previewDevice === "mobile"
+                      ? "bg-[var(--brand)] text-[var(--on-brand)] shadow-sm"
+                      : "text-[var(--fg-muted)] hover:text-[var(--fg)]"
+                  )}
+                >
+                  <Smartphone className="size-3.5" /> 📱 Mobile View
+                </button>
+              </div>
+
               {config.auto_scroll_enabled !== false && activeBanners.length > 1 && (
-                <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-400/10 px-2.5 py-0.5 rounded-full border border-emerald-400/20">
-                  {previewPaused ? "⏸ Hover Paused" : `● Auto-scroll (${config.auto_scroll_interval || 4}s)`}
+                <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full border border-emerald-400/20">
+                  {previewPaused ? "⏸ Paused" : `● Auto-scroll (${config.auto_scroll_interval || 4}s)`}
                 </span>
               )}
-              <span className="text-xs font-semibold text-amber-400 bg-amber-400/10 px-3 py-0.5 rounded-full border border-amber-400/20">
-                Pure Image Mode
-              </span>
             </div>
           </div>
 
-          {/* Centered Modal Simulation */}
-          <div className="relative mx-auto max-w-2xl rounded-2xl sm:rounded-3xl overflow-hidden border border-amber-500/40 bg-[#07090E] shadow-[0_25px_70px_-10px_rgba(245,158,11,0.4)]">
-            {/* Top Close Cross Button Simulation */}
-            <div className="absolute top-3 right-3 z-30 size-8 sm:size-9 rounded-full bg-black/80 border border-white/20 grid place-items-center text-white/90 text-xs shadow-lg backdrop-blur-md">
-              <X className="size-4" />
-            </div>
-
-            {/* Slide Counter Badge */}
-            {activeBanners.length > 1 && (
-              <div className="absolute top-3 left-3 z-30 px-3 py-1 rounded-full bg-black/80 border border-white/15 text-[10px] font-mono font-bold text-amber-400 shadow-md backdrop-blur-md">
-                {previewIdx + 1} / {activeBanners.length}
+          {/* Desktop Preview Frame */}
+          {previewDevice === "desktop" ? (
+            <div className="relative mx-auto max-w-2xl rounded-2xl sm:rounded-3xl overflow-hidden border border-amber-500/40 bg-[#07090E] shadow-[0_25px_70px_-10px_rgba(245,158,11,0.4)]">
+              {/* Top Close Cross Button Simulation */}
+              <div className="absolute top-3 right-3 z-30 size-9 rounded-full bg-black/80 border border-white/20 grid place-items-center text-white/90 text-xs shadow-lg backdrop-blur-md">
+                <X className="size-4" />
               </div>
-            )}
 
-            {/* Pure Banner Image Stage */}
-            <div className="relative aspect-[16/8.5] w-full overflow-hidden bg-black flex items-center justify-center">
-              {currentPreviewBanner?.banner_image_url ? (
-                <img
-                  src={currentPreviewBanner.banner_image_url}
-                  alt={currentPreviewBanner.sponsor_name || "Sponsor Banner"}
-                  className="size-full object-cover transition-all duration-500"
-                />
-              ) : (
-                <div className="size-full grid place-items-center text-white/30 text-xs">
-                  Sponsor Banner Image
+              {/* Slide Counter Badge */}
+              {activeBanners.length > 1 && (
+                <div className="absolute top-3 left-3 z-30 px-3 py-1 rounded-full bg-black/80 border border-white/15 text-[10px] font-mono font-bold text-amber-400 shadow-md backdrop-blur-md">
+                  {previewIdx + 1} / {activeBanners.length}
                 </div>
               )}
 
-              {/* Prev / Next Navigation Arrows */}
-              {activeBanners.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewIdx((prev) => (prev - 1 + activeBanners.length) % activeBanners.length)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
-                    title="Previous Sponsor"
-                  >
-                    <ChevronLeft className="size-4 sm:size-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewIdx((prev) => (prev + 1) % activeBanners.length)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
-                    title="Next Sponsor"
-                  >
-                    <ChevronRight className="size-4 sm:size-5" />
-                  </button>
-
-                  {/* Pagination Dots at Bottom */}
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
-                    {activeBanners.map((_, dotIdx) => (
-                      <button
-                        key={dotIdx}
-                        type="button"
-                        onClick={() => setPreviewIdx(dotIdx)}
-                        className={cn(
-                          "h-1.5 rounded-full transition-all cursor-pointer",
-                          dotIdx === previewIdx
-                            ? "w-6 bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]"
-                            : "w-1.5 bg-white/30 hover:bg-white/50"
-                        )}
-                        title={`Go to banner ${dotIdx + 1}`}
-                      />
-                    ))}
+              {/* Banner Image Stage */}
+              <div className="relative aspect-[16/8.5] w-full overflow-hidden bg-black flex items-center justify-center">
+                {currentPreviewBanner?.banner_image_url ? (
+                  <img
+                    src={currentPreviewBanner.banner_image_url}
+                    alt={currentPreviewBanner.sponsor_name || "Sponsor Banner"}
+                    className="size-full object-cover transition-all duration-500"
+                  />
+                ) : (
+                  <div className="size-full grid place-items-center text-white/30 text-xs">
+                    Sponsor Banner Image
                   </div>
-                </>
-              )}
+                )}
+
+                {/* Optional Floating Name Tag */}
+                {currentPreviewBanner?.sponsor_name?.trim() && (
+                  <div className="absolute bottom-3 left-3 z-30 pointer-events-none">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/80 border border-white/20 text-white backdrop-blur-md shadow-2xl text-xs font-semibold">
+                      <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      <span>{currentPreviewBanner.sponsor_name}</span>
+                      {currentPreviewBanner.cta_link && (
+                        <ExternalLink className="size-3 text-amber-400 ml-0.5 opacity-80" />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Prev / Next Navigation Arrows */}
+                {activeBanners.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewIdx((prev) => (prev - 1 + activeBanners.length) % activeBanners.length)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
+                      title="Previous Sponsor"
+                    >
+                      <ChevronLeft className="size-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewIdx((prev) => (prev + 1) % activeBanners.length)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 z-20 size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
+                      title="Next Sponsor"
+                    >
+                      <ChevronRight className="size-5" />
+                    </button>
+
+                    {/* Pagination Dots at Bottom */}
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
+                      {activeBanners.map((_, dotIdx) => (
+                        <button
+                          key={dotIdx}
+                          type="button"
+                          onClick={() => setPreviewIdx(dotIdx)}
+                          className={cn(
+                            "h-1.5 rounded-full transition-all cursor-pointer",
+                            dotIdx === previewIdx
+                              ? "w-6 bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]"
+                              : "w-1.5 bg-white/30 hover:bg-white/50"
+                          )}
+                          title={`Go to banner ${dotIdx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Ultra-Pro Mobile View Mockup Frame */
+            <div className="relative mx-auto max-w-[320px] rounded-[38px] border-[7px] border-zinc-800 bg-[#07090E] p-2.5 shadow-[0_25px_60px_-10px_rgba(0,0,0,0.8)]">
+              {/* Dynamic Island / Speaker notch simulation */}
+              <div className="mx-auto h-4 w-24 rounded-full bg-zinc-800 mb-2" />
+
+              <div className="relative w-full rounded-2xl overflow-hidden border border-amber-500/40 bg-black shadow-xl">
+                {/* Mobile Top Close Cross */}
+                <div className="absolute top-2.5 right-2.5 z-30 size-8 rounded-full bg-black/80 border border-white/20 grid place-items-center text-white/90 text-xs shadow-lg backdrop-blur-md">
+                  <X className="size-4" />
+                </div>
+
+                {/* Mobile Slide Counter */}
+                {activeBanners.length > 1 && (
+                  <div className="absolute top-2.5 left-2.5 z-30 px-2 py-0.5 rounded-full bg-black/80 border border-white/15 text-[9px] font-mono font-bold text-amber-400 shadow-md">
+                    {previewIdx + 1}/{activeBanners.length}
+                  </div>
+                )}
+
+                {/* Mobile Aspect Ratio Banner */}
+                <div className="relative aspect-[4/5] w-full overflow-hidden bg-black flex items-center justify-center">
+                  {(currentPreviewBanner?.mobile_image_url || currentPreviewBanner?.banner_image_url) ? (
+                    <img
+                      src={currentPreviewBanner.mobile_image_url || currentPreviewBanner.banner_image_url}
+                      alt="Mobile Banner"
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <div className="size-full grid place-items-center text-white/30 text-[11px] p-4 text-center">
+                      Mobile Banner Preview
+                    </div>
+                  )}
+
+                  {/* Floating Sponsor Name in Mobile */}
+                  {currentPreviewBanner?.sponsor_name?.trim() && (
+                    <div className="absolute bottom-2.5 left-2.5 z-30 pointer-events-none max-w-[70%]">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/85 border border-white/20 text-white backdrop-blur-md text-[10px] font-semibold truncate">
+                        <span className="size-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                        <span className="truncate">{currentPreviewBanner.sponsor_name}</span>
+                        {currentPreviewBanner.cta_link && (
+                          <ExternalLink className="size-2.5 text-amber-400 shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mobile Navigation Arrows */}
+                  {activeBanners.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewIdx((prev) => (prev - 1 + activeBanners.length) % activeBanners.length)}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 z-20 size-7 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center cursor-pointer"
+                      >
+                        <ChevronLeft className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewIdx((prev) => (prev + 1) % activeBanners.length)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 z-20 size-7 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center cursor-pointer"
+                      >
+                        <ChevronRight className="size-4" />
+                      </button>
+
+                      {/* Mobile Dots */}
+                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center gap-1 px-2 py-0.5 rounded-full bg-black/60 border border-white/10">
+                        {activeBanners.map((_, dotIdx) => (
+                          <button
+                            key={dotIdx}
+                            type="button"
+                            onClick={() => setPreviewIdx(dotIdx)}
+                            className={cn(
+                              "h-1 rounded-full transition-all",
+                              dotIdx === previewIdx ? "w-4 bg-amber-400" : "w-1 bg-white/40"
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Mobile Home Bar simulation */}
+              <div className="mx-auto h-1 w-20 rounded-full bg-zinc-700 mt-3" />
+              <p className="text-[10px] text-center text-[var(--fg-subtle)] mt-1">
+                Touch swipe enabled on mobile phones
+              </p>
+            </div>
+          )}
         </div>
 
         {/* 5. Bottom Save Actions */}
@@ -3113,10 +3244,10 @@ function SponsorPopupEditor() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-[var(--fg)]">
-                    {isAddingNew ? "Add Sponsor Banner Image" : "Edit Sponsor Banner"}
+                    {isAddingNew ? "Add Sponsor Banner" : "Edit Sponsor Banner"}
                   </h3>
                   <p className="text-xs text-[var(--fg-subtle)]">
-                    Upload the sponsor graphic banner. In the pop-up, only the banner will be displayed.
+                    Upload the sponsor banner graphic. Name and Click Link are optional.
                   </p>
                 </div>
               </div>
@@ -3132,22 +3263,25 @@ function SponsorPopupEditor() {
             <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1">
               <div>
                 <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
-                  Sponsor Brand / Label (For identification) <span className="text-rose-400">*</span>
+                  Sponsor Brand / Name <span className="text-amber-400 font-normal">(Optional)</span>
                 </label>
                 <input
                   type="text"
                   value={editingBanner.sponsor_name || ""}
                   onChange={(e) => setEditingBanner({ ...editingBanner, sponsor_name: e.target.value })}
-                  placeholder="e.g. Red Bull / Tata Motors / Nike"
+                  placeholder="e.g. Red Bull (Optional — leave blank for 100% pure image)"
                   className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
                 />
+                <span className="text-[11px] text-[var(--fg-subtle)] mt-1 block">
+                  If entered, a luxury floating brand pill appears on the banner. If left empty, only the banner image is shown.
+                </span>
               </div>
 
               {/* Desktop Banner Image Upload */}
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold text-[var(--fg)]">
-                    Sponsor Banner Image (16:9 / Landscape) <span className="text-rose-400">*</span>
+                    Desktop Banner Image (16:9 Landscape) <span className="text-rose-400">*</span>
                   </label>
                   <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-cyan-400 hover:border-cyan-400 cursor-pointer transition-colors">
                     <Upload className="size-3" />
@@ -3197,7 +3331,7 @@ function SponsorPopupEditor() {
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold text-[var(--fg)]">
-                    Mobile Banner Image (Optional - falls back to Desktop)
+                    Mobile Banner Image <span className="text-amber-400 font-normal">(Optional — falls back to Desktop)</span>
                   </label>
                   <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-cyan-400 hover:border-cyan-400 cursor-pointer transition-colors">
                     <Upload className="size-3" />
@@ -3226,15 +3360,18 @@ function SponsorPopupEditor() {
               {/* Click Redirect Link */}
               <div>
                 <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
-                  Click Redirect URL (Optional — when visitor clicks the banner)
+                  Click Redirect URL <span className="text-amber-400 font-normal">(Optional — when visitor clicks the banner)</span>
                 </label>
                 <input
                   type="text"
                   value={editingBanner.cta_link || ""}
                   onChange={(e) => setEditingBanner({ ...editingBanner, cta_link: e.target.value })}
-                  placeholder="e.g. /competitions or https://sponsor-website.com"
+                  placeholder="e.g. /competitions or https://sponsor-website.com (Optional)"
                   className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
                 />
+                <span className="text-[11px] text-[var(--fg-subtle)] mt-1 block">
+                  If set, clicking the banner opens this link. If empty, the banner is not clickable (display only).
+                </span>
               </div>
 
               {/* Active Toggle */}
