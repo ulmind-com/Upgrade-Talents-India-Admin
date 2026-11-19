@@ -253,13 +253,20 @@ function CompetitionCategoriesBuilder({
 
   const updateItem = (idx: number, patch: Partial<CompCategoryItem>) => {
     const next = [...categories];
-    const updated = { ...next[idx], ...patch };
-    if (updated.min_age != null && updated.max_age != null) {
-      updated.age_limit = `${updated.min_age}-${updated.max_age} years`;
-    } else if (updated.min_age != null) {
-      updated.age_limit = `${updated.min_age}+ years`;
-    } else if (updated.max_age != null) {
-      updated.age_limit = `Up to ${updated.max_age} years`;
+    const raw = { ...next[idx], ...patch } as any;
+    const minVal = raw.min_age != null && raw.min_age !== "" && !isNaN(Number(raw.min_age)) ? Number(raw.min_age) : null;
+    const maxVal = raw.max_age != null && raw.max_age !== "" && !isNaN(Number(raw.max_age)) ? Number(raw.max_age) : null;
+    const updated: CompCategoryItem = {
+      ...raw,
+      min_age: minVal,
+      max_age: maxVal,
+    };
+    if (minVal != null && maxVal != null) {
+      updated.age_limit = `${minVal}-${maxVal} years`;
+    } else if (minVal != null) {
+      updated.age_limit = `${minVal}+ years`;
+    } else if (maxVal != null) {
+      updated.age_limit = `Up to ${maxVal} years`;
     } else {
       updated.age_limit = "Open for all ages";
     }
@@ -271,7 +278,7 @@ function CompetitionCategoriesBuilder({
     onChange(categories.filter((_, i) => i !== idx));
   };
 
-  const addItem = (cat: CompCategoryItem = { name: "", min_age: 8, max_age: 14, description: "" }) => {
+  const addItem = (cat: CompCategoryItem = { name: "", min_age: null, max_age: null, age_limit: "Open for all ages", description: "" }) => {
     onChange([...categories, cat]);
   };
 
@@ -368,7 +375,7 @@ function CompetitionCategoriesBuilder({
                     type="text"
                     value={c.name}
                     onChange={(e) => updateItem(idx, { name: e.target.value })}
-                    placeholder="Category Name (e.g. Sub-Junior, Junior, Senior)"
+                    placeholder="Category Name (e.g. Sub-Junior, Junior, Group)"
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold text-[var(--fg)] outline-none focus:border-[var(--brand)]"
                   />
                 </div>
@@ -378,9 +385,9 @@ function CompetitionCategoriesBuilder({
                   <input
                     type="number"
                     value={c.min_age ?? ""}
-                    onChange={(e) => updateItem(idx, { min_age: e.target.value ? Number(e.target.value) : null })}
+                    onChange={(e) => updateItem(idx, { min_age: e.target.value === "" ? null : Number(e.target.value) })}
                     placeholder="Min Age"
-                    title="Minimum Age for this category"
+                    title="Minimum Age for this category (leave blank if none)"
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-mono text-[var(--fg)] outline-none focus:border-[var(--brand)]"
                   />
                 </div>
@@ -390,11 +397,32 @@ function CompetitionCategoriesBuilder({
                   <input
                     type="number"
                     value={c.max_age ?? ""}
-                    onChange={(e) => updateItem(idx, { max_age: e.target.value ? Number(e.target.value) : null })}
+                    onChange={(e) => updateItem(idx, { max_age: e.target.value === "" ? null : Number(e.target.value) })}
                     placeholder="Max Age"
-                    title="Maximum Age for this category"
+                    title="Maximum Age for this category (leave blank if none)"
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-mono text-[var(--fg)] outline-none focus:border-[var(--brand)]"
                   />
+                </div>
+
+                {/* Live Badge Preview */}
+                <div className="flex items-center">
+                  {c.min_age != null && c.max_age != null ? (
+                    <span className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                      🎯 {c.min_age} to {c.max_age} yrs
+                    </span>
+                  ) : c.min_age != null ? (
+                    <span className="rounded-md border border-blue-500/30 bg-blue-500/15 px-2 py-1 text-[11px] font-semibold text-blue-400 whitespace-nowrap">
+                      🎯 {c.min_age}+ yrs
+                    </span>
+                  ) : c.max_age != null ? (
+                    <span className="rounded-md border border-purple-500/30 bg-purple-500/15 px-2 py-1 text-[11px] font-semibold text-purple-400 whitespace-nowrap">
+                      🎯 Up to {c.max_age} yrs
+                    </span>
+                  ) : (
+                    <span className="rounded-md border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-[11px] font-semibold text-sky-400 whitespace-nowrap">
+                      🌟 Open / All Ages
+                    </span>
+                  )}
                 </div>
 
                 {/* Delete button */}
@@ -414,7 +442,7 @@ function CompetitionCategoriesBuilder({
                   type="text"
                   value={c.description || ""}
                   onChange={(e) => updateItem(idx, { description: e.target.value })}
-                  placeholder="Optional division description / rules (e.g. Kids aged 3 to 7 years)"
+                  placeholder="Optional division description / rules (e.g. Group size: 3 to 50 members)"
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11.5px] text-[var(--fg-muted)] outline-none focus:border-[var(--brand)]"
                 />
               </div>
@@ -785,11 +813,7 @@ export default function CompetitionsPage() {
             {
               name: "categories",
               label: "Age Divisions & Categories",
-              defaultValue: [
-                { name: "Sub-Junior", min_age: 3, max_age: 7, age_limit: "3-7 years", description: "Ages 3 to 7 years" },
-                { name: "Junior", min_age: 8, max_age: 14, age_limit: "8-14 years", description: "Ages 8 to 14 years" },
-                { name: "Senior", min_age: 15, max_age: 28, age_limit: "15-28 years", description: "Ages 15 to 28 years" },
-              ],
+              defaultValue: [],
               render: ({ value, onChange }) => (
                 <CompetitionCategoriesBuilder value={value} onChange={onChange} />
               ),
@@ -990,13 +1014,25 @@ export default function CompetitionsPage() {
             };
 
             const cleanCategories = Array.isArray(v.categories) && v.categories.length > 0
-              ? v.categories.filter((c: any) => c && String(c.name || "").trim()).map((c: any) => ({
-                  name: String(c.name).trim(),
-                  min_age: c.min_age != null && c.min_age !== "" ? Number(c.min_age) : null,
-                  max_age: c.max_age != null && c.max_age !== "" ? Number(c.max_age) : null,
-                  age_limit: c.age_limit || (c.min_age != null && c.max_age != null ? `${c.min_age}-${c.max_age} years` : undefined),
-                  description: c.description ? String(c.description).trim() : null,
-                }))
+              ? v.categories.filter((c: any) => c && String(c.name || "").trim()).map((c: any) => {
+                  const min = c.min_age !== null && c.min_age !== undefined && c.min_age !== "" ? Number(c.min_age) : null;
+                  const max = c.max_age !== null && c.max_age !== undefined && c.max_age !== "" ? Number(c.max_age) : null;
+                  let ageLimit = "Open for all ages";
+                  if (min != null && max != null) {
+                    ageLimit = `${min}-${max} years`;
+                  } else if (min != null) {
+                    ageLimit = `${min}+ years`;
+                  } else if (max != null) {
+                    ageLimit = `Up to ${max} years`;
+                  }
+                  return {
+                    name: String(c.name).trim(),
+                    min_age: min,
+                    max_age: max,
+                    age_limit: ageLimit,
+                    description: c.description ? String(c.description).trim() : null,
+                  };
+                })
               : [];
 
             if (editing) {
@@ -1017,7 +1053,7 @@ export default function CompetitionsPage() {
                 title: v.title ? String(v.title).trim() : undefined,
                 description: v.description !== undefined ? String(v.description || "").trim() : undefined,
                 category: v.category ? String(v.category).trim() : (cleanCategories[0]?.name || undefined),
-                categories: cleanCategories.length > 0 ? cleanCategories : undefined,
+                categories: cleanCategories,
                 card_image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
                 image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
                 banner_image_url: v.banner_image_url ? String(v.banner_image_url).trim() : null,
@@ -1055,7 +1091,7 @@ export default function CompetitionsPage() {
               title: String(v.title || "").trim(),
               description: String(v.description || v.title || "").trim(),
               category: String(v.category || cleanCategories[0]?.name || "General").trim() || "General",
-              categories: cleanCategories.length > 0 ? cleanCategories : undefined,
+              categories: cleanCategories,
               type: "General",
               card_image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
               image_url: v.card_image_url ? String(v.card_image_url).trim() : null,
