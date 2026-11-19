@@ -13,8 +13,10 @@ import { Button, Field, Input, Panel, StatusBadge, Textarea, Toggle, useResource
 import { useToast } from "@/components/Providers";
 import { cmsApi, safe } from "@/lib/api";
 import { formatDate, fromDateTimeInput, rowId, cn } from "@/lib/utils";
+import { SectionsManager } from "./SectionsManager";
 
 const TABS = [
+  { key: "layout", label: "⚡ Layout & Sections (ON/OFF Control)" },
   { key: "brand", label: "Brand & Contact" },
   { key: "stage", label: "Stage Moments (Ring)" },
   { key: "spotlight", label: "Spotlight Posts & Social" },
@@ -34,13 +36,13 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 export default function WebsitePage() {
-  const [tab, setTab] = useState<TabKey>("brand");
+  const [tab, setTab] = useState<TabKey>("layout");
 
   return (
     <div className="flex flex-col gap-6">
       <p className="max-w-3xl text-[13.5px] text-[var(--fg-muted)]">
         Everything on the public website is controlled from here — no developer needed.
-        Save a section and the live site picks it up on its next revalidation.
+        Toggle homepage sections ON or OFF, reorder layout, add custom blocks, and customize content in real time.
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -54,6 +56,7 @@ export default function WebsitePage() {
         ))}
       </div>
 
+      {tab === "layout" && <SectionsManager onNavigateTab={(k) => setTab(k as TabKey)} />}
       {tab === "brand" && <BrandSection />}
       {tab === "stage" && <StageMomentsSectionEditor />}
       {tab === "spotlight" && <SpotlightSectionEditor />}

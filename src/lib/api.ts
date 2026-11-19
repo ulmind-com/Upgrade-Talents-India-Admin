@@ -137,9 +137,32 @@ export const webauthnApi = {
   deleteCredential: (id: string) => api<{ message: string }>(`${wa}/credentials/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };
 
+export interface HomepageSectionItem {
+  id: string;
+  name: string;
+  description?: string;
+  category: string;
+  section_type: string;
+  is_enabled: boolean;
+  display_order: number;
+  badge?: string;
+  config?: Record<string, any>;
+}
+
 /* ═══════════════ CMS (website control room) ═══════════════ */
 const cms = "/api/admin";
 export const cmsApi = {
+  getHomepageSections: () => api<HomepageSectionItem[]>(`${cms}/homepage-sections`),
+  updateHomepageSections: (sections: HomepageSectionItem[]) =>
+    api<HomepageSectionItem[]>(`${cms}/homepage-sections`, { method: "PUT", body: { sections } }),
+  createCustomSection: (body: any) =>
+    api<HomepageSectionItem>(`${cms}/homepage-sections/custom`, { method: "POST", body }),
+  updateHomepageSection: (sectionId: string, body: any) =>
+    api<HomepageSectionItem>(`${cms}/homepage-sections/${encodeURIComponent(sectionId)}`, { method: "PUT", body }),
+  deleteHomepageSection: (sectionId: string) =>
+    api<{ message: string; id: string }>(`${cms}/homepage-sections/${encodeURIComponent(sectionId)}`, { method: "DELETE" }),
+  resetHomepageSections: () =>
+    api<HomepageSectionItem[]>(`${cms}/homepage-sections/reset-defaults`, { method: "POST" }),
   getSettings: () => api<any>(`${cms}/website-settings`),
   updateSettings: (body: any) => api<any>(`${cms}/website-settings`, { method: "PUT", body }),
   getFeaturedTiles: () => api<any[]>(`${cms}/featured-tiles`),
