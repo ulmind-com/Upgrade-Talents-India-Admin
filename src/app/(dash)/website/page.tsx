@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2, Plus, Trash2, RotateCcw, Sparkles, ExternalLink, Zap, ArrowUp, ArrowDown, Linkedin } from "lucide-react";
+import { Eye, EyeOff, Save, Check, Radio, Upload, Image as ImageIcon, Loader2, Plus, Trash2, RotateCcw, Sparkles, ExternalLink, Zap, ArrowUp, ArrowDown, Linkedin, ChevronLeft, ChevronRight, X, Edit2, Sliders, Layers } from "lucide-react";
 import {
   SiInstagram,
   SiYoutube,
@@ -16,12 +16,12 @@ import { formatDate, fromDateTimeInput, rowId, cn } from "@/lib/utils";
 import { SectionsManager } from "./SectionsManager";
 
 const TABS = [
-  { key: "layout", label: "⚡ Layout & Sections (ON/OFF Control)" },
+  { key: "layout", label: "⚡ Sections ON / OFF & Layout" },
   { key: "brand", label: "Brand & Contact" },
   { key: "stage", label: "Stage Moments (Ring)" },
   { key: "spotlight", label: "Spotlight Posts & Social" },
   { key: "partners", label: "Partners & Sponsors" },
-  { key: "popup", label: "Grand Sponsor Pop-up" },
+  { key: "popup", label: "💎 Grand Sponsor Pop-up (Multi-Banner Modal)" },
   { key: "banners", label: "Sponsored Banners" },
   { key: "tiles", label: "Featured 4 Tiles" },
   { key: "gallery", label: "Gallery Section" },
@@ -40,17 +40,36 @@ export default function WebsitePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="max-w-3xl text-[13.5px] text-[var(--fg-muted)]">
-        Everything on the public website is controlled from here — no developer needed.
-        Toggle homepage sections ON or OFF, reorder layout, add custom blocks, and customize content in real time.
-      </p>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold tracking-tight text-[var(--fg)]">Website Content & Section Controls</h1>
+        <p className="max-w-3xl text-[13.5px] text-[var(--fg-muted)]">
+          Everything on the public website is controlled here. Toggle homepage sections ON or OFF, reorder layout, add custom blocks, and customize multi-sponsor popups in real time.
+        </p>
+      </div>
+
+      {/* Instant Shortcut to Sections ON/OFF Manager */}
+      {tab !== "layout" && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            <span className="flex size-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Looking for Homepage Sections ON / OFF buttons? Manage all 20 sections in one click.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTab("layout")}
+            className="px-3.5 py-1.5 rounded-lg bg-emerald-500 text-slate-950 text-xs font-bold hover:bg-emerald-400 transition-colors shadow-sm shrink-0 cursor-pointer"
+          >
+            ⚡ Open Sections ON / OFF Manager →
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button
             key={t.key} onClick={() => setTab(t.key)} aria-pressed={tab === t.key}
             className={`min-h-[40px] cursor-pointer rounded-xl px-4 text-[13px] font-semibold transition-colors ${
-              tab === t.key ? "bg-[var(--brand)] text-[var(--on-brand)]" : "border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-[var(--fg)]"
+              tab === t.key ? "bg-[var(--brand)] text-[var(--on-brand)] shadow-sm" : "border border-[var(--border)] bg-[var(--surface)] text-[var(--fg-muted)] hover:text-[var(--fg)]"
             }`}
           >{t.label}</button>
         ))}
@@ -2477,20 +2496,69 @@ function PartnersSectionEditor() {
   );
 }
 
-/* ───────── GRAND SPONSOR POP-UP (WEBSITE OPENING MODAL) ───────── */
+/* ───────── GRAND SPONSOR POP-UP (MULTI-BANNER OPENING MODAL) ───────── */
+
+interface SponsorBannerItem {
+  id: string;
+  sponsor_name: string;
+  badge_text: string;
+  title: string;
+  subtitle: string;
+  banner_image_url: string;
+  mobile_image_url?: string;
+  cta_text: string;
+  cta_link: string;
+  is_active: boolean;
+  display_order: number;
+}
 
 const DEFAULT_POPUP_CONFIG = {
   is_enabled: false,
-  sponsor_name: "Title Sponsor",
-  badge_text: "OFFICIAL TITLE SPONSOR",
-  title: "Grand National Championship 2026",
-  subtitle: "Presented by our Mega Platinum Partner — Win Cash Prizes & National Recognition",
-  banner_image_url: "https://images.unsplash.com/photo-1547153760-18fc86324498?q=80&w=1920&auto=format&fit=crop",
-  mobile_image_url: "",
-  cta_text: "Explore Exclusive Offer",
-  cta_link: "/competitions",
   show_mode: "once_per_session",
   auto_close_seconds: 0,
+  auto_scroll_enabled: true,
+  auto_scroll_interval: 4,
+  banners: [
+    {
+      id: "sponsor_1",
+      sponsor_name: "Red Bull",
+      badge_text: "Grand Title Partner",
+      title: "Red Bull Dance Your Style India",
+      subtitle: "Fueling national breakers and street dancers across 28 cities.",
+      banner_image_url: "https://images.unsplash.com/photo-1547153760-18fc86324498?q=80&w=1920&auto=format&fit=crop",
+      mobile_image_url: "",
+      cta_text: "Explore Exclusive Offer",
+      cta_link: "/competitions",
+      is_active: true,
+      display_order: 1,
+    },
+    {
+      id: "sponsor_2",
+      sponsor_name: "Nike Dance",
+      badge_text: "Official Apparel Partner",
+      title: "Streetwear & Performance Collection 2026",
+      subtitle: "Exclusive dancer footwear and gear for Upgrade Talents contenders.",
+      banner_image_url: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=1920&auto=format&fit=crop",
+      mobile_image_url: "",
+      cta_text: "Shop Partner Gear",
+      cta_link: "/shop",
+      is_active: true,
+      display_order: 2,
+    },
+    {
+      id: "sponsor_3",
+      sponsor_name: "Pioneer DJ",
+      badge_text: "Arena Audio Partner",
+      title: "Pro Arena Soundstages & Battle Acoustics",
+      subtitle: "Powering high-octane battle rhythms and national finals.",
+      banner_image_url: "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1920&auto=format&fit=crop",
+      mobile_image_url: "",
+      cta_text: "View Arena Setup",
+      cta_link: "/events",
+      is_active: true,
+      display_order: 3,
+    },
+  ],
 };
 
 function SponsorPopupEditor() {
@@ -2501,23 +2569,48 @@ function SponsorPopupEditor() {
 
   const [config, setConfig] = useState<any>(DEFAULT_POPUP_CONFIG);
   const [busy, setBusy] = useState(false);
+  const [previewIdx, setPreviewIdx] = useState(0);
+  const [previewPaused, setPreviewPaused] = useState(false);
+  
+  // Banner Add / Edit Modal State
+  const [editingBanner, setEditingBanner] = useState<SponsorBannerItem | null>(null);
+  const [isAddingNew, setIsAddingNew] = useState(false);
   const [uploadingDesktop, setUploadingDesktop] = useState(false);
   const [uploadingMobile, setUploadingMobile] = useState(false);
 
   useEffect(() => {
     if (data) {
+      let banners: SponsorBannerItem[] = [];
+      if (Array.isArray(data.banners) && data.banners.length > 0) {
+        banners = data.banners;
+      } else if (data.banner_image_url || data.title) {
+        // Migrate legacy single banner
+        banners = [
+          {
+            id: "legacy_1",
+            sponsor_name: data.sponsor_name || "Official Partner",
+            badge_text: data.badge_text || "OFFICIAL TITLE SPONSOR",
+            title: data.title || "Grand National Championship 2026",
+            subtitle: data.subtitle || "",
+            banner_image_url: data.banner_image_url || "",
+            mobile_image_url: data.mobile_image_url || "",
+            cta_text: data.cta_text || "Explore Exclusive Offer",
+            cta_link: data.cta_link || "/competitions",
+            is_active: true,
+            display_order: 1,
+          },
+        ];
+      } else {
+        banners = DEFAULT_POPUP_CONFIG.banners;
+      }
+
       setConfig({
         is_enabled: Boolean(data.is_enabled),
-        sponsor_name: data.sponsor_name || "Title Sponsor",
-        badge_text: data.badge_text || "OFFICIAL TITLE SPONSOR",
-        title: data.title || "Grand National Championship 2026",
-        subtitle: data.subtitle || "",
-        banner_image_url: data.banner_image_url || "",
-        mobile_image_url: data.mobile_image_url || "",
-        cta_text: data.cta_text || "Explore Exclusive Offer",
-        cta_link: data.cta_link || "/competitions",
         show_mode: data.show_mode || "once_per_session",
         auto_close_seconds: Number(data.auto_close_seconds) || 0,
+        auto_scroll_enabled: data.auto_scroll_enabled !== false,
+        auto_scroll_interval: Number(data.auto_scroll_interval) || 4,
+        banners,
       });
     }
   }, [data]);
@@ -2526,32 +2619,156 @@ function SponsorPopupEditor() {
     setConfig((prev: any) => ({ ...prev, ...patch }));
   };
 
-  const handleUpload = async (file: File, type: "desktop" | "mobile") => {
+  // Active banners list for preview and validation
+  const activeBanners: SponsorBannerItem[] = (config.banners || []).filter(
+    (b: SponsorBannerItem) => b.is_active !== false && Boolean(b.banner_image_url || b.title)
+  );
+
+  // Auto-scroll loop for preview
+  useEffect(() => {
+    if (previewPaused || !config.auto_scroll_enabled || activeBanners.length <= 1) return;
+    const intervalSec = Math.max(2, Number(config.auto_scroll_interval) || 4);
+    const timer = setInterval(() => {
+      setPreviewIdx((prev) => (prev + 1) % activeBanners.length);
+    }, intervalSec * 1000);
+    return () => clearInterval(timer);
+  }, [previewPaused, config.auto_scroll_enabled, config.auto_scroll_interval, activeBanners.length]);
+
+  // Adjust preview index if activeBanners shrink
+  useEffect(() => {
+    if (previewIdx >= activeBanners.length && activeBanners.length > 0) {
+      setPreviewIdx(0);
+    }
+  }, [activeBanners.length, previewIdx]);
+
+  // Upload handlers
+  const handleUpload = async (file: File, target: "desktop" | "mobile") => {
     if (!file) return;
-    if (type === "desktop") setUploadingDesktop(true);
+    if (target === "desktop") setUploadingDesktop(true);
     else setUploadingMobile(true);
 
     try {
       const res = await cmsApi.uploadSponsorPopupImage(file);
       const url = res?.url || res?.image_url;
-      if (url) {
-        if (type === "desktop") update({ banner_image_url: url });
-        else update({ mobile_image_url: url });
-        push("success", `${type === "desktop" ? "Desktop" : "Mobile"} sponsor banner uploaded successfully.`);
+      if (url && editingBanner) {
+        setEditingBanner((prev) =>
+          prev
+            ? {
+                ...prev,
+                [target === "desktop" ? "banner_image_url" : "mobile_image_url"]: url,
+              }
+            : null
+        );
+        push("success", `${target === "desktop" ? "Desktop" : "Mobile"} banner uploaded to Cloudinary!`);
       }
     } catch (e: any) {
       push("error", e?.message || "Failed to upload image.");
     } finally {
-      if (type === "desktop") setUploadingDesktop(false);
+      if (target === "desktop") setUploadingDesktop(false);
       else setUploadingMobile(false);
     }
   };
 
-  const handleSave = async () => {
+  // Reorder Banners
+  const handleMoveBanner = (idx: number, direction: "up" | "down") => {
+    const list: SponsorBannerItem[] = [...(config.banners || [])];
+    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const temp = list[idx];
+    list[idx] = list[targetIdx];
+    list[targetIdx] = temp;
+    list.forEach((b, i) => {
+      b.display_order = i + 1;
+    });
+    update({ banners: list });
+  };
+
+  // Toggle Single Banner Active
+  const handleToggleBanner = (id: string) => {
+    const list: SponsorBannerItem[] = (config.banners || []).map((b: SponsorBannerItem) =>
+      b.id === id ? { ...b, is_active: !b.is_active } : b
+    );
+    update({ banners: list });
+  };
+
+  // Delete Banner
+  const handleDeleteBanner = (id: string) => {
+    const list: SponsorBannerItem[] = (config.banners || []).filter((b: SponsorBannerItem) => b.id !== id);
+    list.forEach((b, i) => {
+      b.display_order = i + 1;
+    });
+    update({ banners: list });
+    push("success", "Sponsor banner removed.");
+  };
+
+  // Start Adding New Banner
+  const handleStartAdd = () => {
+    const newId = `sponsor_${Date.now()}`;
+    const nextOrder = (config.banners?.length || 0) + 1;
+    setEditingBanner({
+      id: newId,
+      sponsor_name: "",
+      badge_text: "OFFICIAL PARTNER",
+      title: "",
+      subtitle: "",
+      banner_image_url: "",
+      mobile_image_url: "",
+      cta_text: "Learn More",
+      cta_link: "/competitions",
+      is_active: true,
+      display_order: nextOrder,
+    });
+    setIsAddingNew(true);
+  };
+
+  // Start Editing Banner
+  const handleStartEdit = (b: SponsorBannerItem) => {
+    setEditingBanner({ ...b });
+    setIsAddingNew(false);
+  };
+
+  // Save Banner Modal Form
+  const handleSaveModalBanner = () => {
+    if (!editingBanner) return;
+    if (!editingBanner.banner_image_url && !editingBanner.title) {
+      push("error", "Please provide at least a banner image URL or title.");
+      return;
+    }
+
+    const current: SponsorBannerItem[] = [...(config.banners || [])];
+    const existingIdx = current.findIndex((b) => b.id === editingBanner.id);
+    if (existingIdx >= 0) {
+      current[existingIdx] = editingBanner;
+    } else {
+      current.push(editingBanner);
+    }
+    current.forEach((b, i) => {
+      b.display_order = i + 1;
+    });
+
+    update({ banners: current });
+    setEditingBanner(null);
+    push("success", `Sponsor banner saved.`);
+  };
+
+  // Save All to Backend
+  const handleSaveAll = async () => {
     setBusy(true);
     try {
-      await cmsApi.updateSponsorPopup(config);
-      push("success", "Grand Sponsor Pop-up settings saved successfully.");
+      const primary = (config.banners || []).find((b: SponsorBannerItem) => b.is_active) || (config.banners || [])[0] || {};
+      const payload = {
+        ...config,
+        sponsor_name: primary.sponsor_name || "Official Partner",
+        badge_text: primary.badge_text || "OFFICIAL TITLE SPONSOR",
+        title: primary.title || "Grand National Championship 2026",
+        subtitle: primary.subtitle || "",
+        banner_image_url: primary.banner_image_url || "",
+        mobile_image_url: primary.mobile_image_url || "",
+        cta_text: primary.cta_text || "Explore Exclusive Offer",
+        cta_link: primary.cta_link || "/competitions",
+      };
+      await cmsApi.updateSponsorPopup(payload);
+      push("success", "Grand Sponsor Pop-up multi-banner carousel saved successfully!");
       reload();
     } catch (e: any) {
       push("error", e?.message || "Could not save sponsor pop-up settings.");
@@ -2562,7 +2779,7 @@ function SponsorPopupEditor() {
 
   if (loading && !data) {
     return (
-      <Panel title="Grand Sponsor Pop-up (Website Opening Modal)">
+      <Panel title="Grand Sponsor Pop-up (Multi-Banner Opening Modal)">
         <div className="flex h-44 items-center justify-center text-[var(--fg-muted)]">
           <Loader2 className="size-6 animate-spin" />
         </div>
@@ -2570,342 +2787,626 @@ function SponsorPopupEditor() {
     );
   }
 
+  const currentPreviewBanner = activeBanners[previewIdx] || activeBanners[0];
+
   return (
     <Panel
-      title="Grand Sponsor Pop-up (Website Opening Modal)"
-      subtitle="Exclusive high-impact popup banner shown to visitors when opening the website. Fully dedicated to mega-sponsors (₹50k - ₹1L+)."
+      title="💎 Grand Sponsor Pop-up (Multi-Banner Website Opening Modal)"
+      subtitle="Ultra-premium, centered pop-up modal shown to visitors when landing on the website. Features auto-scrolling sponsor banners, customizable intervals, and direct brand links."
       action={
-        <Button size="sm" onClick={handleSave} loading={busy}>
-          <Save className="size-3.5" aria-hidden /> Save Sponsor Pop-up
+        <Button size="sm" onClick={handleSaveAll} loading={busy}>
+          <Save className="size-3.5" aria-hidden /> Save All Settings
         </Button>
       }
     >
       <div className="flex flex-col gap-8">
-        {/* Enable / Disable Master Switch & Status */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
-          <div className="flex items-center gap-3">
-            <Toggle
-              checked={config.is_enabled}
-              onChange={(val) => update({ is_enabled: val })}
-              label="Enable Grand Sponsor Modal on Website"
-            />
+        {/* 1. Master Switch & Global Frequency Settings */}
+        <div className="grid gap-4 lg:grid-cols-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <Toggle
+                checked={config.is_enabled}
+                onChange={(val) => update({ is_enabled: val })}
+                label="Enable Grand Sponsor Pop-up on Website"
+              />
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
+                  config.is_enabled
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    : "bg-zinc-500/20 text-zinc-400 border border-zinc-500/30"
+                )}
+              >
+                <span className={cn("size-2 rounded-full", config.is_enabled ? "bg-emerald-400 animate-pulse" : "bg-zinc-400")} />
+                {config.is_enabled ? "Active on Website" : "Disabled (Hidden)"}
+              </span>
+            </div>
+            <p className="text-xs text-[var(--fg-subtle)] leading-relaxed">
+              When enabled, visitors will see this centered luxury modal with auto-scrolling sponsor cards upon opening the website.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-[var(--fg)]">
-                  Pop-up Status:
-                </span>
-                <span
+              <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">Display Frequency</label>
+              <select
+                value={config.show_mode || "once_per_session"}
+                onChange={(e) => update({ show_mode: e.target.value })}
+                className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--fg)] outline-none"
+              >
+                <option value="once_per_session">Once Per Browser Session (Recommended)</option>
+                <option value="once_per_day">Once Per Day</option>
+                <option value="always">Always (Every Page Landing / Refresh)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">Auto-Close Timer (0 = Manual Close)</label>
+              <input
+                type="number"
+                min="0"
+                max="60"
+                value={config.auto_close_seconds || 0}
+                onChange={(e) => update({ auto_close_seconds: Number(e.target.value) || 0 })}
+                placeholder="0 = never auto close"
+                className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--fg)] outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Auto-Scroll Carousel Controls */}
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Toggle
+                checked={config.auto_scroll_enabled !== false}
+                onChange={(val) => update({ auto_scroll_enabled: val })}
+                label="Auto-Scroll Sponsor Banners"
+              />
+              <span className="text-xs font-medium text-amber-300">
+                {config.auto_scroll_enabled !== false ? "🔄 Auto-Scrolling Enabled" : "⏸ Manual Swipe Only"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-semibold text-[var(--fg)] whitespace-nowrap">
+                Scroll Speed: <span className="text-amber-400 font-bold">{config.auto_scroll_interval || 4}s</span> per card
+              </label>
+              <input
+                type="range"
+                min="2"
+                max="10"
+                step="1"
+                value={config.auto_scroll_interval || 4}
+                onChange={(e) => update({ auto_scroll_interval: Number(e.target.value) })}
+                className="w-28 sm:w-36 accent-amber-400 cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Sponsor Banners Management Cards List */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
+            <div>
+              <h3 className="text-sm font-bold text-[var(--fg)] flex items-center gap-2">
+                <Sparkles className="size-4 text-amber-400" />
+                Sponsor Banner Cards ({activeBanners.length} Active / {config.banners?.length || 0} Total)
+              </h3>
+              <p className="text-xs text-[var(--fg-subtle)] mt-0.5">
+                Add sponsor banners below. When multiple banners are active, they will automatically scroll in the middle pop-up.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleStartAdd}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 transition-colors shadow-sm cursor-pointer"
+            >
+              <Plus className="size-4" /> Add Sponsor Banner
+            </button>
+          </div>
+
+          {/* Banners List */}
+          <div className="flex flex-col gap-3">
+            {(!config.banners || config.banners.length === 0) ? (
+              <div className="rounded-xl border border-dashed border-[var(--border)] p-8 text-center text-xs text-[var(--fg-muted)]">
+                No sponsor banners added yet. Click &quot;Add Sponsor Banner&quot; above to add your first sponsor card.
+              </div>
+            ) : (
+              config.banners.map((banner: SponsorBannerItem, idx: number) => (
+                <div
+                  key={banner.id || idx}
                   className={cn(
-                    "inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider",
-                    config.is_enabled
-                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                      : "bg-zinc-500/20 text-zinc-400 border border-zinc-500/30"
+                    "flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border transition-all",
+                    banner.is_active !== false
+                      ? "border-[var(--border)] bg-[var(--surface)] hover:border-amber-500/40"
+                      : "border-dashed border-[var(--border)] bg-[var(--surface-2)] opacity-60"
                   )}
                 >
-                  <span className={cn("size-2 rounded-full", config.is_enabled ? "bg-emerald-400 animate-pulse" : "bg-zinc-400")} />
-                  {config.is_enabled ? "Live & Active" : "Disabled (Hidden)"}
-                </span>
-              </div>
-              <p className="text-xs text-[var(--fg-subtle)] mt-1">
-                When enabled, visitors will see this luxury popup banner with your platinum sponsor's branding.
-              </p>
-            </div>
-          </div>
+                  {/* Left: Thumbnail & Reorder */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex flex-col gap-1 text-[var(--fg-muted)]">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveBanner(idx, "up")}
+                        className="p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30 cursor-pointer"
+                        title="Move Up"
+                      >
+                        <ArrowUp className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === (config.banners.length - 1)}
+                        onClick={() => handleMoveBanner(idx, "down")}
+                        className="p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30 cursor-pointer"
+                        title="Move Down"
+                      >
+                        <ArrowDown className="size-3.5" />
+                      </button>
+                    </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-[var(--fg-muted)]">Display Mode:</label>
-            <select
-              value={config.show_mode}
-              onChange={(e) => update({ show_mode: e.target.value })}
-              className="h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--fg)] outline-none"
-            >
-              <option value="once_per_session">Once Per Session (Recommended)</option>
-              <option value="once_per_day">Once Per Day</option>
-              <option value="always">Always (Every Website Open)</option>
-            </select>
+                    <div className="relative size-16 sm:size-20 rounded-lg overflow-hidden border border-white/10 bg-black/60 shrink-0">
+                      {banner.banner_image_url ? (
+                        <img
+                          src={banner.banner_image_url}
+                          alt={banner.sponsor_name || banner.title}
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <div className="size-full grid place-items-center text-white/30 text-[10px]">
+                          No Image
+                        </div>
+                      )}
+                      <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-black/80 text-amber-400">
+                        #{idx + 1}
+                      </span>
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-xs sm:text-sm text-[var(--fg)] truncate">
+                          {banner.sponsor_name || "Unnamed Sponsor"}
+                        </span>
+                        {banner.badge_text && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-400/10 text-amber-400 border border-amber-400/30">
+                            {banner.badge_text}
+                          </span>
+                        )}
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-[10px] font-semibold",
+                            banner.is_active !== false
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : "bg-zinc-500/20 text-zinc-400"
+                          )}
+                        >
+                          {banner.is_active !== false ? "Active" : "Paused"}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-[var(--fg-muted)] truncate mt-1">
+                        {banner.title || "(No headline provided)"}
+                      </p>
+                      {banner.cta_text && (
+                        <p className="text-[11px] text-[var(--fg-subtle)] truncate mt-0.5">
+                          Button: {banner.cta_text} → {banner.cta_link || "#"}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleBanner(banner.id)}
+                      className={cn(
+                        "px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer",
+                        banner.is_active !== false
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                          : "border-zinc-500/30 bg-zinc-500/10 text-zinc-400 hover:bg-zinc-500/20"
+                      )}
+                    >
+                      {banner.is_active !== false ? "Pause" : "Activate"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleStartEdit(banner)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold text-[var(--fg)] hover:border-amber-400 transition-colors cursor-pointer"
+                    >
+                      <Edit2 className="size-3.5 text-amber-400" /> Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteBanner(banner.id)}
+                      className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                      title="Delete Banner"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Sponsor Identity & Messaging */}
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
-          <h3 className="text-sm font-semibold text-[var(--fg)] mb-4 flex items-center gap-2">
-            <Sparkles className="size-4 text-amber-400" /> Sponsor Details & Copywriting
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Sponsor Name / Brand" required>
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={config.sponsor_name}
-                  placeholder="e.g. Tata Motors / Red Bull / Star Arena"
-                  onChange={(e) => update({ sponsor_name: e.target.value })}
-                />
-              )}
-            </Field>
-
-            <Field label="Badge Ribbon Text">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={config.badge_text}
-                  placeholder="e.g. OFFICIAL TITLE SPONSOR"
-                  onChange={(e) => update({ badge_text: e.target.value })}
-                />
-              )}
-            </Field>
-
-            <Field label="Modal Heading / Title" required>
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={config.title}
-                  placeholder="e.g. Grand National Championship 2026"
-                  onChange={(e) => update({ title: e.target.value })}
-                />
-              )}
-            </Field>
-
-            <Field label="Tagline / Subtitle">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={config.subtitle}
-                  placeholder="e.g. Presented by our Mega Platinum Partner"
-                  onChange={(e) => update({ subtitle: e.target.value })}
-                />
-              )}
-            </Field>
-          </div>
-        </div>
-
-        {/* Banner Images (Desktop & Mobile) */}
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
-          <h3 className="text-sm font-semibold text-[var(--fg)] mb-4 flex items-center gap-2">
-            <ImageIcon className="size-4 text-cyan-400" /> Sponsor Banner Media
-          </h3>
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Desktop Banner */}
-            <div className="flex flex-col gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[var(--fg)]">Desktop Banner (16:9 / Landscape)</span>
-                <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] transition-colors">
-                  <Upload className="size-3 text-cyan-400" />
-                  <span>Upload</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleUpload(f, "desktop");
-                    }}
-                  />
-                </label>
-              </div>
-
-              <div className="relative aspect-[16/9] w-full rounded-lg overflow-hidden border border-white/10 bg-black/60 flex items-center justify-center">
-                {config.banner_image_url ? (
-                  <img
-                    src={config.banner_image_url}
-                    alt="Desktop Banner"
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="text-center text-xs text-white/40 p-4">
-                    <ImageIcon className="size-8 mx-auto mb-1 opacity-50" />
-                    No desktop banner image selected
-                  </div>
-                )}
-                {uploadingDesktop && (
-                  <div className="absolute inset-0 bg-black/80 grid place-items-center">
-                    <Loader2 className="size-6 animate-spin text-white" />
-                  </div>
-                )}
-              </div>
-
-              <Input
-                value={config.banner_image_url || ""}
-                placeholder="Direct image URL https://..."
-                className="text-xs h-7"
-                onChange={(e) => update({ banner_image_url: e.target.value })}
-              />
-            </div>
-
-            {/* Mobile Banner */}
-            <div className="flex flex-col gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[var(--fg)]">Mobile Banner (Optional - Fallback to Desktop)</span>
-                <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] transition-colors">
-                  <Upload className="size-3 text-cyan-400" />
-                  <span>Upload</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleUpload(f, "mobile");
-                    }}
-                  />
-                </label>
-              </div>
-
-              <div className="relative aspect-[16/9] w-full rounded-lg overflow-hidden border border-white/10 bg-black/60 flex items-center justify-center">
-                {config.mobile_image_url ? (
-                  <img
-                    src={config.mobile_image_url}
-                    alt="Mobile Banner"
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="text-center text-xs text-white/40 p-4">
-                    <ImageIcon className="size-8 mx-auto mb-1 opacity-50" />
-                    Optional: Uses desktop banner if empty
-                  </div>
-                )}
-                {uploadingMobile && (
-                  <div className="absolute inset-0 bg-black/80 grid place-items-center">
-                    <Loader2 className="size-6 animate-spin text-white" />
-                  </div>
-                )}
-              </div>
-
-              <Input
-                value={config.mobile_image_url || ""}
-                placeholder="Direct mobile image URL https://..."
-                className="text-xs h-7"
-                onChange={(e) => update({ mobile_image_url: e.target.value })}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* CTA & Interaction Controls */}
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
-          <h3 className="text-sm font-semibold text-[var(--fg)] mb-4 flex items-center gap-2">
-            <ExternalLink className="size-4 text-emerald-400" /> Call to Action & Behavior
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="CTA Button Text" required>
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={config.cta_text}
-                  placeholder="e.g. Explore Exclusive Offer"
-                  onChange={(e) => update({ cta_text: e.target.value })}
-                />
-              )}
-            </Field>
-
-            <Field label="CTA Target URL" required>
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={config.cta_link}
-                  placeholder="e.g. /competitions or https://..."
-                  onChange={(e) => update({ cta_link: e.target.value })}
-                />
-              )}
-            </Field>
-
-            <Field label="Auto-Close Timer (Seconds, 0 = Manual)">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  type="number"
-                  min="0"
-                  max="60"
-                  value={config.auto_close_seconds || 0}
-                  onChange={(e) => update({ auto_close_seconds: Number(e.target.value) || 0 })}
-                />
-              )}
-            </Field>
-          </div>
-        </div>
-
-        {/* Live Interactive Preview Box */}
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] p-6">
-          <div className="flex items-center justify-between mb-4">
+        {/* 4. Live Interactive Modal Carousel Preview */}
+        <div
+          className="rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] p-6"
+          onMouseEnter={() => setPreviewPaused(true)}
+          onMouseLeave={() => setPreviewPaused(false)}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
               <h4 className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--fg-muted)]">
-                Live Interactive Modal Preview
+                Live Interactive Pop-up Carousel Preview
               </h4>
               <p className="text-[11px] text-[var(--fg-subtle)]">
-                This is how the popup appears to users when they first land on the website.
+                This exact centered pop-up modal will appear on the homepage with smooth auto-scroll.
               </p>
             </div>
-            <span className="text-xs font-semibold text-amber-400 bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/20">
-              Preview Mode
-            </span>
+            <div className="flex items-center gap-2">
+              {config.auto_scroll_enabled !== false && activeBanners.length > 1 && (
+                <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-400/10 px-2.5 py-0.5 rounded-full border border-emerald-400/20">
+                  {previewPaused ? "⏸ Hover Paused" : `● Auto-scroll (${config.auto_scroll_interval || 4}s)`}
+                </span>
+              )}
+              <span className="text-xs font-semibold text-amber-400 bg-amber-400/10 px-3 py-0.5 rounded-full border border-amber-400/20">
+                Interactive Preview
+              </span>
+            </div>
           </div>
 
-          <div className="relative mx-auto max-w-lg rounded-2xl overflow-hidden border border-amber-500/40 bg-[#07090E] shadow-[0_20px_60px_-15px_rgba(245,158,11,0.3)]">
-            {/* Top Close Button simulation */}
-            <div className="absolute top-3 right-3 z-20 size-7 rounded-full bg-black/70 border border-white/20 grid place-items-center text-white/70 text-xs">
-              ✕
+          {/* Centered Modal Simulation */}
+          <div className="relative mx-auto max-w-xl rounded-2xl overflow-hidden border border-amber-500/40 bg-[#07090E] shadow-[0_25px_70px_-15px_rgba(245,158,11,0.35)]">
+            {/* Top Close Cross Button Simulation */}
+            <div className="absolute top-3 right-3 z-30 size-8 rounded-full bg-black/80 border border-white/20 grid place-items-center text-white/80 text-xs shadow-lg backdrop-blur-md">
+              <X className="size-4" />
             </div>
 
-            {/* Banner Media */}
-            <div className="relative aspect-[16/9] w-full overflow-hidden bg-black/80">
-              {config.banner_image_url ? (
+            {/* Slide Counter Badge */}
+            {activeBanners.length > 1 && (
+              <div className="absolute top-3 right-13 z-30 px-2.5 py-1 rounded-full bg-black/80 border border-white/10 text-[10px] font-mono font-bold text-amber-400/90 shadow-md backdrop-blur-md">
+                {previewIdx + 1} / {activeBanners.length}
+              </div>
+            )}
+
+            {/* Banner Image Stage */}
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-black/90">
+              {currentPreviewBanner?.banner_image_url ? (
                 <img
-                  src={config.banner_image_url}
-                  alt={config.title}
-                  className="size-full object-cover"
+                  src={currentPreviewBanner.banner_image_url}
+                  alt={currentPreviewBanner.title}
+                  className="size-full object-cover transition-all duration-500"
                 />
               ) : (
-                <div className="size-full grid place-items-center text-white/40">
-                  Banner Image Preview
+                <div className="size-full grid place-items-center text-white/30 text-xs">
+                  Sponsor Banner Image
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#07090E] via-transparent to-black/40" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#07090E] via-transparent to-black/50" />
 
-              {/* Sponsor Ribbon */}
-              {config.badge_text && (
-                <div className="absolute top-3 left-3">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/80 text-amber-400 border border-amber-400/50 shadow-lg backdrop-blur-md">
+              {/* Sponsor Ribbon Badge */}
+              {currentPreviewBanner?.badge_text && (
+                <div className="absolute top-3 left-3 z-20">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/85 text-amber-400 border border-amber-400/50 shadow-xl backdrop-blur-md">
                     <Sparkles className="size-3" />
-                    {config.badge_text}
+                    {currentPreviewBanner.badge_text}
                   </span>
                 </div>
               )}
+
+              {/* Prev / Next Navigation Arrows */}
+              {activeBanners.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewIdx((prev) => (prev - 1 + activeBanners.length) % activeBanners.length)}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 size-8 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
+                    title="Previous Sponsor"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewIdx((prev) => (prev + 1) % activeBanners.length)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 size-8 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
+                    title="Next Sponsor"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
+                </>
+              )}
             </div>
 
-            {/* Content Body */}
-            <div className="p-5 flex flex-col gap-2 text-center">
-              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-amber-400/90 font-semibold">
-                {config.sponsor_name}
+            {/* Content Details */}
+            <div className="p-6 flex flex-col gap-2 text-center">
+              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-amber-400 font-bold">
+                {currentPreviewBanner?.sponsor_name || "Official Grand Sponsor"}
               </span>
-              <h3 className="text-xl font-bold font-display text-white leading-tight">
-                {config.title}
+              <h3 className="text-xl sm:text-2xl font-bold font-display text-white leading-tight">
+                {currentPreviewBanner?.title || "Sponsor Title"}
               </h3>
-              {config.subtitle && (
-                <p className="text-xs text-white/70 leading-relaxed max-w-sm mx-auto">
-                  {config.subtitle}
+              {currentPreviewBanner?.subtitle && (
+                <p className="text-xs text-white/70 leading-relaxed max-w-md mx-auto">
+                  {currentPreviewBanner.subtitle}
                 </p>
               )}
 
+              {/* CTA Action Button */}
               <div className="mt-3 flex items-center justify-center gap-3">
                 <a
-                  href={config.cta_link || "#"}
+                  href={currentPreviewBanner?.cta_link || "#"}
                   onClick={(e) => e.preventDefault()}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition-transform hover:scale-105 active:scale-95"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.5)] transition-transform hover:scale-105"
                 >
-                  <span>{config.cta_text || "Explore Now"}</span>
+                  <span>{currentPreviewBanner?.cta_text || "Explore Exclusive Offer"}</span>
                   <ExternalLink className="size-3.5" />
                 </a>
               </div>
+
+              {/* Carousel Pagination Indicator Dots */}
+              {activeBanners.length > 1 && (
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  {activeBanners.map((_, dotIdx) => (
+                    <button
+                      key={dotIdx}
+                      type="button"
+                      onClick={() => setPreviewIdx(dotIdx)}
+                      className={cn(
+                        "h-1.5 rounded-full transition-all cursor-pointer",
+                        dotIdx === previewIdx
+                          ? "w-7 bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]"
+                          : "w-2 bg-white/20 hover:bg-white/40"
+                      )}
+                      title={`Go to slide ${dotIdx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Bottom Actions */}
+        {/* 5. Bottom Save Actions */}
         <div className="flex items-center justify-end border-t border-[var(--border)] pt-4">
-          <Button size="md" onClick={handleSave} loading={busy}>
+          <Button size="md" onClick={handleSaveAll} loading={busy}>
             <Save className="size-4" aria-hidden /> Save Grand Sponsor Pop-up
           </Button>
         </div>
       </div>
+
+      {/* 6. Floating Modal Dialog for Add / Edit Sponsor Banner */}
+      {editingBanner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="relative w-full max-w-xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl my-8">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-4 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 rounded-lg bg-amber-400/20 text-amber-400 grid place-items-center">
+                  <Sparkles className="size-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[var(--fg)]">
+                    {isAddingNew ? "Add New Sponsor Banner" : "Edit Sponsor Banner"}
+                  </h3>
+                  <p className="text-xs text-[var(--fg-subtle)]">
+                    Configure this sponsor&apos;s brand, media, and promotional message.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingBanner(null)}
+                className="p-1 rounded-lg text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
+                    Sponsor Brand Name <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBanner.sponsor_name || ""}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, sponsor_name: e.target.value })}
+                    placeholder="e.g. Red Bull / Tata Motors / Nike"
+                    className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
+                    Ribbon Badge Tag
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBanner.badge_text || ""}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, badge_text: e.target.value })}
+                    placeholder="e.g. GRAND TITLE PARTNER"
+                    className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
+                  Modal Headline / Title <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editingBanner.title || ""}
+                  onChange={(e) => setEditingBanner({ ...editingBanner, title: e.target.value })}
+                  placeholder="e.g. Red Bull Dance Your Style India 2026"
+                  className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
+                  Tagline / Subtitle
+                </label>
+                <textarea
+                  value={editingBanner.subtitle || ""}
+                  onChange={(e) => setEditingBanner({ ...editingBanner, subtitle: e.target.value })}
+                  placeholder="e.g. Fueling street dancers and breakers with cash prizes and global visibility."
+                  rows={2}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-xs text-[var(--fg)] outline-none"
+                />
+              </div>
+
+              {/* Desktop Banner Image Upload */}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-[var(--fg)]">
+                    Desktop Banner Image (16:9 Landscape) <span className="text-rose-400">*</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-cyan-400 hover:border-cyan-400 cursor-pointer transition-colors">
+                    <Upload className="size-3" />
+                    <span>Upload to Cloudinary</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUpload(file, "desktop");
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <div className="relative aspect-[16/9] w-full rounded-lg overflow-hidden border border-white/10 bg-black/60 mb-2 flex items-center justify-center">
+                  {editingBanner.banner_image_url ? (
+                    <img
+                      src={editingBanner.banner_image_url}
+                      alt="Banner Preview"
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-center text-xs text-white/40">
+                      <ImageIcon className="size-6 mx-auto mb-1 opacity-50" />
+                      Upload image or paste direct URL below
+                    </div>
+                  )}
+                  {uploadingDesktop && (
+                    <div className="absolute inset-0 bg-black/80 grid place-items-center">
+                      <Loader2 className="size-6 animate-spin text-white" />
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  type="text"
+                  value={editingBanner.banner_image_url || ""}
+                  onChange={(e) => setEditingBanner({ ...editingBanner, banner_image_url: e.target.value })}
+                  placeholder="https://images.unsplash.com/... or uploaded Cloudinary URL"
+                  className="w-full h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--fg)] outline-none"
+                />
+              </div>
+
+              {/* Mobile Banner Image (Optional) */}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-[var(--fg)]">
+                    Mobile Banner Image (Optional - falls back to Desktop)
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-cyan-400 hover:border-cyan-400 cursor-pointer transition-colors">
+                    <Upload className="size-3" />
+                    <span>Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUpload(file, "mobile");
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <input
+                  type="text"
+                  value={editingBanner.mobile_image_url || ""}
+                  onChange={(e) => setEditingBanner({ ...editingBanner, mobile_image_url: e.target.value })}
+                  placeholder="Optional mobile image URL"
+                  className="w-full h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--fg)] outline-none"
+                />
+              </div>
+
+              {/* CTA Details */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
+                    CTA Button Text
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBanner.cta_text || ""}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, cta_text: e.target.value })}
+                    placeholder="e.g. Explore Exclusive Offer"
+                    className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-[var(--fg)] mb-1 block">
+                    CTA Target URL
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBanner.cta_link || ""}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, cta_link: e.target.value })}
+                    placeholder="e.g. /competitions or https://..."
+                    className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs text-[var(--fg)] outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Active Toggle */}
+              <div className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]">
+                <div>
+                  <span className="text-xs font-bold text-[var(--fg)] block">Active in Pop-up Carousel</span>
+                  <span className="text-[11px] text-[var(--fg-subtle)]">
+                    When active, this banner will be included in the auto-scrolling pop-up.
+                  </span>
+                </div>
+                <Toggle
+                  checked={editingBanner.is_active !== false}
+                  onChange={(val) => setEditingBanner({ ...editingBanner, is_active: val })}
+                  label="Active"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-[var(--border)] pt-4 mt-5">
+              <button
+                type="button"
+                onClick={() => setEditingBanner(null)}
+                className="px-4 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveModalBanner}
+                className="px-5 py-2 rounded-xl bg-amber-400 text-slate-950 text-xs font-bold hover:bg-amber-300 transition-colors shadow-sm cursor-pointer"
+              >
+                Save Sponsor Banner
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Panel>
   );
 }
