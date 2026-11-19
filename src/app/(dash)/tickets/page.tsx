@@ -310,11 +310,11 @@ function AttendeeBookingsManager({
                 const tix: any[] = r.tickets || [];
                 const checkedIn = tix.filter((t) => t.is_checked_in).length;
                 const total = tix.length || r.quantity || 1;
-                const isAll = checkedIn === total && total > 0;
+                const isAll = Boolean(r.is_checked_in || (checkedIn === total && total > 0));
                 return (
                   <div className="text-xs">
-                    <span className={`inline-flex items-center gap-1 font-semibold ${isAll ? "text-green-400" : checkedIn > 0 ? "text-amber-400" : "text-[var(--fg-subtle)]"}`}>
-                      <CheckCircle2 className="size-3" /> {checkedIn} / {total} Checked in
+                    <span className={`inline-flex items-center gap-1 font-semibold ${isAll ? "text-rose-400 font-bold" : checkedIn > 0 ? "text-amber-400" : "text-[var(--fg-subtle)]"}`}>
+                      <CheckCircle2 className="size-3" /> {isAll ? "Already Used" : `${checkedIn} / ${total} Checked in`}
                     </span>
                   </div>
                 );
