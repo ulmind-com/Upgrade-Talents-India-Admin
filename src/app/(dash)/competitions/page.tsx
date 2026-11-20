@@ -239,6 +239,7 @@ interface CompCategoryItem {
   min_age?: number | null;
   max_age?: number | null;
   age_limit?: string;
+  price?: number | null;
   description?: string;
 }
 
@@ -256,10 +257,12 @@ function CompetitionCategoriesBuilder({
     const raw = { ...next[idx], ...patch } as any;
     const minVal = raw.min_age != null && raw.min_age !== "" && !isNaN(Number(raw.min_age)) ? Number(raw.min_age) : null;
     const maxVal = raw.max_age != null && raw.max_age !== "" && !isNaN(Number(raw.max_age)) ? Number(raw.max_age) : null;
+    const priceVal = raw.price != null && raw.price !== "" && !isNaN(Number(raw.price)) ? Math.max(0, Number(raw.price)) : (raw.price === "" ? null : (raw.price ?? null));
     const updated: CompCategoryItem = {
       ...raw,
       min_age: minVal,
       max_age: maxVal,
+      price: priceVal,
     };
     if (minVal != null && maxVal != null) {
       updated.age_limit = `${minVal}-${maxVal} years`;
@@ -278,7 +281,7 @@ function CompetitionCategoriesBuilder({
     onChange(categories.filter((_, i) => i !== idx));
   };
 
-  const addItem = (cat: CompCategoryItem = { name: "", min_age: null, max_age: null, age_limit: "Open for all ages", description: "" }) => {
+  const addItem = (cat: CompCategoryItem = { name: "", min_age: null, max_age: null, age_limit: "Open for all ages", price: null, description: "" }) => {
     onChange([...categories, cat]);
   };
 
@@ -292,10 +295,10 @@ function CompetitionCategoriesBuilder({
         <div>
           <div className="flex items-center gap-1.5 font-semibold text-xs text-[var(--fg)]">
             <Trophy className="size-4 text-[var(--brand)]" />
-            Competition Categories &amp; Age Divisions
+            Competition Categories &amp; Category-Wise Pricing
           </div>
           <p className="text-[11px] text-[var(--fg-muted)]">
-            Define divisions (e.g. Sub-Junior: 3-7, Junior: 8-14, Senior: 15-28). Contestants select their division during registration.
+            Configure divisions (e.g. Sub-Junior, Junior, Senior) with specific age limits and optional category-specific prices (₹). If price is blank, the default participation fee is used.
           </p>
         </div>
 
@@ -306,9 +309,9 @@ function CompetitionCategoriesBuilder({
             type="button"
             onClick={() =>
               applyPreset([
-                { name: "Sub-Junior", min_age: 3, max_age: 7, age_limit: "3-7 years", description: "Ages 3 to 7 years" },
-                { name: "Junior", min_age: 8, max_age: 14, age_limit: "8-14 years", description: "Ages 8 to 14 years" },
-                { name: "Senior", min_age: 15, max_age: 28, age_limit: "15-28 years", description: "Ages 15 to 28 years" },
+                { name: "Sub-Junior", min_age: 3, max_age: 7, age_limit: "3-7 years", price: null, description: "Ages 3 to 7 years" },
+                { name: "Junior", min_age: 8, max_age: 14, age_limit: "8-14 years", price: null, description: "Ages 8 to 14 years" },
+                { name: "Senior", min_age: 15, max_age: 28, age_limit: "15-28 years", price: null, description: "Ages 15 to 28 years" },
               ])
             }
             className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
@@ -319,8 +322,8 @@ function CompetitionCategoriesBuilder({
             type="button"
             onClick={() =>
               applyPreset([
-                { name: "Junior", min_age: 6, max_age: 14, age_limit: "6-14 years", description: "Junior division (6-14 years)" },
-                { name: "Senior", min_age: 15, max_age: 30, age_limit: "15-30 years", description: "Senior division (15-30 years)" },
+                { name: "Junior", min_age: 6, max_age: 14, age_limit: "6-14 years", price: null, description: "Junior division (6-14 years)" },
+                { name: "Senior", min_age: 15, max_age: 30, age_limit: "15-30 years", price: null, description: "Senior division (15-30 years)" },
               ])
             }
             className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
@@ -331,9 +334,9 @@ function CompetitionCategoriesBuilder({
             type="button"
             onClick={() =>
               applyPreset([
-                { name: "Solo", min_age: null, max_age: null, age_limit: "Open for all ages", description: "Solo performers" },
-                { name: "Duet", min_age: null, max_age: null, age_limit: "Open for all ages", description: "Duet performers" },
-                { name: "Group", min_age: null, max_age: null, age_limit: "Open for all ages", description: "Group performers" },
+                { name: "Solo", min_age: null, max_age: null, age_limit: "Open for all ages", price: null, description: "Solo performers" },
+                { name: "Duet", min_age: null, max_age: null, age_limit: "Open for all ages", price: null, description: "Duet performers" },
+                { name: "Group", min_age: null, max_age: null, age_limit: "Open for all ages", price: null, description: "Group performers" },
               ])
             }
             className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] font-medium text-[var(--fg)] hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors"
@@ -375,13 +378,13 @@ function CompetitionCategoriesBuilder({
                     type="text"
                     value={c.name}
                     onChange={(e) => updateItem(idx, { name: e.target.value })}
-                    placeholder="Category Name (e.g. Sub-Junior, Junior, Group)"
+                    placeholder="Category Name (e.g. Sub-Junior, Junior, Solo)"
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold text-[var(--fg)] outline-none focus:border-[var(--brand)]"
                   />
                 </div>
 
                 {/* Min Age */}
-                <div className="w-24">
+                <div className="w-20 sm:w-24">
                   <input
                     type="number"
                     value={c.min_age ?? ""}
@@ -393,7 +396,7 @@ function CompetitionCategoriesBuilder({
                 </div>
 
                 {/* Max Age */}
-                <div className="w-24">
+                <div className="w-20 sm:w-24">
                   <input
                     type="number"
                     value={c.max_age ?? ""}
@@ -404,8 +407,25 @@ function CompetitionCategoriesBuilder({
                   />
                 </div>
 
+                {/* Category-Specific Price */}
+                <div className="relative w-28 sm:w-32">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--fg-muted)] text-xs font-bold">
+                    ₹
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={c.price ?? ""}
+                    onChange={(e) => updateItem(idx, { price: e.target.value === "" ? null : Number(e.target.value) })}
+                    placeholder="Fee (₹)"
+                    title="Category-specific entry fee. Leave blank to inherit general fee, or 0 for Free."
+                    className="w-full rounded-lg border border-amber-500/30 bg-[var(--surface-2)] pl-6 pr-2 py-1.5 text-xs font-mono font-bold text-amber-400 outline-none focus:border-amber-400"
+                  />
+                </div>
+
                 {/* Live Badge Preview */}
-                <div className="flex items-center">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {c.min_age != null && c.max_age != null ? (
                     <span className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
                       🎯 {c.min_age} to {c.max_age} yrs
@@ -420,7 +440,23 @@ function CompetitionCategoriesBuilder({
                     </span>
                   ) : (
                     <span className="rounded-md border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-[11px] font-semibold text-sky-400 whitespace-nowrap">
-                      🌟 Open / All Ages
+                      🌟 Open Age
+                    </span>
+                  )}
+
+                  {c.price != null ? (
+                    c.price === 0 ? (
+                      <span className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2 py-1 text-[11px] font-bold text-emerald-400 whitespace-nowrap">
+                        🎁 Free
+                      </span>
+                    ) : (
+                      <span className="rounded-md border border-amber-500/30 bg-amber-500/15 px-2 py-1 text-[11px] font-bold text-amber-400 whitespace-nowrap font-mono">
+                        ₹{c.price}
+                      </span>
+                    )
+                  ) : (
+                    <span className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[10px] text-[var(--fg-muted)] whitespace-nowrap" title="Uses default competition fee">
+                      Default Fee
                     </span>
                   )}
                 </div>
@@ -429,7 +465,7 @@ function CompetitionCategoriesBuilder({
                 <button
                   type="button"
                   onClick={() => removeItem(idx)}
-                  className="grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                  className="grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-500/10 transition-colors ml-auto sm:ml-0"
                   title="Remove this category"
                 >
                   <Trash2 className="size-3.5" />
@@ -754,8 +790,13 @@ export default function CompetitionsPage() {
                   {Array.isArray(r.categories) && r.categories.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1">
                       {r.categories.map((c: any, i: number) => (
-                        <span key={i} className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20">
-                          {c.name} {c.age_limit ? `(${c.age_limit})` : (c.min_age != null || c.max_age != null ? `(${c.min_age ?? 0}-${c.max_age ?? "+"}y)` : "")}
+                        <span key={i} className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20">
+                          <span>{c.name} {c.age_limit ? `(${c.age_limit})` : (c.min_age != null || c.max_age != null ? `(${c.min_age ?? 0}-${c.max_age ?? "+"}y)` : "")}</span>
+                          {c.price != null && (
+                            <span className="font-mono font-bold text-amber-300">
+                              • {c.price === 0 ? "Free" : `₹${c.price}`}
+                            </span>
+                          )}
                         </span>
                       ))}
                     </div>
@@ -910,7 +951,16 @@ export default function CompetitionsPage() {
             title: r.title || r.name || "",
             description: r.description || "",
             category: r.category || "",
-            categories: Array.isArray(r.categories) ? r.categories : [],
+            categories: Array.isArray(r.categories)
+              ? r.categories.map((c: any) => ({
+                  name: c.name || "",
+                  min_age: c.min_age ?? null,
+                  max_age: c.max_age ?? null,
+                  age_limit: c.age_limit || "",
+                  price: c.price !== null && c.price !== undefined && c.price !== "" ? Number(c.price) : null,
+                  description: c.description || "",
+                }))
+              : [],
             card_image_url: r.card_image_url || r.image_url || "",
             banner_image_url: r.banner_image_url || r.banner_url || "",
             share_image_url: r.share_image_url || "",
@@ -1017,6 +1067,7 @@ export default function CompetitionsPage() {
               ? v.categories.filter((c: any) => c && String(c.name || "").trim()).map((c: any) => {
                   const min = c.min_age !== null && c.min_age !== undefined && c.min_age !== "" ? Number(c.min_age) : null;
                   const max = c.max_age !== null && c.max_age !== undefined && c.max_age !== "" ? Number(c.max_age) : null;
+                  const price = c.price !== null && c.price !== undefined && c.price !== "" && !isNaN(Number(c.price)) ? Math.max(0, Number(c.price)) : null;
                   let ageLimit = "Open for all ages";
                   if (min != null && max != null) {
                     ageLimit = `${min}-${max} years`;
@@ -1030,6 +1081,7 @@ export default function CompetitionsPage() {
                     min_age: min,
                     max_age: max,
                     age_limit: ageLimit,
+                    price: price,
                     description: c.description ? String(c.description).trim() : null,
                   };
                 })

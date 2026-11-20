@@ -51,18 +51,23 @@ export function CompetitionCard({ row, onOpen, onShare, onTogglePublish, onEdit,
           </div>
 
           {Array.isArray(row.categories) && row.categories.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-1">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {row.categories.map((c: any, i: number) => (
                 <span
                   key={i}
-                  className="inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400"
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-amber-700 dark:text-amber-400"
                 >
-                  {c.name}
+                  <span>{c.name}</span>
                   {c.age_limit
-                    ? ` (${c.age_limit})`
+                    ? <span className="opacity-75">({c.age_limit})</span>
                     : c.min_age != null || c.max_age != null
-                    ? ` (${c.min_age ?? 0}-${c.max_age ?? "+"}y)`
-                    : ""}
+                    ? <span className="opacity-75">({c.min_age ?? 0}-{c.max_age ?? "+"}y)</span>
+                    : null}
+                  {c.price != null && (
+                    <span className="font-mono font-bold text-amber-500 dark:text-amber-300">
+                      • {c.price === 0 ? "Free" : `₹${c.price}`}
+                    </span>
+                  )}
                 </span>
               ))}
             </div>
