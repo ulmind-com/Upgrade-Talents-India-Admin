@@ -1829,7 +1829,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const participants = Array.isArray(data?.participants) ? data.participants : [];
   const allParticipants = Array.isArray(data?.all_participants) ? data.all_participants : participants;
   const displayedParticipants =
-    showAllRegistered && (data?.absent_count ?? 0) > 0 ? allParticipants : participants;
+    showAllRegistered ? allParticipants : participants;
   const completedCount = data?.completed_count ?? participants.filter((p: any) => p.stage_status === "COMPLETED").length;
   const remainingCount = data?.remaining_count ?? participants.filter((p: any) => p.stage_status !== "COMPLETED").length;
   const totalCount = data?.total_participants ?? participants.length;

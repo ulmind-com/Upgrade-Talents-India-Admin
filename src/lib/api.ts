@@ -567,6 +567,10 @@ export const badgesApi = {
   revoke: (awardId: string, body?: any) => api<any>(`/api/admin/badges/user-badges/${awardId}/revoke`, { method: "POST", body }),
 };
 
+export const publicApi = {
+  getSettings: () => api<any>("/api/v1/website-settings", { auth: false }),
+};
+
 /** Normalises the different list shapes the backend returns. */
 export function toRows(payload: any): any[] {
   if (Array.isArray(payload)) return payload;

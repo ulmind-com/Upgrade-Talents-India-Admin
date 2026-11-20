@@ -18,6 +18,7 @@ import { SectionsManager } from "./SectionsManager";
 const TABS = [
   { key: "layout", label: "⚡ Sections ON / OFF & Layout" },
   { key: "brand", label: "Brand & Contact" },
+  { key: "auth_media", label: "🎨 Login Banners (User & Admin)" },
   { key: "stage", label: "Stage Moments (Ring)" },
   { key: "spotlight", label: "Spotlight Posts & Social" },
   { key: "partners", label: "Partners & Sponsors" },
@@ -77,6 +78,7 @@ export default function WebsitePage() {
 
       {tab === "layout" && <SectionsManager onNavigateTab={(k) => setTab(k as TabKey)} />}
       {tab === "brand" && <BrandSection />}
+      {tab === "auth_media" && <AuthMediaSection />}
       {tab === "stage" && <StageMomentsSectionEditor />}
       {tab === "spotlight" && <SpotlightSectionEditor />}
       {tab === "partners" && <PartnersSectionEditor />}
@@ -111,7 +113,7 @@ function BrandSection() {
     ["brand_name", "logo_url", "favicon_url", "tagline", "homepage_title", "homepage_description",
      "contact_email", "contact_phone", "office_address", "support_url", "privacy_policy_url", "terms_url",
      "competitions_section_label", "competitions_section_title", "competitions_section_link",
-     "live_stage_label", "live_stage_title"]
+     "live_stage_label", "live_stage_title", "user_login_image_url", "admin_login_image_url"]
       .forEach((k) => { body[k] = v(k) || null; });
 
     body.social_media = ["facebook", "instagram", "twitter", "youtube", "linkedin", "whatsapp", "telegram", "threads", "github", "leetcode"]
@@ -189,6 +191,205 @@ function BrandSection() {
                 )}
               </Field>
             ))}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+/* ───────── LOGIN & AUTH BANNERS ───────── */
+
+function AuthMediaSection() {
+  const { push } = useToast();
+  const { data, loading, reload } = useResource(() => safe(cmsApi.getSettings(), {} as any), []);
+  const [draft, setDraft] = useState<Record<string, any>>({});
+  const [busy, setBusy] = useState(false);
+  const [uploadingUser, setUploadingUser] = useState(false);
+  const [uploadingAdmin, setUploadingAdmin] = useState(false);
+
+  const userImg = draft.user_login_image_url ?? (data as any)?.user_login_image_url ?? "";
+  const adminImg = draft.admin_login_image_url ?? (data as any)?.admin_login_image_url ?? "";
+
+  const handleUpload = async (key: "user_login_image_url" | "admin_login_image_url", file: File) => {
+    if (!file) return;
+    const isUser = key === "user_login_image_url";
+    if (isUser) setUploadingUser(true);
+    else setUploadingAdmin(true);
+
+    try {
+      const res = await cmsApi.uploadBannerImage(file, isUser ? "9:16" : "16:9");
+      if (res?.url) {
+        setDraft((p) => ({ ...p, [key]: res.url }));
+        push("success", `${isUser ? "User Login" : "Admin Login"} banner uploaded.`);
+      }
+    } catch (err: any) {
+      push("error", err?.message || "Failed to upload image.");
+    } finally {
+      if (isUser) setUploadingUser(false);
+      else setUploadingAdmin(false);
+    }
+  };
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await cmsApi.updateSettings({
+        user_login_image_url: userImg.trim() || null,
+        admin_login_image_url: adminImg.trim() || null,
+      });
+      push("success", "Login & authentication page images updated!");
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Could not save.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <Panel title="Login Banners"><div className="skeleton h-64 w-full" /></Panel>;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-[var(--fg)]">Authentication & Login Banners</h2>
+          <p className="text-xs text-[var(--fg-muted)]">
+            Configure dynamic graphics for the user login/registration right-side showcase and the admin control room login card.
+          </p>
+        </div>
+        <Button onClick={save} loading={busy}>
+          <Save className="size-4" /> Save Banners
+        </Button>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* User Login Card */}
+        <Panel
+          title="User Portal Login & Register Graphic"
+          subtitle="Displayed on the right side of the user /login and /register pages"
+        >
+          <div className="flex flex-col gap-4">
+            <div className="relative aspect-[4/5] max-h-[360px] w-full overflow-hidden rounded-2xl border border-[var(--border)] bg-zinc-950 flex items-center justify-center">
+              <img
+                src={userImg || "https://images.unsplash.com/photo-1547153760-18fc86324498?q=80&w=1200&auto=format&fit=crop"}
+                alt="User Login Preview"
+                className="size-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+              <div className="absolute bottom-3 left-3 right-3 text-white text-xs font-semibold drop-shadow">
+                Preview: User Login Showcase Image
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="flex-1">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUpload("user_login_image_url", f);
+                  }}
+                  disabled={uploadingUser}
+                />
+                <span className="btn btn-outline w-full flex items-center justify-center gap-2 cursor-pointer text-xs">
+                  {uploadingUser ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                  {uploadingUser ? "Uploading..." : "Upload New Image"}
+                </span>
+              </label>
+
+              {userImg && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setDraft((p) => ({ ...p, user_login_image_url: "" }))}
+                  title="Reset to default image"
+                >
+                  <RotateCcw className="size-3.5" /> Reset
+                </Button>
+              )}
+            </div>
+
+            <Field label="Direct Image URL (Cloudinary or Web URL)" hint="Paste any image URL or use the upload button above.">
+              {({ id, describedBy }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  type="url"
+                  placeholder="https://..."
+                  value={userImg}
+                  onChange={(e) => setDraft((p) => ({ ...p, user_login_image_url: e.target.value }))}
+                />
+              )}
+            </Field>
+          </div>
+        </Panel>
+
+        {/* Admin Login Card */}
+        <Panel
+          title="Admin Portal Login Card Art"
+          subtitle="Displayed as the background & poster of the admin control room /login page"
+        >
+          <div className="flex flex-col gap-4">
+            <div className="relative aspect-[16/10] max-h-[360px] w-full overflow-hidden rounded-2xl border border-[var(--border)] bg-zinc-950 flex items-center justify-center">
+              <img
+                src={adminImg || "/admin-dance-card.webp"}
+                alt="Admin Login Preview"
+                className="size-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = "/admin-login-art.png";
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+              <div className="absolute bottom-3 left-3 right-3 text-white text-xs font-semibold drop-shadow">
+                Preview: Admin Control Room Card
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="flex-1">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUpload("admin_login_image_url", f);
+                  }}
+                  disabled={uploadingAdmin}
+                />
+                <span className="btn btn-outline w-full flex items-center justify-center gap-2 cursor-pointer text-xs">
+                  {uploadingAdmin ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                  {uploadingAdmin ? "Uploading..." : "Upload New Image"}
+                </span>
+              </label>
+
+              {adminImg && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setDraft((p) => ({ ...p, admin_login_image_url: "" }))}
+                  title="Reset to default image"
+                >
+                  <RotateCcw className="size-3.5" /> Reset
+                </Button>
+              )}
+            </div>
+
+            <Field label="Direct Image URL (Cloudinary or Web URL)" hint="Paste any image URL or use the upload button above.">
+              {({ id, describedBy }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  type="url"
+                  placeholder="https://..."
+                  value={adminImg}
+                  onChange={(e) => setDraft((p) => ({ ...p, admin_login_image_url: e.target.value }))}
+                />
+              )}
+            </Field>
           </div>
         </Panel>
       </div>

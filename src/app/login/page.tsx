@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Eye, EyeOff, Fingerprint, ScanFace, X } from "lucide-react";
-import { authApi, adminToken } from "@/lib/api";
+import { authApi, adminToken, publicApi } from "@/lib/api";
 import { useAdmin } from "@/components/Providers";
 import * as passkey from "@/lib/passkey";
 
@@ -22,6 +22,18 @@ export default function AdminLogin() {
   const [busy, setBusy] = useState(false);
   const [clipIdx, setClipIdx] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [adminCardImg, setAdminCardImg] = useState<string | null>(null);
+
+  useEffect(() => {
+    publicApi
+      .getSettings()
+      .then((s) => {
+        if (s?.admin_login_image_url) {
+          setAdminCardImg(s.admin_login_image_url);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Fingerprint / passkey state ──
   const [platformOk, setPlatformOk] = useState(false); // device biometric available
@@ -133,7 +145,9 @@ export default function AdminLogin() {
         <div
           className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 scale-105"
           style={{
-            backgroundImage: "url('/admin-dance-card.webp'), url('/admin-dance-card.jpg'), url('/admin-login-art.png')",
+            backgroundImage: adminCardImg
+              ? `url('${adminCardImg}'), url('/admin-dance-card.webp')`
+              : "url('/admin-dance-card.webp'), url('/admin-dance-card.jpg'), url('/admin-login-art.png')",
           }}
         />
 
@@ -144,7 +158,7 @@ export default function AdminLogin() {
           autoPlay
           muted
           playsInline
-          poster="/admin-dance-card.webp"
+          poster={adminCardImg || "/admin-dance-card.webp"}
           onEnded={() => setClipIdx((i) => (i + 1) % BG_CLIPS.length)}
           className="absolute inset-0 size-full object-cover object-center scale-105 transition-opacity duration-700"
         >
@@ -172,7 +186,9 @@ export default function AdminLogin() {
         <div
           className="relative w-full bg-no-repeat bg-cover bg-center"
           style={{
-            backgroundImage: "url('/admin-dance-card.webp'), url('/admin-dance-card.jpg'), url('/admin-login-art.png')",
+            backgroundImage: adminCardImg
+              ? `url('${adminCardImg}'), url('/admin-dance-card.webp')`
+              : "url('/admin-dance-card.webp'), url('/admin-dance-card.jpg'), url('/admin-login-art.png')",
           }}
         >
           {/* Desktop Aspect Ratio Enforcer: 1664 / 1030 = ~1.6155 */}
@@ -362,7 +378,9 @@ export default function AdminLogin() {
             <div
               className="relative h-44 w-full bg-cover bg-center overflow-hidden"
               style={{
-                backgroundImage: "url('/admin-dance-card.webp'), url('/admin-dance-card.jpg'), url('/admin-login-art.png')",
+                backgroundImage: adminCardImg
+                  ? `url('${adminCardImg}'), url('/admin-dance-card.webp')`
+                  : "url('/admin-dance-card.webp'), url('/admin-dance-card.jpg'), url('/admin-login-art.png')",
               }}
             >
               <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-black/30" />
