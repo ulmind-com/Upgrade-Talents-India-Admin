@@ -2545,6 +2545,18 @@ const DEFAULT_POPUP_CONFIG = {
   ],
 };
 
+function getOptimizedBannerUrl(url?: string | null): string {
+  if (!url || typeof url !== "string") return "";
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (trimmed.includes("res.cloudinary.com") && trimmed.includes("/image/upload/")) {
+    if (!trimmed.includes("e_trim")) {
+      return trimmed.replace("/image/upload/", "/image/upload/f_auto,q_auto,e_trim/");
+    }
+  }
+  return trimmed;
+}
+
 function SponsorPopupEditor() {
   const { push } = useToast();
   const { data, loading, reload } = useResource(async () => {
@@ -3052,29 +3064,29 @@ function SponsorPopupEditor() {
 
           {/* Desktop Preview Frame */}
           {previewDevice === "desktop" ? (
-            <div className="relative mx-auto max-w-2xl rounded-2xl sm:rounded-3xl overflow-hidden border border-amber-500/40 bg-[#07090E] shadow-[0_25px_70px_-10px_rgba(245,158,11,0.4)]">
+            <div className="relative mx-auto w-fit max-w-2xl rounded-2xl sm:rounded-3xl overflow-hidden border border-amber-500/40 bg-black shadow-[0_25px_70px_-10px_rgba(245,158,11,0.4)] flex flex-col items-center justify-center">
               {/* Top Close Cross Button Simulation */}
-              <div className="absolute top-3 right-3 z-30 size-9 rounded-full bg-black/80 border border-white/20 grid place-items-center text-white/90 text-xs shadow-lg backdrop-blur-md">
+              <div className="absolute top-3 right-3 z-30 size-8 sm:size-9 rounded-full bg-black/80 border border-white/20 grid place-items-center text-white/90 text-xs shadow-lg backdrop-blur-md">
                 <X className="size-4" />
               </div>
 
               {/* Slide Counter Badge */}
               {activeBanners.length > 1 && (
-                <div className="absolute top-3 left-3 z-30 px-3 py-1 rounded-full bg-black/80 border border-white/15 text-[10px] font-mono font-bold text-amber-400 shadow-md backdrop-blur-md">
+                <div className="absolute top-3 left-3 z-30 px-2.5 py-1 rounded-full bg-black/80 border border-white/15 text-[10px] font-mono font-bold text-amber-400 shadow-md backdrop-blur-md">
                   {previewIdx + 1} / {activeBanners.length}
                 </div>
               )}
 
-              {/* Banner Image Stage */}
-              <div className="relative aspect-[16/8.5] w-full overflow-hidden bg-black flex items-center justify-center">
+              {/* Banner Image Stage (Auto-resizes strictly to banner intrinsic dimensions) */}
+              <div className="relative overflow-hidden flex items-center justify-center">
                 {currentPreviewBanner?.banner_image_url ? (
                   <img
-                    src={currentPreviewBanner.banner_image_url}
+                    src={getOptimizedBannerUrl(currentPreviewBanner.banner_image_url)}
                     alt={currentPreviewBanner.sponsor_name || "Sponsor Banner"}
-                    className="size-full object-cover transition-all duration-500"
+                    className="block w-auto h-auto max-w-2xl max-h-[460px] object-contain transition-all duration-500"
                   />
                 ) : (
-                  <div className="size-full grid place-items-center text-white/30 text-xs">
+                  <div className="w-[500px] h-[250px] grid place-items-center text-white/30 text-xs">
                     Sponsor Banner Image
                   </div>
                 )}
@@ -3098,18 +3110,18 @@ function SponsorPopupEditor() {
                     <button
                       type="button"
                       onClick={() => setPreviewIdx((prev) => (prev - 1 + activeBanners.length) % activeBanners.length)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
                       title="Previous Sponsor"
                     >
-                      <ChevronLeft className="size-5" />
+                      <ChevronLeft className="size-4 sm:size-5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => setPreviewIdx((prev) => (prev + 1) % activeBanners.length)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 z-20 size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/70 border border-white/20 text-white grid place-items-center hover:bg-black transition-colors cursor-pointer"
                       title="Next Sponsor"
                     >
-                      <ChevronRight className="size-5" />
+                      <ChevronRight className="size-4 sm:size-5" />
                     </button>
 
                     {/* Pagination Dots at Bottom */}
@@ -3153,15 +3165,15 @@ function SponsorPopupEditor() {
                 )}
 
                 {/* Mobile Aspect Ratio Banner */}
-                <div className="relative aspect-[4/5] w-full overflow-hidden bg-black flex items-center justify-center">
+                <div className="relative w-full overflow-hidden bg-black flex items-center justify-center">
                   {(currentPreviewBanner?.mobile_image_url || currentPreviewBanner?.banner_image_url) ? (
                     <img
-                      src={currentPreviewBanner.mobile_image_url || currentPreviewBanner.banner_image_url}
+                      src={getOptimizedBannerUrl(currentPreviewBanner.mobile_image_url || currentPreviewBanner.banner_image_url)}
                       alt="Mobile Banner"
-                      className="size-full object-cover"
+                      className="block w-full h-auto max-h-[380px] object-contain"
                     />
                   ) : (
-                    <div className="size-full grid place-items-center text-white/30 text-[11px] p-4 text-center">
+                    <div className="h-[220px] w-full grid place-items-center text-white/30 text-[11px] p-4 text-center">
                       Mobile Banner Preview
                     </div>
                   )}
