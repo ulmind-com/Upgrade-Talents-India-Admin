@@ -1828,11 +1828,19 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const stageStatus = data?.stage_status || (currentPerformer ? "LIVE" : "IDLE");
   const participants = Array.isArray(data?.participants) ? data.participants : [];
   const allParticipants = Array.isArray(data?.all_participants) ? data.all_participants : participants;
-  const displayedParticipants =
-    showAllRegistered ? allParticipants : participants;
-  const completedCount = data?.completed_count ?? participants.filter((p: any) => p.stage_status === "COMPLETED").length;
-  const remainingCount = data?.remaining_count ?? participants.filter((p: any) => p.stage_status !== "COMPLETED").length;
-  const totalCount = data?.total_participants ?? participants.length;
+  const displayedParticipants = useMemo(() => {
+    if (showAllRegistered) return allParticipants;
+    return participants.filter(
+      (p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT" || p.is_current_performer || p.stage_status === "ON_STAGE" || p.stage_status === "COMPLETED")
+    );
+  }, [showAllRegistered, allParticipants, participants]);
+  const completedCount = useMemo(() => {
+    return displayedParticipants.filter((p: any) => p.stage_status === "COMPLETED").length;
+  }, [displayedParticipants]);
+  const remainingCount = useMemo(() => {
+    return displayedParticipants.filter((p: any) => p.stage_status !== "COMPLETED").length;
+  }, [displayedParticipants]);
+  const totalCount = displayedParticipants.length;
 
   const stageSuggestions = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -2435,7 +2443,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
               )}
             </div>
 
-            {(data?.absent_count ?? 0) > 0 && (
+            {((data?.absent_count ?? 0) > 0 || allParticipants.length > displayedParticipants.length || showAllRegistered) && (
               <div className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-0.5 text-[10px] font-semibold">
                 <button
                   type="button"
@@ -2447,7 +2455,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                       : "text-[var(--fg-muted)] hover:text-white"
                   )}
                 >
-                  Present ({participants.length})
+                  Present ({allParticipants.filter((p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT" || p.is_current_performer || p.stage_status === "ON_STAGE" || p.stage_status === "COMPLETED")).length})
                 </button>
                 <button
                   type="button"
@@ -2469,7 +2477,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
             </Button>
 
             <span className="text-[10px] text-[var(--fg-subtle)] font-mono">
-              {completedCount} of {participants.length} done
+              {completedCount} of {displayedParticipants.length} done
             </span>
           </div>
         </div>
