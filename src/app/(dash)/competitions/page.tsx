@@ -4759,11 +4759,6 @@ function CompetitionResultsAdminPanel({
     participantsList.forEach((p: any) => {
       if (p.category) set.add(String(p.category).trim());
     });
-    if (set.size === 0) {
-      set.add("Sub-Junior");
-      set.add("Junior");
-      set.add("Senior");
-    }
     return Array.from(set);
   }, [lbData?.categories, comp?.categories, participantsList]);
 
