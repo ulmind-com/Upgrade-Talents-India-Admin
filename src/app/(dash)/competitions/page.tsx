@@ -1800,7 +1800,7 @@ function InlineMediaPlayer({ item, compact = false }: { item: any; compact?: boo
 function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitle?: string }) {
   const { push } = useToast();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [showAllRegistered, setShowAllRegistered] = useState(false);
+  const [filterTab, setFilterTab] = useState<"ALL" | "PRESENT" | "WAITING" | "COMPLETED">("ALL");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [search, setSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -1828,19 +1828,35 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
   const stageStatus = data?.stage_status || (currentPerformer ? "LIVE" : "IDLE");
   const participants = Array.isArray(data?.participants) ? data.participants : [];
   const allParticipants = Array.isArray(data?.all_participants) ? data.all_participants : participants;
-  const displayedParticipants = useMemo(() => {
-    if (showAllRegistered) return allParticipants;
-    return participants.filter(
-      (p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT" || p.is_current_performer || p.stage_status === "ON_STAGE" || p.stage_status === "COMPLETED")
-    );
-  }, [showAllRegistered, allParticipants, participants]);
+
   const completedCount = useMemo(() => {
-    return displayedParticipants.filter((p: any) => p.stage_status === "COMPLETED").length;
-  }, [displayedParticipants]);
-  const remainingCount = useMemo(() => {
-    return displayedParticipants.filter((p: any) => p.stage_status !== "COMPLETED").length;
-  }, [displayedParticipants]);
-  const totalCount = displayedParticipants.length;
+    return allParticipants.filter((p: any) => p.stage_status === "COMPLETED").length;
+  }, [allParticipants]);
+
+  const presentCount = useMemo(() => {
+    return allParticipants.filter((p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT" || p.is_current_performer || p.stage_status === "ON_STAGE" || p.stage_status === "COMPLETED")).length;
+  }, [allParticipants]);
+
+  const waitingCount = useMemo(() => {
+    return allParticipants.filter((p: any) => p.stage_status !== "COMPLETED" && p.stage_status !== "ON_STAGE" && !p.is_current_performer).length;
+  }, [allParticipants]);
+
+  const totalCount = allParticipants.length;
+  const remainingCount = waitingCount;
+
+  const displayedParticipants = useMemo(() => {
+    switch (filterTab) {
+      case "PRESENT":
+        return allParticipants.filter((p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT" || p.is_current_performer || p.stage_status === "ON_STAGE" || p.stage_status === "COMPLETED"));
+      case "WAITING":
+        return allParticipants.filter((p: any) => p.stage_status !== "COMPLETED" && p.stage_status !== "ON_STAGE" && !p.is_current_performer);
+      case "COMPLETED":
+        return allParticipants.filter((p: any) => p.stage_status === "COMPLETED");
+      case "ALL":
+      default:
+        return allParticipants;
+    }
+  }, [filterTab, allParticipants]);
 
   const stageSuggestions = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -1993,9 +2009,9 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                 {r.user_name || "Competitor"}
               </span>
               {isVerified && <VerifiedBadge size="xs" />}
-              {showAllRegistered && !isPresent && (
+              {!isPresent && (
                 <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
-                  Absent
+                  Waiting Check-In
                 </span>
               )}
             </div>
@@ -2443,34 +2459,56 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
               )}
             </div>
 
-            {((data?.absent_count ?? 0) > 0 || allParticipants.length > displayedParticipants.length || showAllRegistered) && (
-              <div className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-0.5 text-[10px] font-semibold">
-                <button
-                  type="button"
-                  onClick={() => setShowAllRegistered(false)}
-                  className={cn(
-                    "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
-                    !showAllRegistered
-                      ? "bg-emerald-500/20 text-emerald-300 font-bold"
-                      : "text-[var(--fg-muted)] hover:text-white"
-                  )}
-                >
-                  Present ({allParticipants.filter((p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT" || p.is_current_performer || p.stage_status === "ON_STAGE" || p.stage_status === "COMPLETED")).length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAllRegistered(true)}
-                  className={cn(
-                    "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
-                    showAllRegistered
-                      ? "bg-[var(--brand)]/20 text-[var(--brand)] font-bold"
-                      : "text-[var(--fg-muted)] hover:text-white"
-                  )}
-                >
-                  All ({allParticipants.length})
-                </button>
-              </div>
-            )}
+            <div className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-0.5 text-[10px] font-semibold">
+              <button
+                type="button"
+                onClick={() => setFilterTab("ALL")}
+                className={cn(
+                  "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
+                  filterTab === "ALL"
+                    ? "bg-[var(--brand)] text-[var(--on-brand)] font-bold shadow-sm"
+                    : "text-[var(--fg-muted)] hover:text-white"
+                )}
+              >
+                All ({allParticipants.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab("PRESENT")}
+                className={cn(
+                  "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
+                  filterTab === "PRESENT"
+                    ? "bg-emerald-500/20 text-emerald-300 font-bold"
+                    : "text-[var(--fg-muted)] hover:text-white"
+                )}
+              >
+                Present ({presentCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab("WAITING")}
+                className={cn(
+                  "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
+                  filterTab === "WAITING"
+                    ? "bg-amber-500/20 text-amber-300 font-bold"
+                    : "text-[var(--fg-muted)] hover:text-white"
+                )}
+              >
+                Waiting ({waitingCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab("COMPLETED")}
+                className={cn(
+                  "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
+                  filterTab === "COMPLETED"
+                    ? "bg-sky-500/20 text-sky-300 font-bold"
+                    : "text-[var(--fg-muted)] hover:text-white"
+                )}
+              >
+                Done ({completedCount})
+              </button>
+            </div>
 
             <Button size="sm" variant="secondary" onClick={() => reload()} className="h-8.5 px-2.5 text-xs">
               <RefreshCw className="size-3 mr-1" /> Refresh
@@ -2515,9 +2553,9 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                           {r.user_name || "Competitor"}
                         </span>
                         {isVerified && <VerifiedBadge size="xs" />}
-                        {showAllRegistered && !isPresent && (
-                          <span className="rounded bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">
-                            Absent
+                        {!isPresent && (
+                          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
+                            Waiting Check-In
                           </span>
                         )}
                       </div>
