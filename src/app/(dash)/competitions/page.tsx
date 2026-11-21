@@ -1826,37 +1826,38 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
 
   const currentPerformer = data?.current_performer;
   const stageStatus = data?.stage_status || (currentPerformer ? "LIVE" : "IDLE");
-  const participants = Array.isArray(data?.participants) ? data.participants : [];
-  const allParticipants = Array.isArray(data?.all_participants) ? data.all_participants : participants;
+  const rawParticipants = Array.isArray(data?.participants) ? data.participants : [];
+  
+  // Under Live Stage Performance, the lineup MUST ONLY contain contestants who are confirmed PRESENT at venue (or on stage, or completed)!
+  // Unchecked/absent contestants belong strictly in "Participants & Submissions" and NEVER appear in the stage queue!
+  const participants = useMemo(() => {
+    return rawParticipants.filter((p: any) =>
+      Boolean(p.is_present || p.attendance_status === "PRESENT" || p.is_current_performer || p.stage_status === "ON_STAGE" || p.stage_status === "COMPLETED")
+    );
+  }, [rawParticipants]);
 
   const completedCount = useMemo(() => {
-    return allParticipants.filter((p: any) => p.stage_status === "COMPLETED").length;
-  }, [allParticipants]);
+    return participants.filter((p: any) => p.stage_status === "COMPLETED").length;
+  }, [participants]);
 
-  const presentCount = useMemo(() => {
-    return allParticipants.filter((p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT" || p.is_current_performer || p.stage_status === "ON_STAGE" || p.stage_status === "COMPLETED")).length;
-  }, [allParticipants]);
+  const inQueueCount = useMemo(() => {
+    return participants.filter((p: any) => p.stage_status !== "COMPLETED" && p.stage_status !== "ON_STAGE" && !p.is_current_performer).length;
+  }, [participants]);
 
-  const waitingCount = useMemo(() => {
-    return allParticipants.filter((p: any) => p.stage_status !== "COMPLETED" && p.stage_status !== "ON_STAGE" && !p.is_current_performer).length;
-  }, [allParticipants]);
-
-  const totalCount = allParticipants.length;
-  const remainingCount = waitingCount;
+  const totalCount = participants.length;
+  const remainingCount = inQueueCount;
 
   const displayedParticipants = useMemo(() => {
     switch (filterTab) {
       case "PRESENT":
-        return allParticipants.filter((p: any) => Boolean(p.is_present || p.attendance_status === "PRESENT" || p.is_current_performer || p.stage_status === "ON_STAGE" || p.stage_status === "COMPLETED"));
-      case "WAITING":
-        return allParticipants.filter((p: any) => p.stage_status !== "COMPLETED" && p.stage_status !== "ON_STAGE" && !p.is_current_performer);
+        return participants.filter((p: any) => p.stage_status !== "COMPLETED" && p.stage_status !== "ON_STAGE" && !p.is_current_performer);
       case "COMPLETED":
-        return allParticipants.filter((p: any) => p.stage_status === "COMPLETED");
+        return participants.filter((p: any) => p.stage_status === "COMPLETED");
       case "ALL":
       default:
-        return allParticipants;
+        return participants;
     }
-  }, [filterTab, allParticipants]);
+  }, [filterTab, participants]);
 
   const stageSuggestions = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -1880,16 +1881,12 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
         if (name && typeof name === "string" && name.trim()) set.add(name.trim());
       });
     }
-    allParticipants.forEach((p: any) => {
-      const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "").trim();
-      if (cat) set.add(cat);
-    });
     participants.forEach((p: any) => {
       const cat = ((typeof p.category === "string" ? p.category : p.category?.name || p.division) || "").trim();
       if (cat) set.add(cat);
     });
     return Array.from(set);
-  }, [data?.categories, allParticipants, participants]);
+  }, [data?.categories, participants]);
 
   const filteredLineup = useMemo(() => {
     let list = displayedParticipants;
@@ -2470,7 +2467,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                     : "text-[var(--fg-muted)] hover:text-white"
                 )}
               >
-                All ({allParticipants.length})
+                All Present ({participants.length})
               </button>
               <button
                 type="button"
@@ -2478,23 +2475,11 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                 className={cn(
                   "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
                   filterTab === "PRESENT"
-                    ? "bg-emerald-500/20 text-emerald-300 font-bold"
-                    : "text-[var(--fg-muted)] hover:text-white"
-                )}
-              >
-                Present ({presentCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterTab("WAITING")}
-                className={cn(
-                  "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
-                  filterTab === "WAITING"
                     ? "bg-amber-500/20 text-amber-300 font-bold"
                     : "text-[var(--fg-muted)] hover:text-white"
                 )}
               >
-                Waiting ({waitingCount})
+                In Queue ({inQueueCount})
               </button>
               <button
                 type="button"
@@ -2502,7 +2487,7 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                 className={cn(
                   "cursor-pointer rounded-md px-2 py-0.5 transition-colors",
                   filterTab === "COMPLETED"
-                    ? "bg-sky-500/20 text-sky-300 font-bold"
+                    ? "bg-emerald-500/20 text-emerald-300 font-bold"
                     : "text-[var(--fg-muted)] hover:text-white"
                 )}
               >
@@ -2553,11 +2538,6 @@ function CompetitionStagePanel({ compId, compTitle }: { compId: string; compTitl
                           {r.user_name || "Competitor"}
                         </span>
                         {isVerified && <VerifiedBadge size="xs" />}
-                        {!isPresent && (
-                          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
-                            Waiting Check-In
-                          </span>
-                        )}
                       </div>
                       <span className="block font-mono text-[10.5px] text-[var(--fg-subtle)] truncate">
                         {r.user_email}
