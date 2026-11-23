@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import {
-  Gavel, Lock, Trophy, Send, RefreshCw, Eye, EyeOff, UserPlus, UserMinus,
+  Gavel, Lock, Unlock, Sliders, Scale, Trophy, Send, RefreshCw, Eye, EyeOff, UserPlus, UserMinus,
   Users, FileText, ExternalLink, CheckCircle2, Video, Search, Phone, Mail,
   Upload, Loader2, Plus, Trash2, Pencil, Image as ImageIcon,
   CreditCard, Banknote, CircleDollarSign, Clock, AlertCircle, Copy, Check, Filter, RotateCcw,
@@ -915,6 +915,15 @@ export default function CompetitionsPage() {
             { name: "max_age", label: "Max age", type: "number", half: true, placeholder: "Optional" },
             { name: "audience_voting_enabled", label: "Audience voting enabled", type: "toggle", half: true, defaultValue: true },
             { name: "judge_scoring_enabled", label: "Judge scoring enabled", type: "toggle", half: true, defaultValue: true },
+            {
+              name: "audience_vote_weight",
+              label: "Audience Vote Weight (%)",
+              type: "number",
+              half: true,
+              defaultValue: 50,
+              placeholder: "e.g. 50 (50% audience, 50% judges)",
+              hint: "Weight of audience votes in final score (0-100%). Remaining % is assigned to judges.",
+            },
             { name: "total_rounds", label: "Total competition rounds", type: "number", half: true, defaultValue: 3, placeholder: "e.g. 1, 2, or 3 rounds" },
             { name: "score_visible_for_public", label: "Score visible for public", type: "toggle", half: true, defaultValue: false, hint: "When OFF, public scores are private; contestants only see their own score." },
             { name: "is_published", label: "Published", type: "toggle", half: true, defaultValue: false },
@@ -975,6 +984,9 @@ export default function CompetitionsPage() {
             max_age: r.max_age ?? "",
             audience_voting_enabled: r.audience_voting_enabled ?? r.voting_enabled ?? true,
             judge_scoring_enabled: r.judge_scoring_enabled ?? true,
+            audience_vote_weight: r.audience_vote_weight != null
+              ? (r.audience_vote_weight <= 1.0 ? Math.round(r.audience_vote_weight * 100) : Math.round(r.audience_vote_weight))
+              : 50,
             total_rounds: r.total_rounds ?? (Array.isArray(r.rounds) ? r.rounds.length : 3),
             score_visible_for_public: !!(r.score_visible_for_public || r.results_published),
             dynamic_submission_fields: Array.isArray(r.dynamic_submission_fields) && r.dynamic_submission_fields.length
@@ -1087,6 +1099,11 @@ export default function CompetitionsPage() {
                 })
               : [];
 
+            const rawAudienceWeight = v.audience_vote_weight !== "" && v.audience_vote_weight != null ? Number(v.audience_vote_weight) : 50;
+            const normAudiencePct = Math.max(0, Math.min(100, isNaN(rawAudienceWeight) ? 50 : rawAudienceWeight));
+            const audienceWeight = !judgeEnabled ? 1.0 : !voteEnabled ? 0.0 : Number((normAudiencePct / 100).toFixed(2));
+            const judgeWeight = !voteEnabled ? 1.0 : !judgeEnabled ? 0.0 : Number((1.0 - audienceWeight).toFixed(2));
+
             if (editing) {
               // Dates: send each edited value as UTC ISO. Required dates (start/end)
               // are only included when present so an empty field can never wipe them
@@ -1118,6 +1135,8 @@ export default function CompetitionsPage() {
                 is_published: !!v.is_published,
                 audience_voting_enabled: voteEnabled,
                 judge_scoring_enabled: judgeEnabled,
+                audience_vote_weight: audienceWeight,
+                judge_score_weight: judgeWeight,
                 total_rounds: v.total_rounds ? Number(v.total_rounds) : undefined,
                 score_visible_for_public: v.score_visible_for_public !== undefined ? !!v.score_visible_for_public : undefined,
                 judging_criteria: cleanCriteria,
@@ -1135,9 +1154,6 @@ export default function CompetitionsPage() {
             const regStart = toIso(v.registration_start_date) || new Date().toISOString();
             const regEnd = toIso(v.registration_deadline) || null;
             const subEnd = toIso(v.submission_deadline) || eDate;
-
-            const audienceWeight = voteEnabled && judgeEnabled ? 0.5 : voteEnabled ? 1.0 : 0.0;
-            const judgeWeight = voteEnabled && judgeEnabled ? 0.5 : judgeEnabled ? 1.0 : 0.0;
 
             return {
               title: String(v.title || "").trim(),
@@ -1233,11 +1249,119 @@ function CompetitionControls({
   );
 
   const [pin, setPin] = useState("");
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [isScoresPublic, setIsScoresPublic] = useState<boolean>(
     Boolean(comp?.score_visible_for_public || comp?.results_published || comp?.result_status === "PUBLISHED")
   );
   const [scoreToggleBusy, setScoreToggleBusy] = useState(false);
+  const [judgingBusy, setJudgingBusy] = useState(false);
+  const [votingBusy, setVotingBusy] = useState(false);
   const { push } = useToast();
+
+  const curAudiencePct = useMemo(() => {
+    const raw = comp?.audience_vote_weight ?? data?.overview?.audience_vote_weight;
+    if (raw == null) return 50;
+    return raw <= 1.0 ? Math.round(raw * 100) : Math.round(raw);
+  }, [comp?.audience_vote_weight, data?.overview?.audience_vote_weight]);
+
+  const [weightInput, setWeightInput] = useState<number>(curAudiencePct);
+  const [weightBusy, setWeightBusy] = useState(false);
+
+  useEffect(() => {
+    setWeightInput(curAudiencePct);
+  }, [curAudiencePct]);
+
+  // Real-time Judging & Voting state detection
+  const rawJudgingStatus = (
+    data?.progress?.judging_status ||
+    data?.overview?.lifecycle?.judging_status ||
+    data?.overview?.judging_status ||
+    comp?.judging_status
+  );
+  const isJudgingOpen = rawJudgingStatus ? String(rawJudgingStatus).toUpperCase() === "OPEN" : Boolean(comp?.judge_scoring_enabled ?? true);
+
+  const rawVotingStatus = (
+    data?.progress?.voting_status ||
+    data?.overview?.lifecycle?.voting_status ||
+    data?.overview?.voting_status ||
+    comp?.voting_status
+  );
+  const isVotingOpen = rawVotingStatus ? String(rawVotingStatus).toUpperCase() === "OPEN" : Boolean(comp?.audience_voting_enabled ?? true);
+
+  const handleToggleJudging = async () => {
+    setJudgingBusy(true);
+    try {
+      if (isJudgingOpen) {
+        const ok = await confirm(
+          "Close Judging Panel",
+          "Are you sure you want to CLOSE the judging panel? Judges will no longer be able to enter scores or grade contestants for this competition."
+        );
+        if (!ok) {
+          setJudgingBusy(false);
+          return;
+        }
+        await competitionsApi.closeJudging(id);
+        await competitionsApi.closeSession(id);
+        push("success", "Judging panel is now CLOSED.");
+      } else {
+        await competitionsApi.openJudging(id);
+        await competitionsApi.openSession(id, pin.trim() || undefined);
+        setPin("");
+        push("success", "Judging panel is now OPEN and active!");
+      }
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to update judging status.");
+    } finally {
+      setJudgingBusy(false);
+    }
+  };
+
+  const handleToggleVoting = async () => {
+    setVotingBusy(true);
+    try {
+      if (isVotingOpen) {
+        const ok = await confirm(
+          "Close Audience Voting",
+          "Are you sure you want to CLOSE audience voting? Visitors on the website and app will no longer be able to cast votes for performers."
+        );
+        if (!ok) {
+          setVotingBusy(false);
+          return;
+        }
+        await competitionsApi.closeVoting(id);
+        push("success", "Audience voting is now CLOSED.");
+      } else {
+        await competitionsApi.openVoting(id);
+        push("success", "Audience voting is now OPEN and live!");
+      }
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to update voting status.");
+    } finally {
+      setVotingBusy(false);
+    }
+  };
+
+  const handleSaveWeights = async () => {
+    setWeightBusy(true);
+    try {
+      const pct = Math.max(0, Math.min(100, Number(weightInput) || 0));
+      const w_a = Number((pct / 100).toFixed(2));
+      const w_j = Number((1.0 - w_a).toFixed(2));
+      await competitionsApi.update(id, {
+        audience_vote_weight: w_a,
+        judge_score_weight: w_j,
+      });
+      await competitionsApi.recalculate(id);
+      push("success", `Vote weights updated: ${pct}% Audience / ${100 - pct}% Judges. Rankings recalculated!`);
+      reload();
+    } catch (e: any) {
+      push("error", e?.message || "Failed to update vote weights.");
+    } finally {
+      setWeightBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (comp) {
@@ -1261,9 +1385,7 @@ function CompetitionControls({
   };
 
   const actions = [
-    { label: "Close judging session", Icon: Gavel, fn: () => competitionsApi.closeSession(id) },
-    { label: "Close audience voting", Icon: Lock, fn: () => competitionsApi.closeVoting(id), confirm: "Voting cannot be reopened from here." },
-    { label: "Lock judging", Icon: Lock, fn: () => competitionsApi.lockJudging(id), confirm: "Judges will no longer be able to change scores." },
+    { label: "Lock individual scores", Icon: Lock, fn: () => competitionsApi.lockJudging(id), confirm: "Judges will no longer be able to change scores." },
     { label: "Recalculate rankings", Icon: RefreshCw, fn: () => competitionsApi.recalculate(id) },
     { label: "Start finalization", Icon: Trophy, fn: () => competitionsApi.startFinalization(id) },
     { label: "Approve results", Icon: Trophy, fn: () => competitionsApi.approveResults(id), confirm: "Approved results become eligible for publishing." },
@@ -1416,42 +1538,196 @@ function CompetitionControls({
             </Button>
           </div>
 
-          <Panel title="Workflow controls" className="shadow-none" bodyClassName="p-4">
-            <div className="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-              <div className="min-w-[160px] flex-1">
-                <Field label="Session PIN" hint="Leave empty to open the session without a PIN.">
+          {/* ── 1. Dedicated Judging Panel Control ── */}
+          <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface-2)] via-[var(--surface)] to-[var(--surface-2)] p-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+                  isJudgingOpen ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"
+                }`}>
+                  <Gavel className="size-5" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-[var(--fg)]">Judging Panel Status</h4>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider ${
+                      isJudgingOpen
+                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                        : "bg-rose-500/15 text-rose-400 border border-rose-500/30"
+                    }`}>
+                      <span className={`size-1.5 rounded-full ${isJudgingOpen ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+                      {isJudgingOpen ? "OPEN & SCORING ACTIVE" : "CLOSED • SCORING FROZEN"}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-[var(--fg-muted)]">
+                    {isJudgingOpen
+                      ? "Judges can log into their private portal, inspect entries, and submit scores."
+                      : "Judging is closed. Scores are frozen and judges cannot alter scores or evaluations."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {!isJudgingOpen && (
+                  <Input
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="Session PIN (optional)"
+                    className="w-36 text-xs"
+                  />
+                )}
+                <Button
+                  variant={isJudgingOpen ? "danger" : "primary"}
+                  size="sm"
+                  loading={judgingBusy}
+                  onClick={handleToggleJudging}
+                  className="font-bold text-xs"
+                >
+                  {isJudgingOpen ? (
+                    <>
+                      <Lock className="size-3.5 mr-1.5" /> Close Judging Panel
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="size-3.5 mr-1.5" /> Open Judging Panel
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── 2. Dedicated Audience Voting Control ── */}
+          <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface-2)] via-[var(--surface)] to-[var(--surface-2)] p-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+                  isVotingOpen ? "bg-emerald-500/15 text-emerald-400" : "bg-zinc-500/15 text-zinc-400"
+                }`}>
+                  {isVotingOpen ? <Unlock className="size-5" /> : <Lock className="size-5" />}
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-[var(--fg)]">Audience Voting Status</h4>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider ${
+                      isVotingOpen
+                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                        : "bg-zinc-500/15 text-zinc-400 border border-zinc-500/30"
+                    }`}>
+                      <span className={`size-1.5 rounded-full ${isVotingOpen ? "bg-emerald-400 animate-pulse" : "bg-zinc-400"}`} />
+                      {isVotingOpen ? "VOTING OPEN" : "VOTING CLOSED"}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-[var(--fg-muted)]">
+                    {isVotingOpen
+                      ? "Public voting is active. Audience members can vote for performers on the website & mobile app."
+                      : "Public voting is closed. Vote totals are locked and cannot receive new votes."}
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                variant={isVotingOpen ? "danger" : "primary"}
+                size="sm"
+                loading={votingBusy}
+                onClick={handleToggleVoting}
+                className="shrink-0 font-bold text-xs"
+              >
+                {isVotingOpen ? (
+                  <>
+                    <Lock className="size-3.5 mr-1.5" /> Close Audience Voting
+                  </>
+                ) : (
+                  <>
+                    <Unlock className="size-3.5 mr-1.5" /> Open Audience Voting
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* ── 3. Vote Weight & Scoring Ratio Configuration ── */}
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[var(--border)] gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="grid size-9 place-items-center rounded-xl bg-amber-500/15 text-amber-400">
+                  <Scale className="size-4" />
+                </span>
+                <div>
+                  <h4 className="text-sm font-bold text-[var(--fg)]">Vote Weight &amp; Scoring Ratio</h4>
+                  <p className="text-xs text-[var(--fg-muted)]">
+                    Configure the percentage ratio between audience votes and judges marks in final standings.
+                  </p>
+                </div>
+              </div>
+              <span className="font-mono text-xs font-bold text-amber-600 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                {weightInput}% Audience / {100 - Number(weightInput || 0)}% Judges
+              </span>
+            </div>
+
+            <div className="mt-4 flex flex-col sm:flex-row items-end gap-3">
+              <div className="w-full sm:w-48">
+                <Field label="Audience Vote Weight (%)" hint="0% to 100%">
                   {(p) => (
                     <Input
                       {...p}
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value)}
-                      inputMode="numeric"
-                      autoComplete="off"
-                      placeholder="e.g. 4821"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={weightInput}
+                      onChange={(e) => setWeightInput(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                      placeholder="e.g. 50"
                     />
                   )}
                 </Field>
               </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 mb-1 flex-1">
+                <button
+                  type="button"
+                  onClick={() => setWeightInput(50)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--fg)] hover:border-amber-400 transition-colors"
+                >
+                  50% / 50%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeightInput(30)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--fg)] hover:border-amber-400 transition-colors"
+                >
+                  30% Vote / 70% Judge
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeightInput(0)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--fg)] hover:border-amber-400 transition-colors"
+                >
+                  100% Judge Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeightInput(100)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--fg)] hover:border-amber-400 transition-colors"
+                >
+                  100% Audience Only
+                </button>
+              </div>
+
               <Button
-                variant="secondary"
+                variant="primary"
                 size="sm"
-                className="mb-1 shrink-0"
-                onClick={() =>
-                  onAction(
-                    "Open judging session",
-                    async () => {
-                      await competitionsApi.openSession(id, pin.trim() || undefined);
-                      setPin("");
-                    },
-                    reload
-                  )
-                }
+                loading={weightBusy}
+                onClick={handleSaveWeights}
+                className="mb-1 shrink-0 font-bold text-xs"
               >
-                <Gavel className="size-3.5 shrink-0" aria-hidden />
-                <span className="truncate">Open judging session</span>
+                <Sliders className="size-3.5 mr-1.5" /> Save Weights &amp; Recalculate
               </Button>
             </div>
+          </div>
 
+          <Panel title="Advanced Lifecycle &amp; Results Controls" className="shadow-none" bodyClassName="p-4">
             <div className="grid gap-2.5 sm:grid-cols-2">
               {actions.map((a) => (
                 <Button
@@ -1476,6 +1752,7 @@ function CompetitionControls({
           />
         </div>
       )}
+      {confirmDialog}
     </Modal>
   );
 }
