@@ -3,8 +3,27 @@
  * One typed function per backend endpoint — the backend contract is never altered here.
  */
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000";
+const DEFAULT_PROD_API_BASE = "https://event-management-backend-nijj.onrender.com";
+
+export function sanitizePublicEnv(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "[SENSITIVE]") return undefined;
+  return trimmed;
+}
+
+function resolveApiBase(): string {
+  const raw = sanitizePublicEnv(process.env.NEXT_PUBLIC_API_BASE_URL);
+  if (raw && /^https?:\/\//i.test(raw)) {
+    return raw.replace(/\/$/, "");
+  }
+  return process.env.NODE_ENV === "production" ? DEFAULT_PROD_API_BASE : "http://localhost:8000";
+}
+
+export const API_BASE = resolveApiBase();
+
+export const PUBLIC_SITE_URL =
+  sanitizePublicEnv(process.env.NEXT_PUBLIC_SITE_URL) ||
+  (process.env.NODE_ENV === "production" ? "https://www.upgradetalentsindia.in" : "http://localhost:3000");
 
 const TOKEN_KEY = "uti_admin_token";
 

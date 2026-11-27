@@ -5,7 +5,7 @@ import { Save, Vote, Monitor, Smartphone, Coins, KeyRound, Mail, Fingerprint, Sh
 import { Button, Field, Input, Panel, useResource } from "@/components/Kit";
 import { KeyValues } from "@/components/Dash";
 import { useAdmin, useToast } from "@/components/Providers";
-import { cmsApi, authApi, adminToken, safe, API_BASE } from "@/lib/api";
+import { cmsApi, authApi, adminToken, safe, API_BASE, PUBLIC_SITE_URL } from "@/lib/api";
 import * as passkey from "@/lib/passkey";
 
 export default function SettingsPage() {
@@ -145,7 +145,7 @@ export default function SettingsPage() {
             { k: "Signed in as", v: admin?.email || "—" },
             { k: "Role", v: admin?.role || "super_admin" },
             { k: "API base URL", v: <span className="font-mono text-[12px]">{API_BASE}</span> },
-            { k: "Public site", v: <span className="font-mono text-[12px]">{process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}</span> },
+            { k: "Public site", v: <span className="font-mono text-[12px]">{PUBLIC_SITE_URL}</span> },
           ]}
         />
         <p className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-[12.5px] leading-relaxed text-[var(--fg-muted)]">

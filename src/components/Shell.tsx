@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAdmin, useTheme } from "./Providers";
 import { useSound } from "./SoundProvider";
+import { PUBLIC_SITE_URL } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; Icon: any; badge?: string };
@@ -184,7 +185,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <p className="mt-3 text-[14px] font-bold leading-snug text-white">View the live site</p>
         <p className="mt-1 text-[11.5px] leading-snug text-white/70">See what visitors see right now</p>
         <a
-          href={process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}
+          href={PUBLIC_SITE_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-4 inline-flex min-h-[38px] w-full items-center justify-center gap-2 rounded-xl bg-white/15 text-[12.5px] font-semibold text-white transition-colors hover:bg-white/25"
