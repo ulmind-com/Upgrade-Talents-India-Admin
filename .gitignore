@@ -7,4 +7,6 @@ out
 next-env.d.ts
 .claude/
 .vercel
+.open-next
+.wrangler
 .env*
